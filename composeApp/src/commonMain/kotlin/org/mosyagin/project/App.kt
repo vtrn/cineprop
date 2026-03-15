@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.transitions.SlideTransition
@@ -15,18 +16,21 @@ import org.mosyagin.project.ui.theme.CinePropTheme
 
 @Composable
 fun App() {
-    val driver = createDriver()
-    val database = CinePropDatabase(driver)
-    val queries = database.databaseQueries
+    // ЗАПОМИНАЕМ базу, чтобы она не пересоздавалась
+    val queries = remember {
+        val driver = createDriver()
+        val database = CinePropDatabase(driver)
+        database.databaseQueries
+    }
 
-    // ВАЖНО: Тема должна быть самым верхним уровнем
+    val initialScreen = remember(queries) { ProjectListScreen(queries) }
+
     CinePropTheme {
-        // Surface дает приложению "холст", закрашивая фон в цвет темы
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
-            Navigator(ProjectListScreen(queries)) { navigator ->
+            Navigator(initialScreen) { navigator ->
                 SlideTransition(navigator)
             }
         }

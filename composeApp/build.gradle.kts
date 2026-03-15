@@ -66,10 +66,18 @@ kotlin {
             implementation(libs.androidx.lifecycle.runtimeCompose)
 
             // Добавляем Voyager для навигации
-            val voyagerVersion = "1.0.1" // Проверь актуальную версию, но 1.0.0 стабильна
-            implementation("cafe.adriel.voyager:voyager-navigator:$voyagerVersion")
-            implementation("cafe.adriel.voyager:voyager-screenmodel:$voyagerVersion")
-            implementation("cafe.adriel.voyager:voyager-transitions:$voyagerVersion")
+            // Обновлено до 1.1.0-beta03, так как 1.0.1 несовместима с новыми версиями Lifecycle (2.8+)
+            val voyagerVersion = "1.1.0-beta03"
+            implementation("cafe.adriel.voyager:voyager-navigator:${voyagerVersion}")
+            implementation("cafe.adriel.voyager:voyager-screenmodel:${voyagerVersion}")
+            implementation("cafe.adriel.voyager:voyager-transitions:${voyagerVersion}")
+            implementation("cafe.adriel.voyager:voyager-lifecycle-kmp:${voyagerVersion}")
+
+            // Для работы с корутинами
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1")
+
+            // Для связки SQLDelight и корутин
+            implementation("app.cash.sqldelight:coroutines-extensions:2.0.1")
 
         }
         commonTest.dependencies {
