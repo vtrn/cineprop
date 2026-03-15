@@ -3,11 +3,17 @@ package org.mosyagin.project.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
@@ -18,41 +24,65 @@ import cafe.adriel.voyager.core.model.rememberScreenModel
 import org.mosyagin.project.db.ProjectListScreenModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+
 class ProjectListScreen(private val queries: DatabaseQueries) : Screen {
 
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
-
-        // 1. Инициализируем нашу ScreenModel
         val screenModel = rememberScreenModel { ProjectListScreenModel(queries) }
-
-        // 2. Подписываемся на StateFlow.
-        // Теперь переменная projects будет САМА меняться, когда меняется БД!
         val projects by screenModel.projects.collectAsState()
 
-        Column(
-            modifier = Modifier.fillMaxSize().padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(text = "Список проектов", modifier = Modifier.padding(16.dp))
-
-            // 3. Выводим список
-            LazyColumn(modifier = Modifier.weight(1f)) {
-                items(projects) { project ->
-                    ProjectCard(project = project, onClick = {
-                        // Клик по карточке (сделаем позже)
-                    })
+        // Scaffold — это скелет экрана. Он сам знает, где должен быть заголовок и кнопка FAB
+        Scaffold(
+            topBar = {
+                // Можно добавить красивый заголовок
+                Text(
+                    "Проекты",
+                    modifier = Modifier.padding(16.dp),
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+            },
+            floatingActionButton = {
+                // Вот он — настоящий FAB
+                FloatingActionButton(
+                    onClick = { navigator.push(CreateProjectScreen(queries)) },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.Black,
+                    shape = CircleShape // Делаем его круглым или скругленным квадратом
+                ) {
+                    // Иконка плюсика (нужен импорт androidx.compose.material.icons.Icons)
+                    Icon(Icons.Default.Add, contentDescription = "Создать проект")
                 }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Button(onClick = {
-                // Идем на экран создания
-                navigator.push(CreateProjectScreen(queries))
-            }) {
-                Text("Создать новый проект")
+            },
+            containerColor = MaterialTheme.colorScheme.background // Делаем фон всего экрана темным
+        ) { paddingValues ->
+            // Весь контент теперь внутри paddingValues
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            ) {
+                if (projects.isEmpty()) {
+                    // Если проектов нет — показываем красивую заглушку
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Нет активных проектов", color = Color.Gray)
+                    }
+                } else {
+                    LazyColumn(
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp) // Отступы между карточками
+                    ) {
+                        items(projects) { project ->
+                            ProjectCard(project = project, onClick = {
+                                // Переход в сцены этого проекта (Issue #7)
+                            })
+                        }
+                    }
+                }
             }
         }
     }

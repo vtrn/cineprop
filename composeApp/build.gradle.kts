@@ -78,6 +78,8 @@ kotlin {
 
             // Для связки SQLDelight и корутин
             implementation("app.cash.sqldelight:coroutines-extensions:2.0.1")
+            implementation(compose.materialIconsExtended)
+
 
         }
         commonTest.dependencies {
