@@ -42,6 +42,13 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
+
+            // Добавляем Voyager для навигации
+            val voyagerVersion = "1.0.1" // Проверь актуальную версию, но 1.0.0 стабильна
+            implementation("cafe.adriel.voyager:voyager-navigator:$voyagerVersion")
+            implementation("cafe.adriel.voyager:voyager-screenmodel:$voyagerVersion")
+            implementation("cafe.adriel.voyager:voyager-transitions:$voyagerVersion")
+
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
