@@ -11,3 +11,15 @@ INSERT INTO Project(name, director) VALUES (?, ?);
 
 getAllProjects:
 SELECT * FROM Project;
+
+-- Удалить конкретный проект по ID
+deleteProject:
+DELETE FROM Project WHERE id = ?;
+
+-- Обновить данные проекта
+updateProject:
+UPDATE Project SET name = ?, director = ? WHERE id = ?;
+
+-- Получить один проект (понадобится для редактирования)
+getProjectById:
+SELECT * FROM Project WHERE id = ?;

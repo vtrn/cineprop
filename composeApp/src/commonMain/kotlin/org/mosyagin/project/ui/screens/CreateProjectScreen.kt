@@ -13,34 +13,36 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 
 import org.mosyagin.project.DatabaseQueries
+import org.mosyagin.project.Project
 
-class CreateProjectScreen(private val queries: DatabaseQueries) : Screen {
+class CreateProjectScreen(
+    private val queries: DatabaseQueries,
+    private val projectToEdit: Project? = null // Если null — создаем, если нет — редактируем
+) : Screen {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
 
-        // Переменные для хранения того, что ввел юзер
-        var name by remember { mutableStateOf("") }
-        var director by remember { mutableStateOf("") }
+        // Инициализируем поля значениями из проекта, если мы в режиме редактирования
+        var name by remember { mutableStateOf(projectToEdit?.name ?: "") }
+        var director by remember { mutableStateOf(projectToEdit?.director ?: "") }
 
-        Column(modifier = Modifier.padding(16.dp)) {
-            // Поле для названия
-            TextField(value = name, onValueChange = { name = it }, label = { Text("Название проекта") })
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            Text(if (projectToEdit == null) "Новый проект" else "Редактировать")
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Поле для режиссера
+            TextField(value = name, onValueChange = { name = it }, label = { Text("Название") })
             TextField(value = director, onValueChange = { director = it }, label = { Text("Режиссер") })
 
-            Spacer(modifier = Modifier.height(16.dp))
-
             Button(onClick = {
-                if (name.isNotBlank() && director.isNotBlank()) {
+                if (projectToEdit == null) {
                     queries.insertProject(name, director)
-                    navigator.pop() // Возвращаемся в список
+                } else {
+                    // Используем функцию обновления
+                    queries.updateProject(name, director, projectToEdit.id)
                 }
+                navigator.pop()
             }) {
-                Text("Сохранить проект")
+                Text("Сохранить")
             }
         }
     }
