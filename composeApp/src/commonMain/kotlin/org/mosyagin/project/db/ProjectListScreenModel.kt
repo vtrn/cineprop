@@ -44,4 +44,10 @@ class ProjectListScreenModel(private val queries: DatabaseQueries) : ScreenModel
             loadProjects()
         }
     }
+
+    fun deleteProject(id: Long) {
+        // queries — это твоя база данных
+        queries.deleteProject(id)
+        // Список в UI обновится автоматически благодаря Flow!
+    }
 }

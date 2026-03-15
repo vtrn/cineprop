@@ -77,13 +77,21 @@ class ProjectListScreen(private val queries: DatabaseQueries) : Screen {
                         verticalArrangement = Arrangement.spacedBy(8.dp) // Отступы между карточками
                     ) {
                         items(projects) { project ->
-                            ProjectCard(project = project, onClick = {
-                                // Переход в сцены этого проекта (Issue #7)
-                            })
+                            ProjectCard(
+                                project = project,
+                                onClick = {
+                                    // РЕДАКТИРОВАНИЕ: открываем тот же экран, но передаем проект
+                                    navigator.push(CreateProjectScreen(queries, project))
+                                },
+                                onDelete = {
+                                    // УДАЛЕНИЕ
+                                    screenModel.deleteProject(project.id)
+                                }
+                            )
+                        }
                         }
                     }
                 }
             }
         }
     }
-}
