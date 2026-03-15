@@ -7,6 +7,15 @@ plugins {
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.composeHotReload)
+    id("app.cash.sqldelight")
+}
+
+sqldelight {
+    databases {
+        create("CinePropDatabase") {
+            packageName.set("org.mosyagin.project.db")
+        }
+    }
 }
 
 kotlin {
@@ -29,6 +38,19 @@ kotlin {
     jvm()
     
     sourceSets {
+
+
+        commonMain.dependencies {
+            implementation("app.cash.sqldelight:runtime:2.0.1")
+        }
+        // Здесь нужно указать драйверы для платформ (Android + iOS)
+        androidMain.dependencies {
+            implementation("app.cash.sqldelight:android-driver:2.0.1")
+        }
+        iosMain.dependencies {
+            implementation("app.cash.sqldelight:native-driver:2.0.1")
+        }
+
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.activity.compose)
