@@ -1,0 +1,13 @@
+
+CREATE TABLE Project (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    director TEXT NOT NULL
+);
+
+-- Запросы к БД (они станут Kotlin-методами)
+insertProject:
+INSERT INTO Project(name, director) VALUES (?, ?);
+
+getAllProjects:
+SELECT * FROM Project;
