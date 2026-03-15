@@ -5,10 +5,11 @@ import cafe.adriel.voyager.core.model.screenModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import org.mosyagin.project.DatabaseQueries
+import org.mosyagin.project.Project
 
 class ProjectListScreenModel(private val queries: DatabaseQueries) : ScreenModel {
 
-    // Состояние: список наших проектов
     private val _projects = MutableStateFlow<List<Project>>(emptyList())
     val projects: StateFlow<List<Project>> = _projects
 
@@ -18,7 +19,6 @@ class ProjectListScreenModel(private val queries: DatabaseQueries) : ScreenModel
 
     private fun loadProjects() {
         screenModelScope.launch {
-            // Берем данные из сгенерированных SQLDelight-ом запросов
             _projects.value = queries.getAllProjects().executeAsList()
         }
     }
@@ -26,7 +26,7 @@ class ProjectListScreenModel(private val queries: DatabaseQueries) : ScreenModel
     fun addProject(name: String, director: String) {
         screenModelScope.launch {
             queries.insertProject(name, director)
-            loadProjects() // Обновляем список после вставки
+            loadProjects()
         }
     }
 }
