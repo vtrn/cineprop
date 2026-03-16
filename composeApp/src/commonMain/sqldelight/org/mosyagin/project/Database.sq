@@ -87,10 +87,40 @@ insertActor:
 INSERT OR IGNORE INTO Actor(projectId, name) VALUES (?, ?);
 
 getActorByName:
-SELECT * FROM Actor WHERE projectId = ? AND name = ?;
+SELECT * FROM Actor WHERE projectId = ? AND name = ? LIMIT 1;
 
 linkActorToScene:
 INSERT OR IGNORE INTO SceneActor(sceneId, actorId) VALUES (?, ?);
 
 getScenesByProject:
 SELECT * FROM Scene WHERE projectId = ? ORDER BY id ASC;
+
+getSceneById:
+SELECT * FROM Scene WHERE id = ?;
+
+getActorsForScene:
+SELECT a.* FROM Actor a
+JOIN SceneActor sa ON a.id = sa.actorId
+WHERE sa.sceneId = ?;
+
+-- Таблица РЕКВИЗИТ
+CREATE TABLE Prop (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sceneId INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'Найти', -- Статусы: Найти, Готово, В кадре
+    FOREIGN KEY(sceneId) REFERENCES Scene(id) ON DELETE CASCADE
+);
+
+-- Запросы для реквизита
+insertProp:
+INSERT INTO Prop(sceneId, name, status) VALUES (?, ?, ?);
+
+getPropsForScene:
+SELECT * FROM Prop WHERE sceneId = ? ORDER BY id DESC;
+
+deleteProp:
+DELETE FROM Prop WHERE id = ?;
+
+updatePropStatus:
+UPDATE Prop SET status = ? WHERE id = ?;
