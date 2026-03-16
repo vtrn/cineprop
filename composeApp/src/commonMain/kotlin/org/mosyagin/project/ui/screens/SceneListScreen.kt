@@ -33,6 +33,12 @@ data class SceneListScreen(val projectId: Long, val projectName: String) : Scree
                 .mapToList(Dispatchers.Default)
         }.collectAsState(initial = emptyList())
 
+        // 1. Достаем проект из базы по ID, который пришел в конструктор
+        val project = remember(projectId) {
+            queries.getProjectById(projectId).executeAsOne()
+        }
+
+
         Scaffold(
             topBar = {
                 TopAppBar(
@@ -50,14 +56,13 @@ data class SceneListScreen(val projectId: Long, val projectName: String) : Scree
             ) {
                 items(scenes) { scene ->
                     ListItem(
-                        headlineContent = {
-                            Text("Сцена ${scene.sceneNumber}: ${scene.location}")
-                        },
+                        headlineContent = { Text("Сцена ${scene.sceneNumber}: ${scene.location}") },
                         supportingContent = {
                             Text(if (scene.isInterior == 1L) "ИНТ. | ${scene.timeOfDay}" else "НАТ. | ${scene.timeOfDay}")
                         },
                         modifier = Modifier.clickable {
-                            // TODO: Переход в детали сцены (к реквизиту)
+                            // ПЕРЕХОД: передаем ID сцены и ID проекта
+                            navigator.push(SceneDetailScreen(sceneId = scene.id, projectId = project.id))
                         }
                     )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp)
