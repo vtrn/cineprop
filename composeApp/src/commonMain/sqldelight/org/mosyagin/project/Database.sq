@@ -91,3 +91,6 @@ SELECT * FROM Actor WHERE projectId = ? AND name = ?;
 
 linkActorToScene:
 INSERT OR IGNORE INTO SceneActor(sceneId, actorId) VALUES (?, ?);
+
+getScenesByProject:
+SELECT * FROM Scene WHERE projectId = ? ORDER BY id ASC;

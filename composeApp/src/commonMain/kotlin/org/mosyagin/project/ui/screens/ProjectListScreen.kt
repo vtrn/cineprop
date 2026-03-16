@@ -78,7 +78,7 @@ class ProjectListScreen : Screen {
                             ProjectCard(
                                 project = project,
                                 onClick = {
-                                    navigator.push(ProjectDashboardScreen(project.id, project.name))
+                                    navigator.push(ProjectDashboardScreen(project.id))
                                 },
                                 onDelete = {
                                     // УДАЛЕНИЕ
