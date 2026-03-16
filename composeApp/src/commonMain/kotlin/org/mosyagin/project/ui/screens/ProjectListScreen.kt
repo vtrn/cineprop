@@ -80,9 +80,7 @@ class ProjectListScreen(private val queries: DatabaseQueries) : Screen {
                             ProjectCard(
                                 project = project,
                                 onClick = {
-                                    // РЕДАКТИРОВАНИЕ: открываем тот же экран, но передаем проект
-                                    navigator.push(CreateProjectScreen(queries, project))
-                                },
+                                    navigator.push(ProjectDashboardScreen(queries, project))                                },
                                 onDelete = {
                                     // УДАЛЕНИЕ
                                     screenModel.deleteProject(project.id)
