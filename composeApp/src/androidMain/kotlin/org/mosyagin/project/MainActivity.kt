@@ -4,24 +4,22 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.tooling.preview.Preview
+// ВНИМАНИЕ: БЕЗ ДЕФИСА В СЛОВЕ tomroush
+import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import org.mosyagin.project.db.appContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+
         appContext = applicationContext
 
+        // Если библиотека подключена, эта строка станет цветной (не красной)
+        PDFBoxResourceLoader.init(applicationContext)
+
+        enableEdgeToEdge()
         setContent {
             App()
         }
     }
-}
-
-@Preview
-@Composable
-fun AppAndroidPreview() {
-    App()
 }

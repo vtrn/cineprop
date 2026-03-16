@@ -1,7 +1,6 @@
 package org.mosyagin.project.ui.screens
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.OutlinedTextField
@@ -16,26 +15,26 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 
-import org.mosyagin.project.DatabaseQueries
-import org.mosyagin.project.Project
+import org.mosyagin.project.db.LocalDatabaseQueries
 
 class CreateProjectScreen(
-    private val queries: DatabaseQueries,
-    private val projectToEdit: Project? = null // Если null — создаем, если нет — редактируем
+    private val projectIdToEdit: Long? = null,
+    private val initialName: String? = null,
+    private val initialDirector: String? = null
 ) : Screen {
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     override fun Content() {
+        val queries = LocalDatabaseQueries.current
         val navigator = LocalNavigator.currentOrThrow
 
         // Инициализируем поля значениями из проекта, если мы в режиме редактирования
-        var name by remember { mutableStateOf(projectToEdit?.name ?: "") }
-        var director by remember { mutableStateOf(projectToEdit?.director ?: "") }
+        var name by remember { mutableStateOf(initialName ?: "") }
+        var director by remember { mutableStateOf(initialDirector ?: "") }
 
-// Внутри CreateProjectScreen.kt -> Content()
         Scaffold(
             topBar = {
-                TopAppBar(title = { Text("Новый проект") })
+                TopAppBar(title = { Text(if (projectIdToEdit == null) "Новый проект" else "Редактировать проект") })
             }
         ) { padding ->
             Column(
@@ -67,15 +66,15 @@ class CreateProjectScreen(
                 Button(
                     onClick = {
                         if (name.isNotBlank() && director.isNotBlank()) {
-                            if (projectToEdit == null) {
-                                // 1. Если проекта НЕТ (null) — создаем новый
+                            if (projectIdToEdit == null) {
+                                // 1. Если проекта НЕТ — создаем новый
                                 queries.insertProject(name, director)
                             } else {
                                 // 2. Если проект ЕСТЬ — обновляем существующий по ID
                                 queries.updateProject(
                                     name = name,
                                     director = director,
-                                    id = projectToEdit.id // Тот самый ID, который пришел из списка
+                                    id = projectIdToEdit // Тот самый ID, который пришел из списка
                                 )
                             }
                             navigator.pop() // Возвращаемся в список
@@ -85,7 +84,7 @@ class CreateProjectScreen(
                     enabled = name.isNotBlank() && director.isNotBlank()
                 ) {
                     // Меняем текст на кнопке для красоты
-                    Text(if (projectToEdit == null) "Создать проект" else "Сохранить изменения")
+                    Text(if (projectIdToEdit == null) "Создать проект" else "Сохранить изменения")
                 }
             }
         }

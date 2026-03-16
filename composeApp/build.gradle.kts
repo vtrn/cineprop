@@ -38,23 +38,6 @@ kotlin {
     jvm()
     
     sourceSets {
-
-
-        commonMain.dependencies {
-            implementation("app.cash.sqldelight:runtime:2.0.1")
-        }
-        // Здесь нужно указать драйверы для платформ (Android + iOS)
-        androidMain.dependencies {
-            implementation("app.cash.sqldelight:android-driver:2.0.1")
-        }
-        iosMain.dependencies {
-            implementation("app.cash.sqldelight:native-driver:2.0.1")
-        }
-
-        androidMain.dependencies {
-            implementation(libs.compose.uiToolingPreview)
-            implementation(libs.androidx.activity.compose)
-        }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
@@ -65,26 +48,38 @@ kotlin {
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
 
-            // Добавляем Voyager для навигации
-            // Обновлено до 1.1.0-beta03, так как 1.0.1 несовместима с новыми версиями Lifecycle (2.8+)
+            // Voyager for navigation
             val voyagerVersion = "1.1.0-beta03"
             implementation("cafe.adriel.voyager:voyager-navigator:${voyagerVersion}")
             implementation("cafe.adriel.voyager:voyager-screenmodel:${voyagerVersion}")
             implementation("cafe.adriel.voyager:voyager-transitions:${voyagerVersion}")
             implementation("cafe.adriel.voyager:voyager-lifecycle-kmp:${voyagerVersion}")
 
-            // Для работы с корутинами
+            // Coroutines
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1")
 
-            // Для связки SQLDelight и корутин
+            // SQLDelight
+            implementation("app.cash.sqldelight:runtime:2.0.1")
             implementation("app.cash.sqldelight:coroutines-extensions:2.0.1")
             implementation(compose.materialIconsExtended)
-
-
         }
+        
+        androidMain.dependencies {
+            implementation(libs.androidx.activity.compose)
+            implementation(libs.compose.uiToolingPreview)
+            implementation("app.cash.sqldelight:android-driver:2.0.1")
+            implementation(libs.pdfbox.android)
+            implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+        }
+        
+        iosMain.dependencies {
+            implementation("app.cash.sqldelight:native-driver:2.0.1")
+        }
+
         commonTest.dependencies {
             implementation(libs.kotlin.test)
         }
+
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
