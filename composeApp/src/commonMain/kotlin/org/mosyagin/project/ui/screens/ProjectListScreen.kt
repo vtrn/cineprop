@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -18,19 +17,18 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import org.mosyagin.project.DatabaseQueries
-import org.mosyagin.project.Project
 import cafe.adriel.voyager.core.model.rememberScreenModel
 import org.mosyagin.project.db.ProjectListScreenModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.mosyagin.project.db.LocalDatabaseQueries
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 
-class ProjectListScreen(private val queries: DatabaseQueries) : Screen {
+class ProjectListScreen : Screen {
 
     @Composable
     override fun Content() {
+        val queries = LocalDatabaseQueries.current
         val navigator = LocalNavigator.currentOrThrow
         val screenModel = rememberScreenModel { ProjectListScreenModel(queries) }
         val projects by screenModel.projects.collectAsState()
@@ -49,7 +47,7 @@ class ProjectListScreen(private val queries: DatabaseQueries) : Screen {
             floatingActionButton = {
                 // Вот он — настоящий FAB
                 FloatingActionButton(
-                    onClick = { navigator.push(CreateProjectScreen(queries)) },
+                    onClick = { navigator.push(CreateProjectScreen()) },
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = Color.Black,
                     shape = CircleShape // Делаем его круглым или скругленным квадратом
@@ -80,7 +78,8 @@ class ProjectListScreen(private val queries: DatabaseQueries) : Screen {
                             ProjectCard(
                                 project = project,
                                 onClick = {
-                                    navigator.push(ProjectDashboardScreen(queries, project))                                },
+                                    navigator.push(ProjectDashboardScreen(project.id, project.name))
+                                },
                                 onDelete = {
                                     // УДАЛЕНИЕ
                                     screenModel.deleteProject(project.id)

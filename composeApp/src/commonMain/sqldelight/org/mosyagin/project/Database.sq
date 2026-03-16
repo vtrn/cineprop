@@ -23,3 +23,71 @@ UPDATE Project SET name = ?, director = ? WHERE id = ?;
 -- Получить один проект (понадобится для редактирования)
 getProjectById:
 SELECT * FROM Project WHERE id = ?;
+
+
+CREATE TABLE ScriptFile (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    projectId INTEGER NOT NULL,
+    title TEXT NOT NULL,      -- Например, "Серия 1"
+    filePath TEXT NOT NULL,   -- Путь к файлу в памяти телефона
+    createdAt INTEGER NOT NULL,
+    FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE
+);
+
+-- Запросы
+insertScriptFile:
+INSERT INTO ScriptFile(projectId, title, filePath, createdAt)
+VALUES (?, ?, ?, ?);
+
+getScriptsForProject:
+SELECT * FROM ScriptFile WHERE projectId = ? ORDER BY createdAt ASC;
+
+deleteScriptFile:
+DELETE FROM ScriptFile WHERE id = ?;
+
+-- Таблица для самих СЦЕН
+CREATE TABLE Scene (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    projectId INTEGER NOT NULL,
+    sceneNumber TEXT NOT NULL,      -- "1-1", "1-2"
+    location TEXT NOT NULL,         -- "МАГАЗИН РАСТЕНИЙ"
+    isInterior INTEGER NOT NULL,    -- 1 если ИНТ, 0 если НАТ
+    timeOfDay TEXT NOT NULL,        -- "ДЕНЬ", "НОЧЬ"
+    content TEXT NOT NULL,          -- Весь текст сцены
+    FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE
+);
+
+-- Таблица для ПЕРСОНАЖЕЙ (Актеров)
+CREATE TABLE Actor (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    projectId INTEGER NOT NULL,
+    name TEXT NOT NULL,             -- "НАСТЯ"
+    FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE
+);
+
+-- Таблица-связка: КТО в какой СЦЕНЕ (многие-ко-многим)
+CREATE TABLE SceneActor (
+    sceneId INTEGER NOT NULL,
+    actorId INTEGER NOT NULL,
+    PRIMARY KEY(sceneId, actorId),
+    FOREIGN KEY(sceneId) REFERENCES Scene(id) ON DELETE CASCADE,
+    FOREIGN KEY(actorId) REFERENCES Actor(id) ON DELETE CASCADE
+);
+
+-- ЗАПРОСЫ ДЛЯ ПАРСЕРА
+insertScene:
+INSERT INTO Scene(projectId, sceneNumber, location, isInterior, timeOfDay, content)
+VALUES (?, ?, ?, ?, ?, ?);
+
+-- Получить ID последней вставленной строки (нужно для связки с актерами)
+lastInsertRowId:
+SELECT last_insert_rowid();
+
+insertActor:
+INSERT OR IGNORE INTO Actor(projectId, name) VALUES (?, ?);
+
+getActorByName:
+SELECT * FROM Actor WHERE projectId = ? AND name = ?;
+
+linkActorToScene:
+INSERT OR IGNORE INTO SceneActor(sceneId, actorId) VALUES (?, ?);

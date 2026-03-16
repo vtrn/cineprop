@@ -12,14 +12,12 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import org.mosyagin.project.DatabaseQueries
-import org.mosyagin.project.Project
 import org.mosyagin.project.ui.components.DashboardTile
 
 @OptIn(ExperimentalMaterial3Api::class)
 data class ProjectDashboardScreen(
-    val queries: DatabaseQueries,
-    val project: Project
+    val projectId: Long,
+    val projectName: String
 ) : Screen {
 
     @Composable
@@ -30,7 +28,7 @@ data class ProjectDashboardScreen(
             topBar = {
                 TopAppBar(
                     title = { Column {
-                        Text(project.name, style = MaterialTheme.typography.titleMedium)
+                        Text(projectName, style = MaterialTheme.typography.titleMedium)
                         Text("Дашборд проекта", style = MaterialTheme.typography.bodySmall)
                     }},
                     navigationIcon = {
@@ -45,7 +43,11 @@ data class ProjectDashboardScreen(
                 columns = GridCells.Fixed(2), // 2 колонки как в плитке шоколада
                 modifier = Modifier.fillMaxSize().padding(padding).padding(8.dp)
             ) {
-                item { DashboardTile("Сценарий", Icons.Default.Description) { /* Скоро */ } }
+                item {
+                    DashboardTile("Сценарий", Icons.Default.Description) {
+                        navigator.push(ScriptListScreen(projectId, projectName))
+                    }
+                }
                 item { DashboardTile("Сцены", Icons.Default.List) { /* Скоро */ } }
                 item { DashboardTile("КПП", Icons.Default.Event) { /* Скоро */ } }
                 item { DashboardTile("Трекер", Icons.Default.AddAPhoto) { /* Скоро */ } }
