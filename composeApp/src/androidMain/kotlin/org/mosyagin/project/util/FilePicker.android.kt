@@ -12,9 +12,9 @@ actual fun rememberFilePickerLauncher(onResult: (PlatformFile?) -> Unit): FilePi
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri != null) {
-            // Пытаемся получить имя файла
-            val name = "script.pdf" // Упростим для MVP
-            onResult(PlatformFile(name = name, uriString = uri.toString()))
+            val bytes = appContext.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            val name = "kpp.csv" // Simplification
+            onResult(PlatformFile(name = name, bytes = bytes, uriString = uri.toString()))
         } else {
             onResult(null)
         }
@@ -23,7 +23,7 @@ actual fun rememberFilePickerLauncher(onResult: (PlatformFile?) -> Unit): FilePi
     return remember {
         object : FilePickerLauncher {
             override fun launch() {
-                launcher.launch("application/pdf")
+                launcher.launch("*/*")
             }
         }
     }
