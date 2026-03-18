@@ -57,7 +57,7 @@ data class SceneDetailScreen(val sceneId: Long, val projectId: Long) : Screen {
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text(scene?.let { "Сцена ${it.sceneNumber}" } ?: "Загрузка...") },
+                    title = { Text(scene?.let { "Сцена ${scene!!.seriesNumber}-${it.sceneNumber}" } ?: "Загрузка...") },
                     navigationIcon = {
                         IconButton(onClick = { navigator.pop() }) {
                             Icon(Icons.Default.ArrowBack, contentDescription = "Назад")

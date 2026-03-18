@@ -56,7 +56,9 @@ data class SceneListScreen(val projectId: Long, val projectName: String) : Scree
             ) {
                 items(scenes) { scene ->
                     ListItem(
-                        headlineContent = { Text("Сцена ${scene.sceneNumber}: ${scene.location}") },
+                        headlineContent = {
+                            Text("Сцена ${scene.seriesNumber}-${scene.sceneNumber}: ${scene.location}")
+                        },
                         supportingContent = {
                             Text(if (scene.isInterior == 1L) "ИНТ. | ${scene.timeOfDay}" else "НАТ. | ${scene.timeOfDay}")
                         },

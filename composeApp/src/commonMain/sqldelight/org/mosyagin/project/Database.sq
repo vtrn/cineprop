@@ -45,15 +45,16 @@ SELECT * FROM ScriptFile WHERE projectId = ? ORDER BY createdAt ASC;
 deleteScriptFile:
 DELETE FROM ScriptFile WHERE id = ?;
 
--- Таблица для самих СЦЕН
+-- Таблица СЦЕН с номером серии
 CREATE TABLE Scene (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     projectId INTEGER NOT NULL,
-    sceneNumber TEXT NOT NULL,      -- "1-1", "1-2"
-    location TEXT NOT NULL,         -- "МАГАЗИН РАСТЕНИЙ"
-    isInterior INTEGER NOT NULL,    -- 1 если ИНТ, 0 если НАТ
-    timeOfDay TEXT NOT NULL,        -- "ДЕНЬ", "НОЧЬ"
-    content TEXT NOT NULL,          -- Весь текст сцены
+    seriesNumber INTEGER NOT NULL,  -- Добавили это
+    sceneNumber INTEGER NOT NULL,   -- Номер сцены
+    location TEXT NOT NULL,
+    isInterior INTEGER NOT NULL,
+    timeOfDay TEXT NOT NULL,
+    content TEXT NOT NULL,
     FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE
 );
 
@@ -74,10 +75,15 @@ CREATE TABLE SceneActor (
     FOREIGN KEY(actorId) REFERENCES Actor(id) ON DELETE CASCADE
 );
 
--- ЗАПРОСЫ ДЛЯ ПАРСЕРА
+-- Запрос на вставку с учетом серии
 insertScene:
-INSERT INTO Scene(projectId, sceneNumber, location, isInterior, timeOfDay, content)
-VALUES (?, ?, ?, ?, ?, ?);
+INSERT INTO Scene(projectId, seriesNumber, sceneNumber, location, isInterior, timeOfDay, content)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+
+-- Запрос для получения сцен КОНКРЕТНОЙ серии
+getScenesBySeries:
+SELECT * FROM Scene WHERE projectId = ? AND seriesNumber = ? ORDER BY sceneNumber ASC;
 
 -- Получить ID последней вставленной строки (нужно для связки с актерами)
 lastInsertRowId:
@@ -92,8 +98,9 @@ SELECT * FROM Actor WHERE projectId = ? AND name = ? LIMIT 1;
 linkActorToScene:
 INSERT OR IGNORE INTO SceneActor(sceneId, actorId) VALUES (?, ?);
 
+-- Запрос для получения сцен конкретного проекта (для общего списка)
 getScenesByProject:
-SELECT * FROM Scene WHERE projectId = ? ORDER BY id ASC;
+SELECT * FROM Scene WHERE projectId = ? ORDER BY seriesNumber ASC, sceneNumber ASC;
 
 getSceneById:
 SELECT * FROM Scene WHERE id = ?;

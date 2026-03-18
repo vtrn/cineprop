@@ -36,15 +36,24 @@ data class ScriptListScreen(val projectId: Long) : Screen {
         // 1. Подписываемся на состояние загрузки из ViewModel
         val isLoading by viewModel.isLoading.collectAsState()
 
+
         val scope = rememberCoroutineScope()
 
         val scripts by remember(queries, projectId) {
             queries.getScriptsForProject(projectId).asFlow().mapToList(Dispatchers.Default)
         }.collectAsState(initial = emptyList())
 
+        // Новые состояния
+        var showSeriesDialog by remember { mutableStateOf(false) }
+        var seriesNumberInput by remember { mutableStateOf("1") }
+
         val filePicker = rememberFilePickerLauncher { platformFile ->
             platformFile?.uriString?.let { uri ->
-                scope.launch { viewModel.processPdfUri(projectId, uri) }
+                scope.launch {
+                    val seriesNum = seriesNumberInput.toIntOrNull() ?: 1
+                    // Передаем серию в метод парсинга
+                    viewModel.processPdfUri(projectId, seriesNum, uri)
+                }
             }
         }
 
@@ -52,11 +61,8 @@ data class ScriptListScreen(val projectId: Long) : Screen {
             Scaffold(
                 topBar = { /* твой TopAppBar */ },
                 floatingActionButton = {
-                    // Прячем кнопку или выключаем её, пока идет загрузка
-                    if (!isLoading) {
-                        FloatingActionButton(onClick = { filePicker.launch() }) {
-                            Icon(Icons.Default.Add, contentDescription = null)
-                        }
+                    FloatingActionButton(onClick = { showSeriesDialog = true }) {
+                        Icon(Icons.Default.Add, contentDescription = null)
                     }
                 }
             ) { padding ->
@@ -100,6 +106,30 @@ data class ScriptListScreen(val projectId: Long) : Screen {
                             )
                         }
                     }
+                }
+
+                if (showSeriesDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showSeriesDialog = false },
+                        title = { Text("Номер серии") },
+                        text = {
+                            OutlinedTextField(
+                                value = seriesNumberInput,
+                                onValueChange = { seriesNumberInput = it.filter { char -> char.isDigit() } },
+                                label = { Text("Введите номер серии") },
+                                singleLine = true
+                            )
+                        },
+                        confirmButton = {
+                            Button(onClick = {
+                                showSeriesDialog = false
+                                // ТЕПЕРЬ запускаем выбор файла
+                                filePicker.launch()
+                            }) {
+                                Text("Выбрать файл")
+                            }
+                        }
+                    )
                 }
             }
 
