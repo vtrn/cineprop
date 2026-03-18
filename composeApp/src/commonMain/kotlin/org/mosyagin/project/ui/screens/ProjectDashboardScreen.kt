@@ -32,6 +32,8 @@ data class ProjectDashboardScreen(val projectId: Long) : Screen { // Перед�
             queries.getProjectById(projectId).executeAsOne()
         }
 
+
+
         Scaffold(
             topBar = {
                 TopAppBar(
@@ -59,7 +61,15 @@ data class ProjectDashboardScreen(val projectId: Long) : Screen { // Перед�
                         navigator.push(SceneListScreen(project.id, project.name))
                     }
                 }
-                item { DashboardTile("КПП", Icons.Default.Event) { /* Скоро */ } }
+
+                item {
+                    DashboardTile("КПП", Icons.Default.EventNote) {
+                        // Мы передаем сюда 'project' (объект проекта),
+                        // из которого внутри KppListScreen вытащим projectId
+                        navigator.push(KppListScreen(projectId = project.id))
+                    }
+                }
+
                 item { DashboardTile("Трекер", Icons.Default.AddAPhoto) { /* Скоро */ } }
                 item { DashboardTile("Реквизит", Icons.Default.Inventory) { /* Скоро */ } }
                 item { DashboardTile("Библия", Icons.Default.AutoStories) { /* Скоро */ } }

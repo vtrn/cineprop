@@ -133,3 +133,47 @@ DELETE FROM Prop WHERE id = ?;
 
 updatePropStatus:
 UPDATE Prop SET status = ? WHERE id = ?;
+
+
+-- Таблица для хранения файлов КПП (аналогично сценариям)
+CREATE TABLE KppFile (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    projectId INTEGER NOT NULL,
+    fileName TEXT NOT NULL,
+    filePath TEXT NOT NULL,
+    version INTEGER NOT NULL, -- Версия файла (1, 2, 3...)
+    FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE
+);
+
+-- Запросы
+insertKppFile:
+INSERT INTO KppFile(projectId, fileName, filePath, version) VALUES (?, ?, ?, ?);
+
+getKppFilesByProject:
+SELECT * FROM KppFile WHERE projectId = ? ORDER BY version DESC;
+
+-- Таблица Смен
+CREATE TABLE Shift (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    shiftNumber INTEGER NOT NULL,
+    date TEXT NOT NULL
+);
+
+-- Связка Смена-Сцена
+CREATE TABLE ShiftScene (
+    shiftId INTEGER NOT NULL,
+    sceneId INTEGER NOT NULL,
+    PRIMARY KEY(shiftId, sceneId),
+    FOREIGN KEY(shiftId) REFERENCES Shift(id),
+    FOREIGN KEY(sceneId) REFERENCES Scene(id)
+);
+
+-- Добавь этот запрос для поиска сцены при импорте КПП
+getSceneIdBySeriesAndNumber:
+SELECT id FROM Scene WHERE projectId = ? AND seriesNumber = ? AND sceneNumber = ? LIMIT 1;
+
+insertShift:
+INSERT INTO Shift(shiftNumber, date) VALUES (?, ?);
+
+linkShiftToScene:
+INSERT OR IGNORE INTO ShiftScene(shiftId, sceneId) VALUES (?, ?);
