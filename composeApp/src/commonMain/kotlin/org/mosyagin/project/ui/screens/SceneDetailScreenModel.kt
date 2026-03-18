@@ -34,9 +34,15 @@ class SceneDetailScreenModel(
         .stateIn(screenModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Метод добавления реквизита
-    fun addProp(name: String) {
+    fun addProp(name: String, startOffset: Long = 0, endOffset: Long = 0) {
         screenModelScope.launch {
-            queries.insertProp(sceneId = sceneId, name = name, status = "Найти")
+            queries.insertProp(
+                sceneId = sceneId,
+                name = name,
+                status = "Найти",
+                startOffset = startOffset,
+                endOffset = endOffset
+            )
         }
     }
 

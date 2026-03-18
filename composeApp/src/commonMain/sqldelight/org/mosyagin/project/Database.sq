@@ -109,12 +109,14 @@ CREATE TABLE Prop (
     sceneId INTEGER NOT NULL,
     name TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'Найти', -- Статусы: Найти, Готово, В кадре
+    startOffset INTEGER NOT NULL, -- Начало слова в тексте
+    endOffset INTEGER NOT NULL,   -- Конец слова
     FOREIGN KEY(sceneId) REFERENCES Scene(id) ON DELETE CASCADE
 );
 
 -- Запросы для реквизита
 insertProp:
-INSERT INTO Prop(sceneId, name, status) VALUES (?, ?, ?);
+INSERT INTO Prop(sceneId, name, status, startOffset, endOffset) VALUES (?, ?, ?, ?, ?);
 
 getPropsForScene:
 SELECT * FROM Prop WHERE sceneId = ? ORDER BY id DESC;
