@@ -8,5 +8,6 @@ expect class ScriptViewModel(queries: DatabaseQueries) {
     // Добавляем поток состояния загрузки
     val isLoading: StateFlow<Boolean>
 
+    suspend fun processPdfUri(projectId: Long, seriesNumber: Int, uriString: String)
     suspend fun processPdfUri(projectId: Long, uriString: String)
 }
