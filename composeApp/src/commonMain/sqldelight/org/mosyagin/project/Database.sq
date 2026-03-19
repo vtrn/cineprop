@@ -1,40 +1,42 @@
+/**
+ * Описание структуры базы данных и SQL-запросов (SQLDelight).
+ * Из этого файла автоматически генерируется Kotlin-код для работы с данными.
+ */
 
+-- ТАБЛИЦА ПРОЕКТОВ
 CREATE TABLE Project (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     director TEXT NOT NULL
 );
 
--- Запросы к БД (они станут Kotlin-методами)
+-- Запросы для проектов
 insertProject:
 INSERT INTO Project(name, director) VALUES (?, ?);
 
 getAllProjects:
 SELECT * FROM Project;
 
--- Удалить конкретный проект по ID
 deleteProject:
 DELETE FROM Project WHERE id = ?;
 
--- Обновить данные проекта
 updateProject:
 UPDATE Project SET name = ?, director = ? WHERE id = ?;
 
--- Получить один проект (понадобится для редактирования)
 getProjectById:
 SELECT * FROM Project WHERE id = ?;
 
 
+-- ТАБЛИЦА ФАЙЛОВ СЦЕНАРИЕВ
 CREATE TABLE ScriptFile (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     projectId INTEGER NOT NULL,
     title TEXT NOT NULL,      -- Например, "Серия 1"
-    filePath TEXT NOT NULL,   -- Путь к файлу в памяти телефона
+    filePath TEXT NOT NULL,   -- Путь к файлу
     createdAt INTEGER NOT NULL,
     FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE
 );
 
--- Запросы
 insertScriptFile:
 INSERT INTO ScriptFile(projectId, title, filePath, createdAt)
 VALUES (?, ?, ?, ?);
@@ -45,28 +47,53 @@ SELECT * FROM ScriptFile WHERE projectId = ? ORDER BY createdAt ASC;
 deleteScriptFile:
 DELETE FROM ScriptFile WHERE id = ?;
 
--- Таблица СЦЕН с номером серии
+
+-- ТАБЛИЦА СЦЕН
 CREATE TABLE Scene (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     projectId INTEGER NOT NULL,
-    seriesNumber TEXT NOT NULL,  -- Изменено на TEXT
-    sceneNumber TEXT NOT NULL,   -- Изменено на TEXT
-    location TEXT NOT NULL,
-    isInterior INTEGER NOT NULL,
-    timeOfDay TEXT NOT NULL,
-    content TEXT NOT NULL,
+    seriesNumber TEXT NOT NULL,  -- Номер серии (из парсера)
+    sceneNumber TEXT NOT NULL,   -- Номер сцены (из парсера)
+    location TEXT NOT NULL,      -- Объект (ИНТ. КУХНЯ)
+    isInterior INTEGER NOT NULL, -- 1 для ИНТ, 0 для НАТ
+    timeOfDay TEXT NOT NULL,    -- ДЕНЬ / НОЧЬ
+    content TEXT NOT NULL,       -- Весь текст сцены
     FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE
 );
 
--- Таблица для ПЕРСОНАЖЕЙ (Актеров)
+insertScene:
+INSERT INTO Scene(projectId, seriesNumber, sceneNumber, location, isInterior, timeOfDay, content)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+getScenesBySeries:
+SELECT * FROM Scene WHERE projectId = ? AND seriesNumber = ? ORDER BY sceneNumber ASC;
+
+getScenesByProject:
+SELECT * FROM Scene WHERE projectId = ? ORDER BY seriesNumber ASC, sceneNumber ASC;
+
+getSceneById:
+SELECT * FROM Scene WHERE id = ?;
+
+getSceneIdBySeriesAndNumber:
+SELECT id FROM Scene WHERE projectId = ? AND seriesNumber = ? AND sceneNumber = ? LIMIT 1;
+
+
+-- ТАБЛИЦА ПЕРСОНАЖЕЙ
 CREATE TABLE Actor (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     projectId INTEGER NOT NULL,
-    name TEXT NOT NULL,             -- "НАСТЯ"
+    name TEXT NOT NULL,
     FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE
 );
 
--- Таблица-связка: КТО в какой СЦЕНЕ (многие-ко-многим)
+insertActor:
+INSERT OR IGNORE INTO Actor(projectId, name) VALUES (?, ?);
+
+getActorByName:
+SELECT * FROM Actor WHERE projectId = ? AND name = ? LIMIT 1;
+
+
+-- СВЯЗЬ СЦЕНА-АКТЕР (Многие-ко-многим)
 CREATE TABLE SceneActor (
     sceneId INTEGER NOT NULL,
     actorId INTEGER NOT NULL,
@@ -75,53 +102,26 @@ CREATE TABLE SceneActor (
     FOREIGN KEY(actorId) REFERENCES Actor(id) ON DELETE CASCADE
 );
 
--- Запрос на вставку с учетом серии
-insertScene:
-INSERT INTO Scene(projectId, seriesNumber, sceneNumber, location, isInterior, timeOfDay, content)
-VALUES (?, ?, ?, ?, ?, ?, ?);
-
-
--- Запрос для получения сцен КОНКРЕТНОЙ серии
-getScenesBySeries:
-SELECT * FROM Scene WHERE projectId = ? AND seriesNumber = ? ORDER BY sceneNumber ASC;
-
--- Получить ID последней вставленной строки (нужно для связки с актерами)
-lastInsertRowId:
-SELECT last_insert_rowid();
-
-insertActor:
-INSERT OR IGNORE INTO Actor(projectId, name) VALUES (?, ?);
-
-getActorByName:
-SELECT * FROM Actor WHERE projectId = ? AND name = ? LIMIT 1;
-
 linkActorToScene:
 INSERT OR IGNORE INTO SceneActor(sceneId, actorId) VALUES (?, ?);
-
--- Запрос для получения сцен конкретного проекта (для общего списка)
-getScenesByProject:
-SELECT * FROM Scene WHERE projectId = ? ORDER BY seriesNumber ASC, sceneNumber ASC;
-
-getSceneById:
-SELECT * FROM Scene WHERE id = ?;
 
 getActorsForScene:
 SELECT a.* FROM Actor a
 JOIN SceneActor sa ON a.id = sa.actorId
 WHERE sa.sceneId = ?;
 
--- Таблица РЕКВИЗИТ
+
+-- ТАБЛИЦА РЕКВИЗИТА
 CREATE TABLE Prop (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     sceneId INTEGER NOT NULL,
     name TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'Найти', -- Статусы: Найти, Готово, В кадре
-    startOffset INTEGER NOT NULL, -- Начало слова в тексте
-    endOffset INTEGER NOT NULL,   -- Конец слова
+    status TEXT NOT NULL DEFAULT 'Найти',
+    startOffset INTEGER NOT NULL,
+    endOffset INTEGER NOT NULL,
     FOREIGN KEY(sceneId) REFERENCES Scene(id) ON DELETE CASCADE
 );
 
--- Запросы для реквизита
 insertProp:
 INSERT INTO Prop(sceneId, name, status, startOffset, endOffset) VALUES (?, ?, ?, ?, ?);
 
@@ -135,24 +135,24 @@ updatePropStatus:
 UPDATE Prop SET status = ? WHERE id = ?;
 
 
--- Таблица для хранения файлов КПП (аналогично сценариям)
+-- ТАБЛИЦА ФАЙЛОВ КПП
 CREATE TABLE KppFile (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     projectId INTEGER NOT NULL,
     fileName TEXT NOT NULL,
     filePath TEXT NOT NULL,
-    version INTEGER NOT NULL, -- Версия файла (1, 2, 3...)
+    version INTEGER NOT NULL,
     FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE
 );
 
--- Запросы
 insertKppFile:
 INSERT INTO KppFile(projectId, fileName, filePath, version) VALUES (?, ?, ?, ?);
 
 getKppFilesByProject:
 SELECT * FROM KppFile WHERE projectId = ? ORDER BY version DESC;
 
--- Таблица Смен
+
+-- ТАБЛИЦА СМЕН
 CREATE TABLE Shift (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     projectId INTEGER NOT NULL,
@@ -161,7 +161,20 @@ CREATE TABLE Shift (
     FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE
 );
 
--- Связка Смена-Сцена
+insertShift:
+INSERT INTO Shift(projectId, shiftNumber, date) VALUES (?, ?, ?);
+
+getShiftsByProject:
+SELECT * FROM Shift WHERE projectId = ? ORDER BY shiftNumber ASC;
+
+getShiftByNumber:
+SELECT * FROM Shift WHERE projectId = ? AND shiftNumber = ? LIMIT 1;
+
+getShiftById:
+SELECT * FROM Shift WHERE id = ?;
+
+
+-- СВЯЗЬ СМЕНА-СЦЕНА
 CREATE TABLE ShiftScene (
     shiftId INTEGER NOT NULL,
     sceneId INTEGER NOT NULL,
@@ -170,27 +183,15 @@ CREATE TABLE ShiftScene (
     FOREIGN KEY(sceneId) REFERENCES Scene(id) ON DELETE CASCADE
 );
 
--- Добавь этот запрос для поиска сцены при импорте КПП
-getSceneIdBySeriesAndNumber:
-SELECT id FROM Scene WHERE projectId = ? AND seriesNumber = ? AND sceneNumber = ? LIMIT 1;
-
-insertShift:
-INSERT INTO Shift(projectId, shiftNumber, date) VALUES (?, ?, ?);
-
-getShiftByNumber:
-SELECT * FROM Shift WHERE projectId = ? AND shiftNumber = ? LIMIT 1;
-
 linkShiftToScene:
 INSERT OR IGNORE INTO ShiftScene(shiftId, sceneId) VALUES (?, ?);
-
-getShiftsByProject:
-SELECT * FROM Shift WHERE projectId = ? ORDER BY shiftNumber ASC;
-
-getShiftById:
-SELECT * FROM Shift WHERE id = ?;
 
 getScenesForShift:
 SELECT s.* FROM Scene s
 JOIN ShiftScene ss ON s.id = ss.sceneId
 WHERE ss.shiftId = ?
 ORDER BY s.seriesNumber ASC, s.sceneNumber ASC;
+
+-- СЛУЖЕБНЫЕ ЗАПРОСЫ
+lastInsertRowId:
+SELECT last_insert_rowid();

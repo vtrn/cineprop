@@ -1,3 +1,9 @@
+/**
+ * Главный экран приложения — Список проектов.
+ * 
+ * Здесь отображаются все созданные пользователем кинопроекты.
+ * Отсюда можно создать новый проект или перейти в панель управления существующим.
+ */
 package org.mosyagin.project.ui.screens
 
 import androidx.compose.foundation.layout.*
@@ -28,15 +34,18 @@ class ProjectListScreen : Screen {
 
     @Composable
     override fun Content() {
+        // Получаем доступ к базе данных и навигатору
         val queries = LocalDatabaseQueries.current
         val navigator = LocalNavigator.currentOrThrow
+        
+        // Используем ScreenModel для управления данными (бизнес-логика вынесена из UI)
         val screenModel = rememberScreenModel { ProjectListScreenModel(queries) }
+        
+        // Подписываемся на список проектов (UI обновится сам при изменении списка)
         val projects by screenModel.projects.collectAsState()
 
-        // Scaffold — это скелет экрана. Он сам знает, где должен быть заголовок и кнопка FAB
         Scaffold(
             topBar = {
-                // Можно добавить красивый заголовок
                 Text(
                     "Проекты",
                     modifier = Modifier.padding(16.dp),
@@ -45,50 +54,50 @@ class ProjectListScreen : Screen {
                 )
             },
             floatingActionButton = {
-                // Вот он — настоящий FAB
+                // Кнопка "+" для перехода на экран создания проекта
                 FloatingActionButton(
                     onClick = { navigator.push(CreateProjectScreen()) },
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = Color.Black,
-                    shape = CircleShape // Делаем его круглым или скругленным квадратом
+                    shape = CircleShape
                 ) {
-                    // Иконка плюсика (нужен импорт androidx.compose.material.icons.Icons)
                     Icon(Icons.Default.Add, contentDescription = "Создать проект")
                 }
             },
-            containerColor = MaterialTheme.colorScheme.background // Делаем фон всего экрана темным
+            containerColor = MaterialTheme.colorScheme.background
         ) { paddingValues ->
-            // Весь контент теперь внутри paddingValues
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
             ) {
                 if (projects.isEmpty()) {
-                    // Если проектов нет — показываем красивую заглушку
+                    // Заглушка, если список пуст
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text("Нет активных проектов", color = Color.Gray)
                     }
                 } else {
+                    // Список проектов с использованием LazyColumn (аналог RecyclerView)
                     LazyColumn(
                         contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp) // Отступы между карточками
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(projects) { project ->
                             ProjectCard(
                                 project = project,
                                 onClick = {
+                                    // Переход в Dashboard проекта
                                     navigator.push(ProjectDashboardScreen(project.id))
                                 },
                                 onDelete = {
-                                    // УДАЛЕНИЕ
+                                    // Вызов удаления через ScreenModel
                                     screenModel.deleteProject(project.id)
                                 }
                             )
-                        }
                         }
                     }
                 }
             }
         }
     }
+}

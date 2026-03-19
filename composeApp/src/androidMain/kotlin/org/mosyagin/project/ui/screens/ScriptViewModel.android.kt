@@ -1,3 +1,9 @@
+/**
+ * ViewModel для обработки файлов сценария (PDF) на платформе Android.
+ * 
+ * Основная задача: извлечь текст из PDF, распарсить его на сцены
+ * и сохранить в локальную базу данных SQLDelight.
+ */
 package org.mosyagin.project.ui.screens
 
 import com.tom_roush.pdfbox.pdmodel.PDDocument
@@ -14,15 +20,23 @@ import org.mosyagin.project.parser.ScriptParser
 
 actual class ScriptViewModel actual constructor(actual val queries: DatabaseQueries) {
 
+    // Состояние загрузки для отображения индикатора на UI
     private val _isLoading = MutableStateFlow(false)
     actual val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    // 1. Добавили seriesNumber в аргументы функции
+    /**
+     * Основной метод обработки PDF.
+     * 
+     * @param projectId ID проекта, к которому относится сценарий.
+     * @param seriesNumber Номер серии (важно для связки с КПП).
+     * @param uriString Путь к файлу в системе Android.
+     */
     actual suspend fun processPdfUri(projectId: Long, seriesNumber: Int, uriString: String) {
         _isLoading.value = true
 
         withContext(Dispatchers.IO) {
             try {
+                // 1. Извлекаем текст из PDF с помощью библиотеки PDFBox
                 val uri = android.net.Uri.parse(uriString)
                 val inputStream = appContext.contentResolver.openInputStream(uri)
                 val document = PDDocument.load(inputStream)
@@ -30,21 +44,23 @@ actual class ScriptViewModel actual constructor(actual val queries: DatabaseQuer
                 val fullText = stripper.getText(document)
                 document.close()
 
-                // 2. Передаем seriesNumber в парсер
+                // 2. Парсим текст (ищем заголовки сцен, время, локации)
                 val parser = ScriptParser()
                 val parsedScenes = parser.parse(fullText, seriesNumber)
 
+                // 3. Сохраняем все данные в БД в рамках одной транзакции (для скорости и надежности)
                 queries.transaction {
+                    // Записываем информацию о самом файле
                     queries.insertScriptFile(
                         projectId = projectId,
-                        title = "Серия $seriesNumber", // Красивое название
+                        title = "Серия $seriesNumber",
                         filePath = uriString,
                         createdAt = System.currentTimeMillis()
                     )
 
+                    // Сохраняем каждую найденную сцену
                     parsedScenes.forEach { scene ->
                         try {
-                            // 3. Используем переданный seriesNumber для БД
                             queries.insertScene(
                                 projectId = projectId,
                                 seriesNumber = seriesNumber.toString(),
@@ -55,8 +71,10 @@ actual class ScriptViewModel actual constructor(actual val queries: DatabaseQuer
                                 content = scene.content
                             )
 
+                            // Получаем ID только что вставленной сцены для связки с актерами
                             val sceneId = queries.lastInsertRowId().executeAsOne()
 
+                            // Сохраняем актеров и привязываем их к сцене
                             scene.actors.forEach { actorName ->
                                 val cleanName = actorName.trim()
                                 if (cleanName.isNotEmpty()) {
@@ -68,7 +86,7 @@ actual class ScriptViewModel actual constructor(actual val queries: DatabaseQuer
                                 }
                             }
                         } catch (e: Exception) {
-                            println("CINE_ERROR: Ошибка сцены: ${e.message}")
+                            println("CINE_ERROR: Ошибка обработки сцены: ${e.message}")
                         }
                     }
                 }
@@ -80,6 +98,7 @@ actual class ScriptViewModel actual constructor(actual val queries: DatabaseQuer
         }
     }
 
+    // Заглушка для совместимости с общим интерфейсом
     actual suspend fun processPdfUri(projectId: Long, uriString: String) {
     }
 }

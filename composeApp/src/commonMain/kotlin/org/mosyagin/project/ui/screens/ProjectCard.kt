@@ -1,3 +1,9 @@
+/**
+ * Компонент карточки проекта.
+ * 
+ * Используется в списке проектов [ProjectListScreen].
+ * Отображает краткую информацию (название, режиссер) и предоставляет кнопку удаления.
+ */
 package org.mosyagin.project.ui.screens
 
 import androidx.compose.foundation.clickable
@@ -19,11 +25,14 @@ import androidx.compose.ui.graphics.Color
 @Composable
 fun ProjectCard(
     project: Project,
-    onClick: () -> Unit,
-    onDelete: () -> Unit // Добавляем новый колбэк
+    onClick: () -> Unit, // Действие при клике на карточку (переход в Dashboard)
+    onDelete: () -> Unit // Действие при нажатии на иконку корзины
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).clickable(onClick = onClick),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = DarkSurface)
     ) {
@@ -32,16 +41,25 @@ fun ProjectCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = project.name, style = MaterialTheme.typography.titleLarge, color = TextPrimary)
-                Text(text = "Режиссер: ${project.director}", color = TextSecondary)
+                // Название проекта (выделено жирным/крупным)
+                Text(
+                    text = project.name, 
+                    style = MaterialTheme.typography.titleLarge, 
+                    color = TextPrimary
+                )
+                // Имя режиссера
+                Text(
+                    text = "Режиссер: ${project.director}", 
+                    color = TextSecondary
+                )
             }
 
-            // Кнопка удаления
+            // Кнопка удаления (иконка корзины)
             IconButton(onClick = onDelete) {
                 Icon(
                     imageVector = Icons.Default.Delete,
                     contentDescription = "Удалить",
-                    tint = Color.Red.copy(alpha = 0.7f)
+                    tint = Color.Red.copy(alpha = 0.7f) // Полупрозрачный красный цвет для акцента на удалении
                 )
             }
         }

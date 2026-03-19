@@ -1,3 +1,9 @@
+/**
+ * Экран "Список версий КПП".
+ * 
+ * Позволяет загружать новые файлы КПП (в формате CSV) и просматривать историю версий.
+ * При загрузке файла запускается процесс парсинга, который извлекает смены и связывает их со сценами.
+ */
 package org.mosyagin.project.ui.screens
 
 import androidx.compose.foundation.clickable
@@ -35,27 +41,29 @@ data class KppListScreen(val projectId: Long) : Screen {
         val queries = LocalDatabaseQueries.current
         val scope = rememberCoroutineScope()
 
-        // 1. Подписка на список версий КПП из БД
+        // Подписка на список загруженных файлов КПП из базы данных
         val kppFiles by remember(projectId, queries) {
             queries.getKppFilesByProject(projectId)
                 .asFlow()
                 .mapToList(Dispatchers.IO)
         }.collectAsState(initial = emptyList())
 
+        // Лончер для выбора файла в системе (использует системный проводник)
         val kppPicker = rememberFilePickerLauncher { platformFile ->
             platformFile?.let { file ->
                 scope.launch {
+                    // Читаем содержимое файла в строку
                     val csvText = file.bytes?.decodeToString() ?: ""
                     if (csvText.isNotEmpty()) {
                         withContext(Dispatchers.IO) {
+                            // 1. Запуск парсера для обработки смен и привязки сцен
                             val parser = KppParser(queries)
-                            // Парсим и сохраняем смены
                             parser.parseAndSaveKpp(projectId = projectId, csvText = csvText)
                             
-                            // Определяем следующую версию
+                            // 2. Вычисляем номер следующей версии КПП
                             val nextVersion = (kppFiles.maxByOrNull { it.version }?.version ?: 0) + 1
                             
-                            // Сохраняем информацию о самом файле КПП, чтобы он появился в списке
+                            // 3. Сохраняем запись о самом файле в базу
                             queries.insertKppFile(
                                 projectId = projectId,
                                 fileName = file.name,
@@ -80,6 +88,7 @@ data class KppListScreen(val projectId: Long) : Screen {
                 )
             },
             floatingActionButton = {
+                // Кнопка для вызова выбора файла
                 FloatingActionButton(onClick = {
                     kppPicker.launch()
                 }) {
@@ -109,7 +118,7 @@ data class KppListScreen(val projectId: Long) : Screen {
                             },
                             colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                             modifier = Modifier.clickable {
-                                // Здесь можно будет открыть детальный просмотр смен этой версии
+                                // Клик по версии КПП (будущий функционал просмотра истории)
                             }
                         )
                     }

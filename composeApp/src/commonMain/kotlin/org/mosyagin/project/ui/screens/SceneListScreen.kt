@@ -1,3 +1,9 @@
+/**
+ * Экран "Список всех сцен проекта".
+ * 
+ * Отображает полный перечень сцен, извлеченных из сценария.
+ * Позволяет быстро просмотреть локацию, тип (ИНТ/НАТ) и время суток для каждой сцены.
+ */
 package org.mosyagin.project.ui.screens
 
 import androidx.compose.foundation.clickable
@@ -26,18 +32,18 @@ data class SceneListScreen(val projectId: Long, val projectName: String) : Scree
         val navigator = LocalNavigator.currentOrThrow
         val queries = LocalDatabaseQueries.current
 
-        // Получаем все сцены этого проекта из БД
+        // Получаем поток (Flow) сцен для данного проекта из базы данных.
+        // При добавлении новых сцен в базу (через парсер), этот список обновится автоматически.
         val scenes by remember(projectId) {
             queries.getScenesByProject(projectId)
                 .asFlow()
                 .mapToList(Dispatchers.Default)
         }.collectAsState(initial = emptyList())
 
-        // 1. Достаем проект из базы по ID, который пришел в конструктор
+        // Загружаем информацию о проекте для навигации
         val project = remember(projectId) {
             queries.getProjectById(projectId).executeAsOne()
         }
-
 
         Scaffold(
             topBar = {
@@ -45,28 +51,32 @@ data class SceneListScreen(val projectId: Long, val projectName: String) : Scree
                     title = { Text("Сцены: $projectName") },
                     navigationIcon = {
                         IconButton(onClick = { navigator.pop() }) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = null)
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
                         }
                     }
                 )
             }
         ) { padding ->
+            // Список сцен в формате ListTile (название, подзаголовок, иконка)
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding)
             ) {
                 items(scenes) { scene ->
                     ListItem(
                         headlineContent = {
+                            // Формат: Сцена 1-5: ЛОКАЦИЯ
                             Text("Сцена ${scene.seriesNumber}-${scene.sceneNumber}: ${scene.location}")
                         },
                         supportingContent = {
+                            // Формат: ИНТ. | ДЕНЬ
                             Text(if (scene.isInterior == 1L) "ИНТ. | ${scene.timeOfDay}" else "НАТ. | ${scene.timeOfDay}")
                         },
                         modifier = Modifier.clickable {
-                            // ПЕРЕХОД: передаем ID сцены и ID проекта
+                            // Переход к детальному просмотру текста конкретной сцены
                             navigator.push(SceneDetailScreen(sceneId = scene.id, projectId = project.id))
                         }
                     )
+                    // Разделительная линия между элементами списка
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp)
                 }
             }

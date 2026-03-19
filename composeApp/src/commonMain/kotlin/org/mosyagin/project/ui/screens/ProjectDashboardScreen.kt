@@ -1,3 +1,9 @@
+/**
+ * Экран "Дашборд проекта" (Панель управления).
+ * 
+ * Это центральный узел конкретного кинопроекта. Отображается в виде сетки (плиток).
+ * Позволяет перейти к сценариям, списку сцен, КПП и Трекеру.
+ */
 package org.mosyagin.project.ui.screens
 
 import androidx.compose.foundation.layout.*
@@ -18,7 +24,7 @@ import org.mosyagin.project.db.LocalDatabaseQueries
 import org.mosyagin.project.ui.components.DashboardTile
 
 @OptIn(ExperimentalMaterial3Api::class)
-data class ProjectDashboardScreen(val projectId: Long) : Screen { // Передаем только ID
+data class ProjectDashboardScreen(val projectId: Long) : Screen {
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
@@ -26,8 +32,8 @@ data class ProjectDashboardScreen(val projectId: Long) : Screen { // Перед�
         val navigator = LocalNavigator.currentOrThrow
         val queries = LocalDatabaseQueries.current
 
-        // Достаем данные проекта из базы по ID
-        // remember гарантирует, что мы не будем мучить базу при каждом мигании экрана
+        // Загружаем данные проекта из базы по его ID.
+        // Используем remember, чтобы не выполнять запрос к БД при каждой перерисовке UI.
         val project = remember(projectId) {
             queries.getProjectById(projectId).executeAsOne()
         }
@@ -35,22 +41,22 @@ data class ProjectDashboardScreen(val projectId: Long) : Screen { // Перед�
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text(project.name) }, // Теперь берем имя отсюда
+                    title = { Text(project.name) },
                     navigationIcon = {
                         IconButton(onClick = { navigator.pop() }) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = null)
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
                         }
                     }
                 )
             }
         ) { padding ->
+            // Сетка из плиток (2 колонки)
             LazyVerticalGrid(
-                columns = GridCells.Fixed(2), // 2 колонки как в плитке шоколада
+                columns = GridCells.Fixed(2),
                 modifier = Modifier.fillMaxSize().padding(padding).padding(8.dp)
             ) {
                 item {
                     DashboardTile("Сценарий", Icons.Default.Description) {
-                        // ПЕРЕДАЕМ ТОЛЬКО ПРОЕКТ
                         navigator.push(ScriptListScreen(projectId))
                     }
                 }
@@ -62,8 +68,6 @@ data class ProjectDashboardScreen(val projectId: Long) : Screen { // Перед�
 
                 item {
                     DashboardTile("КПП", Icons.Default.EventNote) {
-                        // Мы передаем сюда 'project' (объект проекта),
-                        // из которого внутри KppListScreen вытащим projectId
                         navigator.push(KppListScreen(projectId = project.id))
                     }
                 }
@@ -73,6 +77,8 @@ data class ProjectDashboardScreen(val projectId: Long) : Screen { // Перед�
                         navigator.push(TrackerScreen(projectId = project.id))
                     } 
                 }
+                
+                // Эти разделы пока находятся в разработке
                 item { DashboardTile("Реквизит", Icons.Default.Inventory) { /* Скоро */ } }
                 item { DashboardTile("Библия", Icons.Default.AutoStories) { /* Скоро */ } }
             }
