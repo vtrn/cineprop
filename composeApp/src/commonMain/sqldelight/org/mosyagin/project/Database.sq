@@ -89,6 +89,18 @@ SELECT * FROM Scene WHERE id = ?;
 getSceneIdBySeriesAndNumber:
 SELECT id FROM Scene WHERE projectId = ? AND seriesNumber = ? AND sceneNumber = ? LIMIT 1;
 
+getScenesByActor:
+SELECT s.* FROM Scene s
+JOIN SceneActor sa ON s.id = sa.sceneId
+WHERE sa.actorId = ?
+ORDER BY CAST(s.seriesNumber AS INTEGER) ASC, CAST(s.sceneNumber AS INTEGER) ASC;
+
+getLocationsByActor:
+SELECT DISTINCT s.location FROM Scene s
+JOIN SceneActor sa ON s.id = sa.sceneId
+WHERE sa.actorId = ?
+ORDER BY s.location ASC;
+
 deleteScenesByScriptFile:
 DELETE FROM Scene WHERE scriptFileId = ?;
 
@@ -98,7 +110,8 @@ CREATE TABLE Actor (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     projectId INTEGER NOT NULL,
     name TEXT NOT NULL,
-    FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE
+    FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE,
+    UNIQUE(projectId, name) -- Добавлена уникальность, чтобы персонажи не дублировались
 );
 
 insertActor:
@@ -106,6 +119,9 @@ INSERT OR IGNORE INTO Actor(projectId, name) VALUES (?, ?);
 
 getActorByName:
 SELECT * FROM Actor WHERE projectId = ? AND name = ? LIMIT 1;
+
+getActorsByProject:
+SELECT * FROM Actor WHERE projectId = ? ORDER BY name ASC;
 
 
 -- СВЯЗЬ СЦЕНА-АКТЕР (Многие-ко-многим)
