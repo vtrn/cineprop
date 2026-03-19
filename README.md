@@ -1,48 +1,37 @@
-This is a Kotlin Multiplatform project targeting Android, iOS, Desktop (JVM).
+# CineApp — Приложение для кинопроизводства
 
-* [/composeApp](./composeApp/src) is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-  - [commonMain](./composeApp/src/commonMain/kotlin) is for code that’s common for all targets.
-  - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-    For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-    the [iosMain](./composeApp/src/iosMain/kotlin) folder would be the right place for such calls.
-    Similarly, if you want to edit the Desktop (JVM) specific part, the [jvmMain](./composeApp/src/jvmMain/kotlin)
-    folder is the appropriate location.
+Это мобильное приложение на базе **Compose Multiplatform**, предназначенное для автоматизации работы съемочной группы (планирование смен, работа со сценарием, трекинг реквизита).
 
-* [/iosApp](./iosApp/iosApp) contains iOS applications. Even if you’re sharing your UI with Compose Multiplatform,
-  you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
+## 🗺 Карта проекта (Структура файлов)
 
-### Build and Run Android Application
+### 📂 База данных (SQLDelight)
+*   `composeApp/src/commonMain/sqldelight/org/mosyagin/project/Database.sq` — **Сердце проекта**. Здесь описаны все таблицы (Проекты, Сцены, Актеры, Смены) и SQL-запросы к ним.
 
-To build and run the development version of the Android app, use the run configuration from the run widget
-in your IDE’s toolbar or build it directly from the terminal:
-- on macOS/Linux
-  ```shell
-  ./gradlew :composeApp:assembleDebug
-  ```
-- on Windows
-  ```shell
-  .\gradlew.bat :composeApp:assembleDebug
-  ```
+### 📂 Экраны (UI Screens)
+*Путь: `composeApp/src/commonMain/kotlin/org/mosyagin/project/ui/screens/`*
 
-### Build and Run Desktop (JVM) Application
+*   `ProjectListScreen.kt` — Главный экран со списком всех кинопроектов.
+*   `ProjectDashboardScreen.kt` — "Пульт управления" конкретным проектом (плитки: Сценарий, Сцены, КПП, Трекер).
+*   `ScriptListScreen.kt` — Список загруженных серий сценария.
+*   `SceneListScreen.kt` — Список всех сцен проекта с фильтрацией.
+*   `SceneDetailScreen.kt` — Детальный просмотр сцены: текст сценария, актеры и реквизит.
+*   `KppListScreen.kt` — Управление версиями КПП (Календарно-постановочного плана).
+*   `TrackerScreen.kt` — **Трекер смен**. Список всех съемочных дней, взятых из КПП.
+*   `ShiftDetailScreen.kt` — Детали конкретной смены: какие сцены снимаем сегодня.
 
-To build and run the development version of the desktop app, use the run configuration from the run widget
-in your IDE’s toolbar or run it directly from the terminal:
-- on macOS/Linux
-  ```shell
-  ./gradlew :composeApp:run
-  ```
-- on Windows
-  ```shell
-  .\gradlew.bat :composeApp:run
-  ```
+### 📂 Логика и Парсеры (Logic)
+*   `composeApp/src/commonMain/kotlin/org/mosyagin/project/parser/`
+    *   `ScriptParser.kt` — Логика извлечения сцен, персонажей и времени суток из текста сценария.
+    *   `KppParser.kt` — Логика чтения CSV-файлов КПП и привязки смен к сценам в базе.
+*   `composeApp/src/commonMain/kotlin/org/mosyagin/project/ui/screens/ScriptViewModel.kt` — Управляет процессом загрузки и обработки PDF-файлов.
 
-### Build and Run iOS Application
-
-To build and run the development version of the iOS app, use the run configuration from the run widget
-in your IDE’s toolbar or open the [/iosApp](./iosApp) directory in Xcode and run it from there.
+### 📂 Технические детали
+*   `composeApp/src/commonMain/kotlin/org/mosyagin/project/db/DatabaseAdapter.kt` — Настройка подключения к базе данных.
+*   `composeApp/src/commonMain/kotlin/org/mosyagin/project/util/FilePicker.kt` — Утилита для выбора файлов в памяти телефона.
 
 ---
-
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)…
+## 🚀 Как это работает (Workflow)
+1. **Создаем проект** в списке проектов.
+2. **Загружаем Сценарий (PDF)** — приложение "разрезает" его на сцены и находит актеров.
+3. **Загружаем КПП (CSV)** — приложение понимает, в какую смену какую сцену мы снимаем.
+4. **Используем Трекер** — на площадке видим план на день и текст нужных сцен в один клик.

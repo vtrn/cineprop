@@ -1,3 +1,9 @@
+/**
+ * Экран "Трекер смен".
+ * 
+ * Отображает список всех съемочных смен текущего проекта.
+ * Смены попадают сюда после загрузки и парсинга CSV-файла КПП.
+ */
 package org.mosyagin.project.ui.screens
 
 import androidx.compose.foundation.clickable
@@ -29,6 +35,10 @@ data class TrackerScreen(val projectId: Long) : Screen {
         val navigator = LocalNavigator.currentOrThrow
         val queries = LocalDatabaseQueries.current
 
+        /**
+         * Подписка на список смен из базы данных.
+         * collectAsState позволяет UI автоматически обновляться при изменениях в БД.
+         */
         val shifts by remember(projectId, queries) {
             queries.getShiftsByProject(projectId)
                 .asFlow()
@@ -48,6 +58,7 @@ data class TrackerScreen(val projectId: Long) : Screen {
             }
         ) { padding ->
             if (shifts.isEmpty()) {
+                // Если смен нет, выводим заглушку с подсказкой
                 Box(
                     modifier = Modifier.fillMaxSize().padding(padding),
                     contentAlignment = Alignment.Center
@@ -55,6 +66,7 @@ data class TrackerScreen(val projectId: Long) : Screen {
                     Text("Смены не найдены. Загрузите КПП.", color = MaterialTheme.colorScheme.outline)
                 }
             } else {
+                // Список смен
                 LazyColumn(
                     modifier = Modifier.padding(padding).fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
@@ -68,6 +80,7 @@ data class TrackerScreen(val projectId: Long) : Screen {
                                 Icon(Icons.Default.Today, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             },
                             modifier = Modifier.clickable {
+                                // Переход к деталям выбранной смены
                                 navigator.push(ShiftDetailScreen(shift.id))
                             },
                             colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceVariant)

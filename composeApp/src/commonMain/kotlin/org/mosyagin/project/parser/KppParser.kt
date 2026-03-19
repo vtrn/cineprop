@@ -1,13 +1,30 @@
+/**
+ * Парсер Календарно-постановочного плана (КПП).
+ * 
+ * Отвечает за чтение CSV-файлов, извлечение из них информации о сменах
+ * и создание связей между сменами и сценами в базе данных.
+ */
 package org.mosyagin.project.parser
 
 import org.mosyagin.project.DatabaseQueries
 
 class KppParser(private val queries: DatabaseQueries) {
 
+    /**
+     * Основной метод парсинга CSV текста.
+     * 
+     * Ожидает CSV, где:
+     * - Номер серии в первой колонке.
+     * - Номер сцены во второй колонке.
+     * - Содержит строки "СМЕНА №X" и даты в формате "ДД.ММ.ГГГГ".
+     * 
+     * @param projectId ID текущего проекта.
+     * @param csvText Сырой текст из CSV файла.
+     */
     fun parseAndSaveKpp(projectId: Long, csvText: String) {
         val rows = csvText.lines()
 
-        // Переменные для хранения текущего контекста
+        // Текущие значения, которые обновляются по мере прохода по строкам CSV
         var currentShiftNumber: Long = 1
         var currentDate: String = "Неизвестно"
 
@@ -19,14 +36,14 @@ class KppParser(private val queries: DatabaseQueries) {
                 val cells = row.split(";").map { it.trim() }
                 if (cells.isEmpty()) return@forEach
 
-                // 1. Ищем дату (формат ДД.ММ.ГГГГ)
+                // 1. Поиск даты (ищем паттерн типа 15.03.2024)
                 val dateRegex = Regex("""\d{2}\.\d{2}\.\d{4}""")
                 val foundDate = cells.find { dateRegex.containsMatchIn(it) }
                 if (foundDate != null) {
                     currentDate = foundDate
                 }
 
-                // 2. Ищем номер смены
+                // 2. Поиск номера смены (строки типа "Смена №5")
                 val shiftRegex = Regex("""СМЕНА\s*№?\s*(\d+)""", RegexOption.IGNORE_CASE)
                 cells.forEach { cell ->
                     shiftRegex.find(cell)?.let { match ->
@@ -34,25 +51,26 @@ class KppParser(private val queries: DatabaseQueries) {
                     }
                 }
 
-                // 3. Достаем Серию и Сцену (теперь как TEXT)
+                // 3. Извлечение Серии и Сцены
                 val series = cells.getOrNull(0)
                 val sceneNumber = cells.getOrNull(1)
 
-                // Если оба поля не пустые и серия/сцена похожи на данные (не заголовки)
+                // Если строка похожа на данные сцены (есть номер серии и сцены)
                 if (!series.isNullOrBlank() && !sceneNumber.isNullOrBlank() && series.any { it.isDigit() }) {
                     totalRows++
 
-                    // Обеспечиваем наличие смены
+                    // Проверяем, создана ли уже такая смена в БД, если нет — создаем
                     var shiftId = queries.getShiftByNumber(projectId, currentShiftNumber).executeAsOneOrNull()?.id
                     if (shiftId == null) {
                         queries.insertShift(projectId, currentShiftNumber, currentDate)
                         shiftId = queries.lastInsertRowId().executeAsOne()
                     }
 
-                    // Ищем ID сцены (сравнение строк теперь точное, включая "36-А")
+                    // Ищем ID сцены в базе (сцена должна быть предварительно загружена через PDF)
                     val sceneId = queries.getSceneIdBySeriesAndNumber(projectId, series, sceneNumber)
                         .executeAsOneOrNull()
 
+                    // Если сцена найдена — создаем связь "Смена <-> Сцена"
                     if (sceneId != null && shiftId != null) {
                         queries.linkShiftToScene(shiftId, sceneId)
                         linkedScenes++
@@ -61,6 +79,7 @@ class KppParser(private val queries: DatabaseQueries) {
             }
         }
 
+        // Логирование результатов в консоль для отладки
         println("CINE_DEBUG: Обработка завершена.")
         println("CINE_DEBUG: Найдено строк со сценами: $totalRows")
         println("CINE_DEBUG: Успешно привязано к сценам в базе: $linkedScenes")
