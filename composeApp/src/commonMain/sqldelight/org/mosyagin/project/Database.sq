@@ -47,35 +47,50 @@ SELECT * FROM ScriptFile WHERE projectId = ? ORDER BY createdAt ASC;
 deleteScriptFile:
 DELETE FROM ScriptFile WHERE id = ?;
 
+updateScriptFileTitle:
+UPDATE ScriptFile SET title = ? WHERE id = ?;
+
+getScriptFileById:
+SELECT * FROM ScriptFile WHERE id = ?;
+
 
 -- ТАБЛИЦА СЦЕН
 CREATE TABLE Scene (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     projectId INTEGER NOT NULL,
+    scriptFileId INTEGER,        -- Ссылка на файл сценария, из которого спарсена сцена
     seriesNumber TEXT NOT NULL,  -- Номер серии (из парсера)
     sceneNumber TEXT NOT NULL,   -- Номер сцены (из парсера)
     location TEXT NOT NULL,      -- Объект (ИНТ. КУХНЯ)
     isInterior INTEGER NOT NULL, -- 1 для ИНТ, 0 для НАТ
     timeOfDay TEXT NOT NULL,    -- ДЕНЬ / НОЧЬ
     content TEXT NOT NULL,       -- Весь текст сцены
-    FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE
+    FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE,
+    FOREIGN KEY(scriptFileId) REFERENCES ScriptFile(id) ON DELETE CASCADE
 );
 
 insertScene:
-INSERT INTO Scene(projectId, seriesNumber, sceneNumber, location, isInterior, timeOfDay, content)
-VALUES (?, ?, ?, ?, ?, ?, ?);
+INSERT INTO Scene(projectId, scriptFileId, seriesNumber, sceneNumber, location, isInterior, timeOfDay, content)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 
 getScenesBySeries:
-SELECT * FROM Scene WHERE projectId = ? AND seriesNumber = ? ORDER BY sceneNumber ASC;
+SELECT * FROM Scene
+WHERE projectId = ? AND seriesNumber = ?
+ORDER BY CAST(sceneNumber AS INTEGER) ASC, sceneNumber ASC;
 
 getScenesByProject:
-SELECT * FROM Scene WHERE projectId = ? ORDER BY seriesNumber ASC, sceneNumber ASC;
+SELECT * FROM Scene
+WHERE projectId = ?
+ORDER BY CAST(seriesNumber AS INTEGER) ASC, seriesNumber ASC, CAST(sceneNumber AS INTEGER) ASC, sceneNumber ASC;
 
 getSceneById:
 SELECT * FROM Scene WHERE id = ?;
 
 getSceneIdBySeriesAndNumber:
 SELECT id FROM Scene WHERE projectId = ? AND seriesNumber = ? AND sceneNumber = ? LIMIT 1;
+
+deleteScenesByScriptFile:
+DELETE FROM Scene WHERE scriptFileId = ?;
 
 
 -- ТАБЛИЦА ПЕРСОНАЖЕЙ
@@ -178,19 +193,20 @@ SELECT * FROM Shift WHERE id = ?;
 CREATE TABLE ShiftScene (
     shiftId INTEGER NOT NULL,
     sceneId INTEGER NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0, -- Добавили позицию для сохранения порядка из КПП
     PRIMARY KEY(shiftId, sceneId),
     FOREIGN KEY(shiftId) REFERENCES Shift(id) ON DELETE CASCADE,
     FOREIGN KEY(sceneId) REFERENCES Scene(id) ON DELETE CASCADE
 );
 
 linkShiftToScene:
-INSERT OR IGNORE INTO ShiftScene(shiftId, sceneId) VALUES (?, ?);
+INSERT OR IGNORE INTO ShiftScene(shiftId, sceneId, position) VALUES (?, ?, ?);
 
 getScenesForShift:
 SELECT s.* FROM Scene s
 JOIN ShiftScene ss ON s.id = ss.sceneId
 WHERE ss.shiftId = ?
-ORDER BY s.seriesNumber ASC, s.sceneNumber ASC;
+ORDER BY ss.position ASC; -- Теперь сортируем строго по порядку из КПП
 
 -- СЛУЖЕБНЫЕ ЗАПРОСЫ
 lastInsertRowId:

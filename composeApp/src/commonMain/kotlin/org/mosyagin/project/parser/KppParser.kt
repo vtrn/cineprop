@@ -27,6 +27,9 @@ class KppParser(private val queries: DatabaseQueries) {
         // Текущие значения, которые обновляются по мере прохода по строкам CSV
         var currentShiftNumber: Long = 1
         var currentDate: String = "Неизвестно"
+        
+        // Счетчик позиции внутри смены для сохранения порядка из КПП
+        var currentPosition: Long = 0
 
         var totalRows = 0
         var linkedScenes = 0
@@ -47,7 +50,11 @@ class KppParser(private val queries: DatabaseQueries) {
                 val shiftRegex = Regex("""СМЕНА\s*№?\s*(\d+)""", RegexOption.IGNORE_CASE)
                 cells.forEach { cell ->
                     shiftRegex.find(cell)?.let { match ->
-                        currentShiftNumber = match.groupValues[1].toLongOrNull() ?: currentShiftNumber
+                        val newShiftNumber = match.groupValues[1].toLongOrNull() ?: currentShiftNumber
+                        if (newShiftNumber != currentShiftNumber) {
+                            currentShiftNumber = newShiftNumber
+                            currentPosition = 0 // Сбрасываем позицию при начале новой смены
+                        }
                     }
                 }
 
@@ -70,9 +77,10 @@ class KppParser(private val queries: DatabaseQueries) {
                     val sceneId = queries.getSceneIdBySeriesAndNumber(projectId, series, sceneNumber)
                         .executeAsOneOrNull()
 
-                    // Если сцена найдена — создаем связь "Смена <-> Сцена"
+                    // Если сцена найдена — создаем связь "Смена <-> Сцена" с указанием позиции
                     if (sceneId != null && shiftId != null) {
-                        queries.linkShiftToScene(shiftId, sceneId)
+                        queries.linkShiftToScene(shiftId, sceneId, currentPosition)
+                        currentPosition++ // Увеличиваем позицию для следующей сцены
                         linkedScenes++
                     }
                 }

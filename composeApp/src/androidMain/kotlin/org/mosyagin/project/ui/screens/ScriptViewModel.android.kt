@@ -1,11 +1,10 @@
 /**
  * ViewModel для обработки файлов сценария (PDF) на платформе Android.
- * 
- * Основная задача: извлечь текст из PDF, распарсить его на сцены
- * и сохранить в локальную базу данных SQLDelight.
  */
 package org.mosyagin.project.ui.screens
 
+import cafe.adriel.voyager.core.model.ScreenModel
+import cafe.adriel.voyager.core.model.screenModelScope
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.text.PDFTextStripper
 import kotlinx.coroutines.Dispatchers
@@ -13,30 +12,21 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import org.mosyagin.project.DatabaseQueries
 import org.mosyagin.project.db.appContext
-import org.mosyagin.project.parser.ParsedScene
 import org.mosyagin.project.parser.ScriptParser
 
-actual class ScriptViewModel actual constructor(actual val queries: DatabaseQueries) {
+actual class ScriptViewModel actual constructor(actual val queries: DatabaseQueries) : ScreenModel {
 
-    // Состояние загрузки для отображения индикатора на UI
     private val _isLoading = MutableStateFlow(false)
     actual val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    /**
-     * Основной метод обработки PDF.
-     * 
-     * @param projectId ID проекта, к которому относится сценарий.
-     * @param seriesNumber Номер серии (важно для связки с КПП).
-     * @param uriString Путь к файлу в системе Android.
-     */
     actual suspend fun processPdfUri(projectId: Long, seriesNumber: Int, uriString: String) {
         _isLoading.value = true
 
         withContext(Dispatchers.IO) {
             try {
-                // 1. Извлекаем текст из PDF с помощью библиотеки PDFBox
                 val uri = android.net.Uri.parse(uriString)
                 val inputStream = appContext.contentResolver.openInputStream(uri)
                 val document = PDDocument.load(inputStream)
@@ -44,25 +34,26 @@ actual class ScriptViewModel actual constructor(actual val queries: DatabaseQuer
                 val fullText = stripper.getText(document)
                 document.close()
 
-                // 2. Парсим текст (ищем заголовки сцен, время, локации)
                 val parser = ScriptParser()
                 val parsedScenes = parser.parse(fullText, seriesNumber)
 
-                // 3. Сохраняем все данные в БД в рамках одной транзакции (для скорости и надежности)
                 queries.transaction {
-                    // Записываем информацию о самом файле
+                    // 1. Создаем запись о файле
                     queries.insertScriptFile(
                         projectId = projectId,
                         title = "Серия $seriesNumber",
                         filePath = uriString,
                         createdAt = System.currentTimeMillis()
                     )
+                    
+                    val scriptFileId = queries.lastInsertRowId().executeAsOne()
 
-                    // Сохраняем каждую найденную сцену
+                    // 2. Сохраняем сцены с привязкой к файлу
                     parsedScenes.forEach { scene ->
                         try {
                             queries.insertScene(
                                 projectId = projectId,
+                                scriptFileId = scriptFileId, // Передаем ID файла
                                 seriesNumber = seriesNumber.toString(),
                                 sceneNumber = scene.sceneNumber.toString(),
                                 location = scene.location,
@@ -71,10 +62,8 @@ actual class ScriptViewModel actual constructor(actual val queries: DatabaseQuer
                                 content = scene.content
                             )
 
-                            // Получаем ID только что вставленной сцены для связки с актерами
                             val sceneId = queries.lastInsertRowId().executeAsOne()
 
-                            // Сохраняем актеров и привязываем их к сцене
                             scene.actors.forEach { actorName ->
                                 val cleanName = actorName.trim()
                                 if (cleanName.isNotEmpty()) {
@@ -98,7 +87,24 @@ actual class ScriptViewModel actual constructor(actual val queries: DatabaseQuer
         }
     }
 
-    // Заглушка для совместимости с общим интерфейсом
     actual suspend fun processPdfUri(projectId: Long, uriString: String) {
+        // Опционально: автоматическое определение серии из названия файла
+    }
+
+    actual fun deleteScriptFile(fileId: Long) {
+        screenModelScope.launch(Dispatchers.IO) {
+            queries.transaction {
+                // Благодаря ON DELETE CASCADE в БД, сцены удалятся автоматически
+                // Но мы можем удалить их и явно, если CASCADE не сработает (хотя должен)
+                queries.deleteScenesByScriptFile(fileId)
+                queries.deleteScriptFile(fileId)
+            }
+        }
+    }
+
+    actual fun updateScriptTitle(fileId: Long, newTitle: String) {
+        screenModelScope.launch(Dispatchers.IO) {
+            queries.updateScriptFileTitle(newTitle, fileId)
+        }
     }
 }
