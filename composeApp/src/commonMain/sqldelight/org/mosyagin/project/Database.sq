@@ -159,6 +159,13 @@ INSERT INTO Prop(sceneId, name, status, startOffset, endOffset) VALUES (?, ?, ?,
 getPropsForScene:
 SELECT * FROM Prop WHERE sceneId = ? ORDER BY id DESC;
 
+getPropsByProject:
+SELECT p.*, s.seriesNumber, s.sceneNumber
+FROM Prop p
+JOIN Scene s ON p.sceneId = s.id
+WHERE s.projectId = ?
+ORDER BY p.status ASC, p.name ASC;
+
 deleteProp:
 DELETE FROM Prop WHERE id = ?;
 

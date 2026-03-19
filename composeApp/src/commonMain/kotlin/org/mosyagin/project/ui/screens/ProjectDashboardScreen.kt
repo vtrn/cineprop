@@ -79,7 +79,7 @@ data class ProjectDashboardScreen(val projectId: Long) : Screen {
                 
                 item { 
                     DashboardTile("Реквизит", Icons.Default.Inventory) { 
-                        // navigator.push(PropListScreen(projectId))
+                        navigator.push(PropListScreen(projectId))
                     } 
                 }
                 
