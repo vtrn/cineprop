@@ -20,7 +20,9 @@ import org.mosyagin.project.db.LocalDatabaseQueries
 import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.mosyagin.project.parser.KppParser
 import org.mosyagin.project.util.rememberFilePickerLauncher
 
@@ -37,7 +39,7 @@ data class KppListScreen(val projectId: Long) : Screen {
         val kppFiles by remember(projectId, queries) {
             queries.getKppFilesByProject(projectId)
                 .asFlow()
-                .mapToList(Dispatchers.Default)
+                .mapToList(Dispatchers.IO)
         }.collectAsState(initial = emptyList())
 
         val kppPicker = rememberFilePickerLauncher { platformFile ->
@@ -45,8 +47,22 @@ data class KppListScreen(val projectId: Long) : Screen {
                 scope.launch {
                     val csvText = file.bytes?.decodeToString() ?: ""
                     if (csvText.isNotEmpty()) {
-                        val parser = KppParser(queries)
-                        parser.parseAndSaveKpp(projectId = projectId, csvText = csvText)
+                        withContext(Dispatchers.IO) {
+                            val parser = KppParser(queries)
+                            // Парсим и сохраняем смены
+                            parser.parseAndSaveKpp(projectId = projectId, csvText = csvText)
+                            
+                            // Определяем следующую версию
+                            val nextVersion = (kppFiles.maxByOrNull { it.version }?.version ?: 0) + 1
+                            
+                            // Сохраняем информацию о самом файле КПП, чтобы он появился в списке
+                            queries.insertKppFile(
+                                projectId = projectId,
+                                fileName = file.name,
+                                filePath = file.uriString ?: "memory",
+                                version = nextVersion
+                            )
+                        }
                     }
                 }
             }
@@ -91,7 +107,10 @@ data class KppListScreen(val projectId: Long) : Screen {
                             leadingContent = {
                                 Icon(Icons.Default.Event, tint = MaterialTheme.colorScheme.primary, contentDescription = null)
                             },
-                            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            modifier = Modifier.clickable {
+                                // Здесь можно будет открыть детальный просмотр смен этой версии
+                            }
                         )
                     }
                 }

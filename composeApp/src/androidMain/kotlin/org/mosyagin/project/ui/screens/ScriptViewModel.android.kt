@@ -47,8 +47,8 @@ actual class ScriptViewModel actual constructor(actual val queries: DatabaseQuer
                             // 3. Используем переданный seriesNumber для БД
                             queries.insertScene(
                                 projectId = projectId,
-                                seriesNumber = seriesNumber.toLong(),
-                                sceneNumber = scene.sceneNumber.toLong(),
+                                seriesNumber = seriesNumber.toString(),
+                                sceneNumber = scene.sceneNumber.toString(),
                                 location = scene.location,
                                 isInterior = if (scene.type == "ИНТ") 1L else 0L,
                                 timeOfDay = scene.time,

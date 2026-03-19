@@ -49,8 +49,8 @@ DELETE FROM ScriptFile WHERE id = ?;
 CREATE TABLE Scene (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     projectId INTEGER NOT NULL,
-    seriesNumber INTEGER NOT NULL,  -- Добавили это
-    sceneNumber INTEGER NOT NULL,   -- Номер сцены
+    seriesNumber TEXT NOT NULL,  -- Изменено на TEXT
+    sceneNumber TEXT NOT NULL,   -- Изменено на TEXT
     location TEXT NOT NULL,
     isInterior INTEGER NOT NULL,
     timeOfDay TEXT NOT NULL,
@@ -155,8 +155,10 @@ SELECT * FROM KppFile WHERE projectId = ? ORDER BY version DESC;
 -- Таблица Смен
 CREATE TABLE Shift (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    projectId INTEGER NOT NULL,
     shiftNumber INTEGER NOT NULL,
-    date TEXT NOT NULL
+    date TEXT NOT NULL,
+    FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE
 );
 
 -- Связка Смена-Сцена
@@ -164,8 +166,8 @@ CREATE TABLE ShiftScene (
     shiftId INTEGER NOT NULL,
     sceneId INTEGER NOT NULL,
     PRIMARY KEY(shiftId, sceneId),
-    FOREIGN KEY(shiftId) REFERENCES Shift(id),
-    FOREIGN KEY(sceneId) REFERENCES Scene(id)
+    FOREIGN KEY(shiftId) REFERENCES Shift(id) ON DELETE CASCADE,
+    FOREIGN KEY(sceneId) REFERENCES Scene(id) ON DELETE CASCADE
 );
 
 -- Добавь этот запрос для поиска сцены при импорте КПП
@@ -173,7 +175,22 @@ getSceneIdBySeriesAndNumber:
 SELECT id FROM Scene WHERE projectId = ? AND seriesNumber = ? AND sceneNumber = ? LIMIT 1;
 
 insertShift:
-INSERT INTO Shift(shiftNumber, date) VALUES (?, ?);
+INSERT INTO Shift(projectId, shiftNumber, date) VALUES (?, ?, ?);
+
+getShiftByNumber:
+SELECT * FROM Shift WHERE projectId = ? AND shiftNumber = ? LIMIT 1;
 
 linkShiftToScene:
 INSERT OR IGNORE INTO ShiftScene(shiftId, sceneId) VALUES (?, ?);
+
+getShiftsByProject:
+SELECT * FROM Shift WHERE projectId = ? ORDER BY shiftNumber ASC;
+
+getShiftById:
+SELECT * FROM Shift WHERE id = ?;
+
+getScenesForShift:
+SELECT s.* FROM Scene s
+JOIN ShiftScene ss ON s.id = ss.sceneId
+WHERE ss.shiftId = ?
+ORDER BY s.seriesNumber ASC, s.sceneNumber ASC;
