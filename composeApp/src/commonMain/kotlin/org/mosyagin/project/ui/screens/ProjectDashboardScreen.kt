@@ -33,7 +33,6 @@ data class ProjectDashboardScreen(val projectId: Long) : Screen {
         val queries = LocalDatabaseQueries.current
 
         // Загружаем данные проекта из базы по его ID.
-        // Используем remember, чтобы не выполнять запрос к БД при каждой перерисовке UI.
         val project = remember(projectId) {
             queries.getProjectById(projectId).executeAsOne()
         }
@@ -78,9 +77,17 @@ data class ProjectDashboardScreen(val projectId: Long) : Screen {
                     } 
                 }
                 
-                // Эти разделы пока находятся в разработке
-                item { DashboardTile("Реквизит", Icons.Default.Inventory) { /* Скоро */ } }
-                item { DashboardTile("Библия", Icons.Default.AutoStories) { /* Скоро */ } }
+                item { 
+                    DashboardTile("Реквизит", Icons.Default.Inventory) { 
+                        // navigator.push(PropListScreen(projectId))
+                    } 
+                }
+                
+                item { 
+                    DashboardTile("Библия", Icons.Default.AutoStories) { 
+                        navigator.push(CharacterBibleScreen(projectId))
+                    } 
+                }
             }
         }
     }
