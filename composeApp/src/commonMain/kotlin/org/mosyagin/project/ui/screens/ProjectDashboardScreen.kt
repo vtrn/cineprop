@@ -32,8 +32,6 @@ data class ProjectDashboardScreen(val projectId: Long) : Screen { // Перед�
             queries.getProjectById(projectId).executeAsOne()
         }
 
-
-
         Scaffold(
             topBar = {
                 TopAppBar(
@@ -70,7 +68,11 @@ data class ProjectDashboardScreen(val projectId: Long) : Screen { // Перед�
                     }
                 }
 
-                item { DashboardTile("Трекер", Icons.Default.AddAPhoto) { /* Скоро */ } }
+                item { 
+                    DashboardTile("Трекер", Icons.Default.AddAPhoto) {
+                        navigator.push(TrackerScreen(projectId = project.id))
+                    } 
+                }
                 item { DashboardTile("Реквизит", Icons.Default.Inventory) { /* Скоро */ } }
                 item { DashboardTile("Библия", Icons.Default.AutoStories) { /* Скоро */ } }
             }
