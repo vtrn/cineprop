@@ -23,9 +23,8 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import cafe.adriel.voyager.core.model.rememberScreenModel
+import cafe.adriel.voyager.koin.getScreenModel
 import org.mosyagin.project.db.ProjectListScreenModel
-import org.mosyagin.project.db.LocalDatabaseQueries
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -34,12 +33,11 @@ class ProjectListScreen : Screen {
 
     @Composable
     override fun Content() {
-        // Получаем доступ к базе данных и навигатору
-        val queries = LocalDatabaseQueries.current
+        // Получаем навигатор
         val navigator = LocalNavigator.currentOrThrow
         
-        // Используем ScreenModel для управления данными (бизнес-логика вынесена из UI)
-        val screenModel = rememberScreenModel { ProjectListScreenModel(queries) }
+        // Используем Koin для получения ScreenModel
+        val screenModel = getScreenModel<ProjectListScreenModel>()
         
         // Подписываемся на список проектов (UI обновится сам при изменении списка)
         val projects by screenModel.projects.collectAsState()

@@ -49,11 +49,14 @@ kotlin {
             implementation(libs.androidx.lifecycle.runtimeCompose)
 
             // Voyager for navigation
-            val voyagerVersion = "1.1.0-beta03"
-            implementation("cafe.adriel.voyager:voyager-navigator:${voyagerVersion}")
-            implementation("cafe.adriel.voyager:voyager-screenmodel:${voyagerVersion}")
-            implementation("cafe.adriel.voyager:voyager-transitions:${voyagerVersion}")
-            implementation("cafe.adriel.voyager:voyager-lifecycle-kmp:${voyagerVersion}")
+            implementation(libs.voyager.navigator)
+            implementation(libs.voyager.screenModel)
+            implementation(libs.voyager.transitions)
+            implementation(libs.voyager.koin)
+
+            // Koin
+            implementation(libs.koin.core)
+            implementation(libs.koin.compose)
 
             // Coroutines
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1")
@@ -70,6 +73,7 @@ kotlin {
             implementation("app.cash.sqldelight:android-driver:2.0.1")
             implementation(libs.pdfbox.android)
             implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+            implementation(libs.koin.android) // Добавили зависимость для Android
         }
         
         iosMain.dependencies {

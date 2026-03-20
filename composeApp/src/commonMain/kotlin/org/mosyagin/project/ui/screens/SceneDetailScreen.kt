@@ -1,15 +1,12 @@
 package org.mosyagin.project.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -18,20 +15,17 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import cafe.adriel.voyager.core.model.rememberScreenModel
+import cafe.adriel.voyager.koin.getScreenModel
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import org.mosyagin.project.db.LocalDatabaseQueries
-import org.mosyagin.project.ui.components.DashboardTile // Если нужно
+import org.koin.core.parameter.parametersOf
 
 data class SceneDetailScreen(val sceneId: Long, val projectId: Long) : Screen {
 
@@ -39,8 +33,9 @@ data class SceneDetailScreen(val sceneId: Long, val projectId: Long) : Screen {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
-        val queries = LocalDatabaseQueries.current
-        val screenModel = rememberScreenModel { SceneDetailScreenModel(queries, sceneId) }
+        
+        // Передаем sceneId как параметр в Koin
+        val screenModel = getScreenModel<SceneDetailScreenModel> { parametersOf(sceneId) }
 
         val scene by screenModel.scene.collectAsState()
         val actors by screenModel.actors.collectAsState()
@@ -92,7 +87,7 @@ data class SceneDetailScreen(val sceneId: Long, val projectId: Long) : Screen {
                         }
                     }
 
-                    // 2. Вкладка РЕКВИЗИТ (Возвращаем её!)
+                    // Вкладка РЕКВИЗИТ
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -150,7 +145,6 @@ data class SceneDetailScreen(val sceneId: Long, val projectId: Long) : Screen {
                                         detectTapGestures(onLongPress = { offset ->
                                             textLayoutResult?.let { layout ->
                                                 val position = layout.getOffsetForPosition(offset)
-                                                // Простая логика получения слова (от пробела до пробела)
                                                 val word = getWordAtPosition(currentScene.content, position)
                                                 if (word.isNotBlank()) {
                                                     selectedWord = word

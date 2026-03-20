@@ -19,8 +19,8 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import org.mosyagin.project.Project
-import org.mosyagin.project.db.LocalDatabaseQueries
+import org.koin.compose.koinInject
+import org.mosyagin.project.DatabaseQueries
 import org.mosyagin.project.ui.components.DashboardTile
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -30,7 +30,7 @@ data class ProjectDashboardScreen(val projectId: Long) : Screen {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
-        val queries = LocalDatabaseQueries.current
+        val queries = koinInject<DatabaseQueries>()
 
         // Загружаем данные проекта из базы по его ID.
         val project = remember(projectId) {

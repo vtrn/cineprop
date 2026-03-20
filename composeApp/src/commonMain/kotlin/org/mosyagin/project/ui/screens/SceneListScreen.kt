@@ -19,7 +19,8 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import org.mosyagin.project.db.LocalDatabaseQueries
+import org.koin.compose.koinInject
+import org.mosyagin.project.DatabaseQueries
 import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
 import kotlinx.coroutines.Dispatchers
@@ -30,18 +31,18 @@ data class SceneListScreen(val projectId: Long, val projectName: String) : Scree
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
-        val queries = LocalDatabaseQueries.current
+        val queries = koinInject<DatabaseQueries>()
 
         // Получаем поток (Flow) сцен для данного проекта из базы данных.
         // При добавлении новых сцен в базу (через парсер), этот список обновится автоматически.
-        val scenes by remember(projectId) {
+        val scenes by remember(projectId, queries) {
             queries.getScenesByProject(projectId)
                 .asFlow()
                 .mapToList(Dispatchers.Default)
         }.collectAsState(initial = emptyList())
 
         // Загружаем информацию о проекте для навигации
-        val project = remember(projectId) {
+        val project = remember(projectId, queries) {
             queries.getProjectById(projectId).executeAsOne()
         }
 

@@ -14,8 +14,8 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-
-import org.mosyagin.project.db.LocalDatabaseQueries
+import org.koin.compose.koinInject
+import org.mosyagin.project.DatabaseQueries
 
 class CreateProjectScreen(
     private val projectIdToEdit: Long? = null,
@@ -25,8 +25,8 @@ class CreateProjectScreen(
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     override fun Content() {
-        val queries = LocalDatabaseQueries.current
         val navigator = LocalNavigator.currentOrThrow
+        val queries = koinInject<DatabaseQueries>()
 
         // Инициализируем поля значениями из проекта, если мы в режиме редактирования
         var name by remember { mutableStateOf(initialName ?: "") }

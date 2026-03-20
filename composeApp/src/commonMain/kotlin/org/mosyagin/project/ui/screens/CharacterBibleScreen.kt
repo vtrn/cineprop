@@ -10,7 +10,6 @@ package org.mosyagin.project.ui.screens
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,7 +18,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
@@ -31,7 +29,8 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import org.mosyagin.project.db.LocalDatabaseQueries
+import org.koin.compose.koinInject
+import org.mosyagin.project.DatabaseQueries
 import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
 import kotlinx.coroutines.Dispatchers
@@ -48,7 +47,7 @@ data class CharacterBibleScreen(val projectId: Long) : Screen {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
-        val queries = LocalDatabaseQueries.current
+        val queries = koinInject<DatabaseQueries>()
 
         val actors by remember(projectId, queries) {
             queries.getActorsByProject(projectId)
@@ -92,23 +91,23 @@ data class CharacterBibleScreen(val projectId: Long) : Screen {
  */
 @Composable
 fun ExpandableCharacterCard(actor: Actor, projectId: Long) {
-    val queries = LocalDatabaseQueries.current
+    val queries = koinInject<DatabaseQueries>()
     var expanded by remember { mutableStateOf(false) }
 
     // Загружаем сцены и локации только если карточка развернута (оптимизация)
-    val actorScenes by remember(actor.id, expanded) {
+    val actorScenes by remember(actor.id, expanded, queries) {
         if (expanded) {
             queries.getScenesByActor(actor.id).asFlow().mapToList(Dispatchers.IO)
         } else {
-            flowOf(emptyList())
+            kotlinx.coroutines.flow.flowOf(emptyList())
         }
     }.collectAsState(initial = emptyList())
 
-    val actorLocations by remember(actor.id, expanded) {
+    val actorLocations by remember(actor.id, expanded, queries) {
         if (expanded) {
             queries.getLocationsByActor(actor.id).asFlow().mapToList(Dispatchers.IO)
         } else {
-            flowOf(emptyList())
+            kotlinx.coroutines.flow.flowOf(emptyList())
         }
     }.collectAsState(initial = emptyList())
 
@@ -124,9 +123,7 @@ fun ExpandableCharacterCard(actor: Actor, projectId: Long) {
             ) {
                 Icon(Icons.Default.Person, null, tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(12.dp))
-                Text(actor.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(
-                    1F
-                ) )
+                Text(actor.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1F))
                 Icon(
                     imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                     contentDescription = null
@@ -163,7 +160,6 @@ fun ExpandableCharacterCard(actor: Actor, projectId: Long) {
                     if (actorScenes.isEmpty()) {
                         Text("Нет данных", style = MaterialTheme.typography.bodySmall)
                     } else {
-                        // Используем Column вместо LazyRow, так как мы внутри прокручиваемого списка
                         actorScenes.forEach { scene ->
                             SceneItem(scene)
                             Spacer(Modifier.height(4.dp))
@@ -196,6 +192,3 @@ fun SceneItem(scene: Scene) {
         }
     }
 }
-
-// Заглушка для flowOf если нет импорта
-private fun <T> flowOf(value: T): kotlinx.coroutines.flow.Flow<T> = kotlinx.coroutines.flow.flow { emit(value) }

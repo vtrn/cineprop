@@ -16,11 +16,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import cafe.adriel.voyager.core.model.rememberScreenModel
+import cafe.adriel.voyager.koin.getScreenModel
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import org.mosyagin.project.db.LocalDatabaseQueries
+import org.koin.compose.koinInject
+import org.mosyagin.project.DatabaseQueries
 import org.mosyagin.project.util.rememberFilePickerLauncher
 import kotlinx.coroutines.launch
 import app.cash.sqldelight.coroutines.asFlow
@@ -35,8 +36,8 @@ data class ScriptListScreen(val projectId: Long) : Screen {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
-        val queries = LocalDatabaseQueries.current
-        val screenModel = rememberScreenModel { ScriptViewModel(queries) }
+        val queries = koinInject<DatabaseQueries>()
+        val screenModel = getScreenModel<ScriptViewModel>()
 
         val isLoading by screenModel.isLoading.collectAsState()
         val scope = rememberCoroutineScope()
@@ -198,7 +199,6 @@ data class ScriptListScreen(val projectId: Long) : Screen {
     }
 
     private fun formatDate(timestamp: Long): String {
-        // Простая заглушка форматирования даты
-        return "от " + (timestamp / 1000 / 3600 / 24 % 31).toString() // Упрощенно
+        return "от " + (timestamp / 1000 / 3600 / 24 % 31).toString()
     }
 }
