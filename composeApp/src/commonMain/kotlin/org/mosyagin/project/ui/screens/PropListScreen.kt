@@ -6,7 +6,6 @@
  */
 package org.mosyagin.project.ui.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,13 +25,9 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import org.koin.compose.koinInject
-import org.mosyagin.project.DatabaseQueries
-import app.cash.sqldelight.coroutines.asFlow
-import app.cash.sqldelight.coroutines.mapToList
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.IO
 import kotlinx.coroutines.launch
-import org.mosyagin.project.GetPropsByProject
+import org.mosyagin.project.repository.PropWithScene
+import org.mosyagin.project.repository.SceneRepository
 
 /**
  * Экран со списком реквизита.
@@ -43,18 +38,13 @@ data class PropListScreen(val projectId: Long) : Screen {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
-        // Внедряем зависимости через Koin
-        val queries = koinInject<DatabaseQueries>()
+        val repository = koinInject<SceneRepository>()
         val scope = rememberCoroutineScope()
 
         var searchQuery by remember { mutableStateOf("") }
 
-        // Получаем весь реквизит проекта
-        val props by remember(projectId, queries) {
-            queries.getPropsByProject(projectId)
-                .asFlow()
-                .mapToList(Dispatchers.IO)
-        }.collectAsState(initial = emptyList())
+        // Получаем весь реквизит проекта через репозиторий
+        val props by repository.getPropsByProject(projectId).collectAsState(initial = emptyList())
 
         // Фильтрация по поиску
         val filteredProps = props.filter { it.name.contains(searchQuery, ignoreCase = true) }
@@ -95,8 +85,8 @@ data class PropListScreen(val projectId: Long) : Screen {
                     ) {
                         items(filteredProps) { prop ->
                             PropItem(prop) { newStatus ->
-                                scope.launch(Dispatchers.IO) {
-                                    queries.updatePropStatus(newStatus, prop.id)
+                                scope.launch {
+                                    repository.updatePropStatus(prop.id, newStatus)
                                 }
                             }
                         }
@@ -108,7 +98,7 @@ data class PropListScreen(val projectId: Long) : Screen {
 }
 
 @Composable
-fun PropItem(prop: GetPropsByProject, onStatusChange: (String) -> Unit) {
+fun PropItem(prop: PropWithScene, onStatusChange: (String) -> Unit) {
     val isReady = prop.status == "Готово"
 
     OutlinedCard(

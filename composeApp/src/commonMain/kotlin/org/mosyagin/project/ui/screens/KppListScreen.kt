@@ -23,14 +23,12 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import org.koin.compose.koinInject
-import org.mosyagin.project.DatabaseQueries
-import app.cash.sqldelight.coroutines.asFlow
-import app.cash.sqldelight.coroutines.mapToList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.mosyagin.project.parser.KppParser
+import org.mosyagin.project.repository.KppRepository
 import org.mosyagin.project.util.rememberFilePickerLauncher
 
 data class KppListScreen(val projectId: Long) : Screen {
@@ -39,33 +37,28 @@ data class KppListScreen(val projectId: Long) : Screen {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
-        val queries = koinInject<DatabaseQueries>()
+        val kppRepository = koinInject<KppRepository>()
+        val kppParser = koinInject<KppParser>()
         val scope = rememberCoroutineScope()
 
-        // Подписка на список загруженных файлов КПП из базы данных
-        val kppFiles by remember(projectId, queries) {
-            queries.getKppFilesByProject(projectId)
-                .asFlow()
-                .mapToList(Dispatchers.IO)
-        }.collectAsState(initial = emptyList())
+        // Подписка на список загруженных файлов КПП через репозиторий
+        val kppFiles by kppRepository.getKppFilesByProject(projectId).collectAsState(initial = emptyList())
 
-        // Лончер для выбора файла в системе (использует системный проводник)
+        // Лончер для выбора файла в системе
         val kppPicker = rememberFilePickerLauncher { platformFile ->
             platformFile?.let { file ->
                 scope.launch {
-                    // Читаем содержимое файла в строку
                     val csvText = file.bytes?.decodeToString() ?: ""
                     if (csvText.isNotEmpty()) {
                         withContext(Dispatchers.IO) {
-                            // 1. Запуск парсера для обработки смен и привязки сцен
-                            val parser = KppParser(queries)
-                            parser.parseAndSaveKpp(projectId = projectId, csvText = csvText)
+                            // 1. Используем внедренный парсер
+                            kppParser.parseAndSaveKpp(projectId = projectId, csvText = csvText)
                             
-                            // 2. Вычисляем номер следующей версии КПП
+                            // 2. Вычисляем номер следующей версии
                             val nextVersion = (kppFiles.maxByOrNull { it.version }?.version ?: 0) + 1
                             
-                            // 3. Сохраняем запись о самом файле в базу
-                            queries.insertKppFile(
+                            // 3. Сохраняем запись о файле через репозиторий
+                            kppRepository.addKppFile(
                                 projectId = projectId,
                                 fileName = file.name,
                                 filePath = file.uriString ?: "memory",
@@ -89,7 +82,6 @@ data class KppListScreen(val projectId: Long) : Screen {
                 )
             },
             floatingActionButton = {
-                // Кнопка для вызова выбора файла
                 FloatingActionButton(onClick = {
                     kppPicker.launch()
                 }) {
@@ -119,7 +111,7 @@ data class KppListScreen(val projectId: Long) : Screen {
                             },
                             colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                             modifier = Modifier.clickable {
-                                // Клик по версии КПП (будущий функционал просмотра истории)
+                                // Будущий функционал
                             }
                         )
                     }

@@ -22,11 +22,7 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import org.koin.compose.koinInject
-import org.mosyagin.project.DatabaseQueries
-import app.cash.sqldelight.coroutines.asFlow
-import app.cash.sqldelight.coroutines.mapToList
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.IO
+import org.mosyagin.project.repository.ShiftRepository
 
 data class TrackerScreen(val projectId: Long) : Screen {
 
@@ -34,17 +30,10 @@ data class TrackerScreen(val projectId: Long) : Screen {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
-        val queries = koinInject<DatabaseQueries>()
+        val repository = koinInject<ShiftRepository>()
 
-        /**
-         * Подписка на список смен из базы данных.
-         * collectAsState позволяет UI автоматически обновляться при изменениях в БД.
-         */
-        val shifts by remember(projectId, queries) {
-            queries.getShiftsByProject(projectId)
-                .asFlow()
-                .mapToList(Dispatchers.IO)
-        }.collectAsState(initial = emptyList())
+        // Получаем список смен через Flow из репозитория
+        val shifts by repository.getShiftsByProject(projectId).collectAsState(initial = emptyList())
 
         Scaffold(
             topBar = {
@@ -59,7 +48,6 @@ data class TrackerScreen(val projectId: Long) : Screen {
             }
         ) { padding ->
             if (shifts.isEmpty()) {
-                // Если смен нет, выводим заглушку с подсказкой
                 Box(
                     modifier = Modifier.fillMaxSize().padding(padding),
                     contentAlignment = Alignment.Center
@@ -67,7 +55,6 @@ data class TrackerScreen(val projectId: Long) : Screen {
                     Text("Смены не найдены. Загрузите КПП.", color = MaterialTheme.colorScheme.outline)
                 }
             } else {
-                // Список смен
                 LazyColumn(
                     modifier = Modifier.padding(padding).fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
@@ -81,7 +68,6 @@ data class TrackerScreen(val projectId: Long) : Screen {
                                 Icon(Icons.Default.Today, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             },
                             modifier = Modifier.clickable {
-                                // Переход к деталям выбранной смены
                                 navigator.push(ShiftDetailScreen(shift.id))
                             },
                             colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceVariant)

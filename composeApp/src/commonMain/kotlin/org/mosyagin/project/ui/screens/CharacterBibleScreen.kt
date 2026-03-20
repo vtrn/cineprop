@@ -30,13 +30,9 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import org.koin.compose.koinInject
-import org.mosyagin.project.DatabaseQueries
-import app.cash.sqldelight.coroutines.asFlow
-import app.cash.sqldelight.coroutines.mapToList
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.IO
 import org.mosyagin.project.Actor
 import org.mosyagin.project.Scene
+import org.mosyagin.project.repository.SceneRepository
 
 /**
  * Главный экран Библии персонажей.
@@ -47,13 +43,9 @@ data class CharacterBibleScreen(val projectId: Long) : Screen {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
-        val queries = koinInject<DatabaseQueries>()
+        val repository = koinInject<SceneRepository>()
 
-        val actors by remember(projectId, queries) {
-            queries.getActorsByProject(projectId)
-                .asFlow()
-                .mapToList(Dispatchers.IO)
-        }.collectAsState(initial = emptyList())
+        val actors by repository.getActorsByProject(projectId).collectAsState(initial = emptyList())
 
         Scaffold(
             topBar = {
@@ -78,7 +70,7 @@ data class CharacterBibleScreen(val projectId: Long) : Screen {
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(actors) { actor ->
-                        ExpandableCharacterCard(actor, projectId)
+                        ExpandableCharacterCard(actor)
                     }
                 }
             }
@@ -90,25 +82,19 @@ data class CharacterBibleScreen(val projectId: Long) : Screen {
  * Раскрывающаяся карточка персонажа.
  */
 @Composable
-fun ExpandableCharacterCard(actor: Actor, projectId: Long) {
-    val queries = koinInject<DatabaseQueries>()
+fun ExpandableCharacterCard(actor: Actor) {
+    val repository = koinInject<SceneRepository>()
     var expanded by remember { mutableStateOf(false) }
 
-    // Загружаем сцены и локации только если карточка развернута (оптимизация)
-    val actorScenes by remember(actor.id, expanded, queries) {
-        if (expanded) {
-            queries.getScenesByActor(actor.id).asFlow().mapToList(Dispatchers.IO)
-        } else {
-            kotlinx.coroutines.flow.flowOf(emptyList())
-        }
+    // Загружаем сцены и локации только если карточка развернута
+    val actorScenes by remember(actor.id, expanded) {
+        if (expanded) repository.getScenesByActor(actor.id)
+        else kotlinx.coroutines.flow.flowOf(emptyList())
     }.collectAsState(initial = emptyList())
 
-    val actorLocations by remember(actor.id, expanded, queries) {
-        if (expanded) {
-            queries.getLocationsByActor(actor.id).asFlow().mapToList(Dispatchers.IO)
-        } else {
-            kotlinx.coroutines.flow.flowOf(emptyList())
-        }
+    val actorLocations by remember(actor.id, expanded) {
+        if (expanded) repository.getLocationsByActor(actor.id)
+        else kotlinx.coroutines.flow.flowOf(emptyList())
     }.collectAsState(initial = emptyList())
 
     OutlinedCard(
@@ -116,7 +102,6 @@ fun ExpandableCharacterCard(actor: Actor, projectId: Long) {
         colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column {
-            // Заголовок карточки (всегда виден)
             Row(
                 modifier = Modifier.padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -130,7 +115,6 @@ fun ExpandableCharacterCard(actor: Actor, projectId: Long) {
                 )
             }
 
-            // Разворачиваемая часть
             AnimatedVisibility(
                 visible = expanded,
                 enter = expandVertically(),
@@ -139,7 +123,6 @@ fun ExpandableCharacterCard(actor: Actor, projectId: Long) {
                 Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
                     HorizontalDivider(modifier = Modifier.padding(bottom = 12.dp))
 
-                    // Раздел: Локации
                     Text("ЛОКАЦИИ:", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.secondary)
                     Spacer(Modifier.height(4.dp))
                     if (actorLocations.isEmpty()) {
@@ -153,7 +136,6 @@ fun ExpandableCharacterCard(actor: Actor, projectId: Long) {
 
                     Spacer(Modifier.height(16.dp))
 
-                    // Раздел: Сцены
                     Text("СЦЕНЫ:", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.secondary)
                     Spacer(Modifier.height(8.dp))
                     

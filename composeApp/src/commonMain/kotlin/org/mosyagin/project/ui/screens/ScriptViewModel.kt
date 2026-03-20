@@ -2,10 +2,10 @@ package org.mosyagin.project.ui.screens
 
 import cafe.adriel.voyager.core.model.ScreenModel
 import kotlinx.coroutines.flow.StateFlow
-import org.mosyagin.project.DatabaseQueries
+import org.mosyagin.project.repository.ScriptRepository
 
-expect class ScriptViewModel(queries: DatabaseQueries) : ScreenModel {
-    val queries: DatabaseQueries
+expect class ScriptViewModel(repository: ScriptRepository) : ScreenModel {
+    val repository: ScriptRepository
     val isLoading: StateFlow<Boolean>
 
     suspend fun processPdfUri(projectId: Long, seriesNumber: Int, uriString: String)

@@ -20,10 +20,7 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import org.koin.compose.koinInject
-import org.mosyagin.project.DatabaseQueries
-import app.cash.sqldelight.coroutines.asFlow
-import app.cash.sqldelight.coroutines.mapToList
-import kotlinx.coroutines.Dispatchers
+import org.mosyagin.project.repository.SceneRepository
 
 data class SceneListScreen(val projectId: Long, val projectName: String) : Screen {
 
@@ -31,20 +28,10 @@ data class SceneListScreen(val projectId: Long, val projectName: String) : Scree
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
-        val queries = koinInject<DatabaseQueries>()
+        val repository = koinInject<SceneRepository>()
 
-        // Получаем поток (Flow) сцен для данного проекта из базы данных.
-        // При добавлении новых сцен в базу (через парсер), этот список обновится автоматически.
-        val scenes by remember(projectId, queries) {
-            queries.getScenesByProject(projectId)
-                .asFlow()
-                .mapToList(Dispatchers.Default)
-        }.collectAsState(initial = emptyList())
-
-        // Загружаем информацию о проекте для навигации
-        val project = remember(projectId, queries) {
-            queries.getProjectById(projectId).executeAsOne()
-        }
+        // Получаем поток (Flow) сцен для данного проекта через репозиторий.
+        val scenes by repository.getScenesByProject(projectId).collectAsState(initial = emptyList())
 
         Scaffold(
             topBar = {
@@ -58,26 +45,21 @@ data class SceneListScreen(val projectId: Long, val projectName: String) : Scree
                 )
             }
         ) { padding ->
-            // Список сцен в формате ListTile (название, подзаголовок, иконка)
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding)
             ) {
                 items(scenes) { scene ->
                     ListItem(
                         headlineContent = {
-                            // Формат: Сцена 1-5: ЛОКАЦИЯ
                             Text("Сцена ${scene.seriesNumber}-${scene.sceneNumber}: ${scene.location}")
                         },
                         supportingContent = {
-                            // Формат: ИНТ. | ДЕНЬ
                             Text(if (scene.isInterior == 1L) "ИНТ. | ${scene.timeOfDay}" else "НАТ. | ${scene.timeOfDay}")
                         },
                         modifier = Modifier.clickable {
-                            // Переход к детальному просмотру текста конкретной сцены
-                            navigator.push(SceneDetailScreen(sceneId = scene.id, projectId = project.id))
+                            navigator.push(SceneDetailScreen(sceneId = scene.id, projectId = projectId))
                         }
                     )
-                    // Разделительная линия между элементами списка
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp)
                 }
             }
