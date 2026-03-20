@@ -19,7 +19,7 @@ class KppParser(
         val rows = csvText.lines()
 
         var currentShiftNumber: Long = 1
-        var currentDate: String = "Неизвестно"
+        var currentDate = "Неизвестно"
         var currentPosition: Long = 0
 
         // Используем runBlocking для упрощения миграции, 
@@ -55,11 +55,7 @@ class KppParser(
                 if (!series.isNullOrBlank() && !sceneNumber.isNullOrBlank() && series.any { it.isDigit() }) {
                     
                     val shift = shiftRepository.getShiftByNumber(projectId, currentShiftNumber)
-                    val shiftId = if (shift == null) {
-                        shiftRepository.addShift(projectId, currentShiftNumber, currentDate)
-                    } else {
-                        shift.id
-                    }
+                    val shiftId = shift?.id ?: shiftRepository.addShift(projectId, currentShiftNumber, currentDate)
 
                     // Теперь sceneRepository — это репозиторий, и метод вернет Long?
                     val sceneId = sceneRepository.getSceneIdBySeriesAndNumber(projectId, series, sceneNumber)
