@@ -1,53 +1,32 @@
 package org.mosyagin.project.db
 
-import app.cash.sqldelight.coroutines.asFlow
-import app.cash.sqldelight.coroutines.mapToList
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
-
-
-import cafe.adriel.voyager.core.model.screenModelScope
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
-import org.mosyagin.project.DatabaseQueries
 import org.mosyagin.project.Project
+import org.mosyagin.project.repository.ProjectRepository
 
-class ProjectListScreenModel(private val queries: DatabaseQueries) : ScreenModel {
+class ProjectListScreenModel(private val repository: ProjectRepository) : ScreenModel {
 
-    private val _projects = MutableStateFlow<List<Project>>(emptyList())
-    val projects: StateFlow<List<Project>> = queries.getAllProjects()
-        .asFlow()
-        .mapToList(Dispatchers.Default) // Default стабильнее для мультиплатформы
+    val projects: StateFlow<List<Project>> = repository.getAllProjects()
         .stateIn(
-            scope = screenModelScope, // Привязываем к жизненному циклу экрана
-            started = SharingStarted.WhileSubscribed(5000), // Пауза при сворачивании
-            initialValue = emptyList() // Значение до первой загрузки
+            scope = screenModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
         )
-
-    init {
-        loadProjects()
-    }
-
-    private fun loadProjects() {
-        screenModelScope.launch {
-            _projects.value = queries.getAllProjects().executeAsList()
-        }
-    }
 
     fun addProject(name: String, director: String) {
         screenModelScope.launch {
-            queries.insertProject(name, director)
-            loadProjects()
+            repository.addProject(name, director)
         }
     }
 
     fun deleteProject(id: Long) {
-        // queries — это твоя база данных
-        queries.deleteProject(id)
-        // Список в UI обновится автоматически благодаря Flow!
+        screenModelScope.launch {
+            repository.deleteProject(id)
+        }
     }
 }

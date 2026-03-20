@@ -15,11 +15,7 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import org.koin.compose.koinInject
-import org.mosyagin.project.DatabaseQueries
-import app.cash.sqldelight.coroutines.asFlow
-import app.cash.sqldelight.coroutines.mapToList
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.IO
+import org.mosyagin.project.repository.ShiftRepository
 
 data class ShiftDetailScreen(val shiftId: Long) : Screen {
 
@@ -27,26 +23,24 @@ data class ShiftDetailScreen(val shiftId: Long) : Screen {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
-        val queries = koinInject<DatabaseQueries>()
+        val repository = koinInject<ShiftRepository>()
         
-        val shift = remember(shiftId, queries) {
-            queries.getShiftById(shiftId).executeAsOne()
-        }
+        // Получаем смену через Flow из репозитория
+        val shift by repository.getShiftById(shiftId).collectAsState(initial = null)
 
-        val scenes by remember(shiftId, queries) {
-            queries.getScenesForShift(shiftId)
-                .asFlow()
-                .mapToList(Dispatchers.IO)
-        }.collectAsState(initial = emptyList())
+        // Получаем список сцен через Flow из репозитория
+        val scenes by repository.getScenesForShift(shiftId).collectAsState(initial = emptyList())
 
         Scaffold(
             topBar = {
                 TopAppBar(
                     title = { 
-                        Column {
-                            Text("Смена №${shift.shiftNumber}", style = MaterialTheme.typography.titleMedium)
-                            Text(shift.date, style = MaterialTheme.typography.bodySmall)
-                        }
+                        shift?.let { s ->
+                            Column {
+                                Text("Смена №${s.shiftNumber}", style = MaterialTheme.typography.titleMedium)
+                                Text(s.date, style = MaterialTheme.typography.bodySmall)
+                            }
+                        } ?: Text("Загрузка...")
                     },
                     navigationIcon = {
                         IconButton(onClick = { navigator.pop() }) {

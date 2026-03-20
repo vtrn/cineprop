@@ -6,6 +6,9 @@ import org.koin.dsl.module
 import org.mosyagin.project.db.CinePropDatabase
 import org.mosyagin.project.db.createDriver
 import org.mosyagin.project.db.ProjectListScreenModel
+import org.mosyagin.project.parser.KppParser
+import org.mosyagin.project.parser.ScriptParser
+import org.mosyagin.project.repository.*
 import org.mosyagin.project.ui.screens.SceneDetailScreenModel
 import org.mosyagin.project.ui.screens.ScriptViewModel
 
@@ -44,5 +47,12 @@ val screenModelModule = module {
  * Общий модуль приложения.
  */
 val appModule = module {
-    // В будущем здесь будут репозитории
+    single { ScriptParser() }
+    single { KppParser(get(), get()) }
+    
+    single<ProjectRepository> { ProjectRepositoryImpl(get()) }
+    single<SceneRepository> { SceneRepositoryImpl(get()) }
+    single<ScriptRepository> { ScriptRepositoryImpl(get(), get()) }
+    single<KppRepository> { KppRepositoryImpl(get()) }
+    single<ShiftRepository> { ShiftRepositoryImpl(get()) }
 }

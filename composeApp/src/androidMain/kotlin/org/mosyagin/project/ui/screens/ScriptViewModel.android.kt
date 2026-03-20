@@ -13,11 +13,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import org.mosyagin.project.DatabaseQueries
 import org.mosyagin.project.db.appContext
-import org.mosyagin.project.parser.ScriptParser
+import org.mosyagin.project.repository.ScriptRepository
 
-actual class ScriptViewModel actual constructor(actual val queries: DatabaseQueries) : ScreenModel {
+actual class ScriptViewModel actual constructor(actual val repository: ScriptRepository) : ScreenModel {
 
     private val _isLoading = MutableStateFlow(false)
     actual val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -34,51 +33,13 @@ actual class ScriptViewModel actual constructor(actual val queries: DatabaseQuer
                 val fullText = stripper.getText(document)
                 document.close()
 
-                val parser = ScriptParser()
-                val parsedScenes = parser.parse(fullText, seriesNumber)
-
-                queries.transaction {
-                    // 1. Создаем запись о файле
-                    queries.insertScriptFile(
-                        projectId = projectId,
-                        title = "Серия $seriesNumber",
-                        filePath = uriString,
-                        createdAt = System.currentTimeMillis()
-                    )
-                    
-                    val scriptFileId = queries.lastInsertRowId().executeAsOne()
-
-                    // 2. Сохраняем сцены с привязкой к файлу
-                    parsedScenes.forEach { scene ->
-                        try {
-                            queries.insertScene(
-                                projectId = projectId,
-                                scriptFileId = scriptFileId, // Передаем ID файла
-                                seriesNumber = seriesNumber.toString(),
-                                sceneNumber = scene.sceneNumber.toString(),
-                                location = scene.location,
-                                isInterior = if (scene.type == "ИНТ") 1L else 0L,
-                                timeOfDay = scene.time,
-                                content = scene.content
-                            )
-
-                            val sceneId = queries.lastInsertRowId().executeAsOne()
-
-                            scene.actors.forEach { actorName ->
-                                val cleanName = actorName.trim()
-                                if (cleanName.isNotEmpty()) {
-                                    queries.insertActor(projectId, cleanName)
-                                    val actor = queries.getActorByName(projectId, cleanName).executeAsOneOrNull()
-                                    if (actor != null) {
-                                        queries.linkActorToScene(sceneId, actor.id)
-                                    }
-                                }
-                            }
-                        } catch (e: Exception) {
-                            println("CINE_ERROR: Ошибка обработки сцены: ${e.message}")
-                        }
-                    }
-                }
+                repository.saveParsedScript(
+                    projectId = projectId,
+                    seriesNumber = seriesNumber,
+                    filePath = uriString,
+                    fullText = fullText,
+                    createdAt = System.currentTimeMillis()
+                )
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
@@ -93,18 +54,13 @@ actual class ScriptViewModel actual constructor(actual val queries: DatabaseQuer
 
     actual fun deleteScriptFile(fileId: Long) {
         screenModelScope.launch(Dispatchers.IO) {
-            queries.transaction {
-                // Благодаря ON DELETE CASCADE в БД, сцены удалятся автоматически
-                // Но мы можем удалить их и явно, если CASCADE не сработает (хотя должен)
-                queries.deleteScenesByScriptFile(fileId)
-                queries.deleteScriptFile(fileId)
-            }
+            repository.deleteScriptFile(fileId)
         }
     }
 
     actual fun updateScriptTitle(fileId: Long, newTitle: String) {
         screenModelScope.launch(Dispatchers.IO) {
-            queries.updateScriptFileTitle(newTitle, fileId)
+            repository.updateScriptTitle(fileId, newTitle)
         }
     }
 }

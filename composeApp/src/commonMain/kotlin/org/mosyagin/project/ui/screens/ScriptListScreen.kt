@@ -21,14 +21,10 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import org.koin.compose.koinInject
-import org.mosyagin.project.DatabaseQueries
 import org.mosyagin.project.util.rememberFilePickerLauncher
 import kotlinx.coroutines.launch
-import app.cash.sqldelight.coroutines.asFlow
-import app.cash.sqldelight.coroutines.mapToList
-import kotlinx.coroutines.Dispatchers
-import org.mosyagin.project.Project
 import org.mosyagin.project.ScriptFile
+import org.mosyagin.project.repository.ScriptRepository
 
 data class ScriptListScreen(val projectId: Long) : Screen {
 
@@ -36,15 +32,13 @@ data class ScriptListScreen(val projectId: Long) : Screen {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
-        val queries = koinInject<DatabaseQueries>()
+        val repository = koinInject<ScriptRepository>()
         val screenModel = getScreenModel<ScriptViewModel>()
 
         val isLoading by screenModel.isLoading.collectAsState()
         val scope = rememberCoroutineScope()
 
-        val scripts by remember(queries, projectId) {
-            queries.getScriptsForProject(projectId).asFlow().mapToList(Dispatchers.Default)
-        }.collectAsState(initial = emptyList())
+        val scripts by repository.getScriptsForProject(projectId).collectAsState(initial = emptyList())
 
         // Состояния для диалогов
         var showAddDialog by remember { mutableStateOf(false) }
