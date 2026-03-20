@@ -59,34 +59,44 @@ kotlin {
             implementation(libs.koin.compose)
 
             // Coroutines
-            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1")
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:${libs.versions.kotlinx.coroutines.get()}")
 
             // SQLDelight
-            implementation("app.cash.sqldelight:runtime:2.0.1")
-            implementation("app.cash.sqldelight:coroutines-extensions:2.0.1")
+            implementation("app.cash.sqldelight:runtime:${libs.versions.sqldelight.get()}")
+            implementation("app.cash.sqldelight:coroutines-extensions:${libs.versions.sqldelight.get()}")
             implementation(compose.materialIconsExtended)
         }
         
         androidMain.dependencies {
             implementation(libs.androidx.activity.compose)
             implementation(libs.compose.uiToolingPreview)
-            implementation("app.cash.sqldelight:android-driver:2.0.1")
+            implementation("app.cash.sqldelight:android-driver:${libs.versions.sqldelight.get()}")
             implementation(libs.pdfbox.android)
-            implementation("com.tom-roush:pdfbox-android:2.0.27.0")
-            implementation(libs.koin.android) // Добавили зависимость для Android
+            implementation(libs.koin.android)
         }
         
         iosMain.dependencies {
-            implementation("app.cash.sqldelight:native-driver:2.0.1")
+            implementation("app.cash.sqldelight:native-driver:${libs.versions.sqldelight.get()}")
         }
 
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:${libs.versions.kotlinx.coroutines.get()}")
         }
 
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
+            implementation("app.cash.sqldelight:sqlite-driver:${libs.versions.sqldelight.get()}")
+        }
+        
+        jvmTest.dependencies {
+            implementation("app.cash.sqldelight:sqlite-driver:${libs.versions.sqldelight.get()}")
+        }
+
+        androidUnitTest.dependencies {
+            implementation("androidx.test:core:1.6.1")
+            implementation("org.robolectric:robolectric:4.12.2")
         }
     }
 }
@@ -105,6 +115,7 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "/META-INF/versions/9/previous-compilation-data.bin"
         }
     }
     buildTypes {

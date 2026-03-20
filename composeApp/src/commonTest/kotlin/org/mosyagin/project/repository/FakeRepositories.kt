@@ -1,11 +1,64 @@
 package org.mosyagin.project.repository
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flowOf
 import org.mosyagin.project.Actor
 import org.mosyagin.project.Prop
 import org.mosyagin.project.Scene
 import org.mosyagin.project.Shift
+import org.mosyagin.project.Project
+import org.mosyagin.project.ScriptFile
+
+class FakeProjectRepository : ProjectRepository {
+    private val projects = MutableStateFlow<List<Project>>(emptyList())
+
+    override fun getAllProjects(): Flow<List<Project>> = projects.asStateFlow()
+
+    override fun getProjectById(id: Long): Flow<Project?> = flowOf(projects.value.find { it.id == id })
+
+    override suspend fun addProject(name: String, director: String) {
+        val newId = (projects.value.size + 1).toLong()
+        projects.value += Project(newId, name, director)
+    }
+
+    override suspend fun deleteProject(id: Long) {
+        projects.value = projects.value.filter { it.id != id }
+    }
+}
+
+class FakeScriptRepository : ScriptRepository {
+    private val scripts = MutableStateFlow<List<ScriptFile>>(emptyList())
+    var saveParsedScriptCalled = false
+    var lastSavedText = ""
+
+    override fun getScriptsForProject(projectId: Long): Flow<List<ScriptFile>> = 
+        flowOf(scripts.value.filter { it.projectId == projectId })
+
+    override suspend fun saveParsedScript(
+        projectId: Long,
+        seriesNumber: Int,
+        filePath: String,
+        fullText: String,
+        createdAt: Long
+    ) {
+        saveParsedScriptCalled = true
+        lastSavedText = fullText
+        val newId = (scripts.value.size + 1).toLong()
+        scripts.value += ScriptFile(newId, projectId, "Серия $seriesNumber", filePath, createdAt)
+    }
+
+    override suspend fun deleteScriptFile(fileId: Long) {
+        scripts.value = scripts.value.filter { it.id != fileId }
+    }
+
+    override suspend fun updateScriptTitle(fileId: Long, newTitle: String) {
+        scripts.value = scripts.value.map { 
+            if (it.id == fileId) it.copy(title = newTitle) else it 
+        }
+    }
+}
 
 class FakeSceneRepository : SceneRepository {
     private val scenes = mutableListOf<Scene>()

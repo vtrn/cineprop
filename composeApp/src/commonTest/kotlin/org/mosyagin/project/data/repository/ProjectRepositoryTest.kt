@@ -6,13 +6,12 @@ import kotlinx.coroutines.test.runTest
 import org.mosyagin.project.repository.ProjectRepository
 import org.mosyagin.project.repository.ProjectRepositoryImpl
 import org.mosyagin.project.DatabaseQueries
+import org.mosyagin.project.db.CinePropDatabase
+import org.mosyagin.project.db.createTestDriver
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
-
-// Мы используем expect/actual для драйвера, чтобы тесты работали на всех платформах
-expect fun createTestDriver(): SqlDriver
 
 class ProjectRepositoryTest {
     private lateinit var repository: ProjectRepository
@@ -21,10 +20,8 @@ class ProjectRepositoryTest {
     @BeforeTest
     fun setup() {
         val driver = createTestDriver()
-        // Инициализируем схему базы данных (в реальном приложении это делает SqlDelight)
-        // Но в тестах нам нужно создать таблицы вручную или через сгенерированный Schema
-        org.mosyagin.project.db.CinePropDatabase.Schema.create(driver)
-        val database = org.mosyagin.project.db.CinePropDatabase(driver)
+        CinePropDatabase.Schema.create(driver)
+        val database = CinePropDatabase(driver)
         queries = database.databaseQueries
         repository = ProjectRepositoryImpl(queries)
     }

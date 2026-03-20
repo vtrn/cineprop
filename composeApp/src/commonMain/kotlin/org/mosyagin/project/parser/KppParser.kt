@@ -22,21 +22,17 @@ class KppParser(
         var currentDate = "Неизвестно"
         var currentPosition: Long = 0
 
-        // Используем runBlocking для упрощения миграции, 
-        // так как репозитории используют приостанавливаемые функции
         runBlocking {
             rows.forEach { row ->
                 val cells = row.split(";").map { it.trim() }
                 if (cells.isEmpty()) return@forEach
 
-                // 1. Поиск даты
                 val dateRegex = Regex("""\d{2}\.\d{2}\.\d{4}""")
                 val foundDate = cells.find { dateRegex.containsMatchIn(it) }
                 if (foundDate != null) {
                     currentDate = foundDate
                 }
 
-                // 2. Поиск номера смены
                 val shiftRegex = Regex("""СМЕНА\s*№?\s*(\d+)""", RegexOption.IGNORE_CASE)
                 cells.forEach { cell ->
                     shiftRegex.find(cell)?.let { match ->
@@ -48,7 +44,6 @@ class KppParser(
                     }
                 }
 
-                // 3. Извлечение Серии и Сцены
                 val series = cells.getOrNull(0)
                 val sceneNumber = cells.getOrNull(1)
 
@@ -57,7 +52,6 @@ class KppParser(
                     val shift = shiftRepository.getShiftByNumber(projectId, currentShiftNumber)
                     val shiftId = shift?.id ?: shiftRepository.addShift(projectId, currentShiftNumber, currentDate)
 
-                    // Теперь sceneRepository — это репозиторий, и метод вернет Long?
                     val sceneId = sceneRepository.getSceneIdBySeriesAndNumber(projectId, series, sceneNumber)
 
                     if (sceneId != null) {
