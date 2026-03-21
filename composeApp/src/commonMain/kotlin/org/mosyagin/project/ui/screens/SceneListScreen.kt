@@ -1,26 +1,22 @@
-/**
- * Экран "Список всех сцен проекта".
- * 
- * Отображает полный перечень сцен, извлеченных из сценария.
- * Позволяет быстро просмотреть локацию, тип (ИНТ/НАТ) и время суток для каждой сцены.
- */
 package org.mosyagin.project.ui.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import org.koin.compose.koinInject
 import org.mosyagin.project.repository.SceneRepository
+import org.mosyagin.project.ui.components.CineCard
+import org.mosyagin.project.ui.components.CineTag
 
 data class SceneListScreen(val projectId: Long, val projectName: String) : Screen {
 
@@ -34,33 +30,60 @@ data class SceneListScreen(val projectId: Long, val projectName: String) : Scree
         val scenes by repository.getScenesByProject(projectId).collectAsState(initial = emptyList())
 
         Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
             topBar = {
-                TopAppBar(
-                    title = { Text("Сцены: $projectName") },
+                CenterAlignedTopAppBar(
+                    title = { Text("Сцены: $projectName", style = MaterialTheme.typography.titleLarge) },
                     navigationIcon = {
                         IconButton(onClick = { navigator.pop() }) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                         }
-                    }
+                    },
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
                 )
             }
         ) { padding ->
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding)
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(scenes) { scene ->
-                    ListItem(
-                        headlineContent = {
-                            Text("Сцена ${scene.seriesNumber}-${scene.sceneNumber}: ${scene.location}")
-                        },
-                        supportingContent = {
-                            Text(if (scene.isInterior == 1L) "ИНТ. | ${scene.timeOfDay}" else "НАТ. | ${scene.timeOfDay}")
-                        },
-                        modifier = Modifier.clickable {
+                    CineCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
                             navigator.push(SceneDetailScreen(sceneId = scene.id, projectId = projectId))
                         }
-                    )
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp)
+                    ) {
+                        Column {
+                            Text(
+                                text = "Сцена ${scene.seriesNumber}-${scene.sceneNumber}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = scene.location,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                CineTag(
+                                    text = if (scene.isInterior == 1L) "ИНТ" else "НАТ",
+                                    containerColor = if (scene.isInterior == 1L) 
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) 
+                                    else 
+                                        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
+                                )
+                                CineTag(
+                                    text = scene.timeOfDay.uppercase(),
+                                    containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
