@@ -65,6 +65,9 @@ kotlin {
             implementation("app.cash.sqldelight:runtime:${libs.versions.sqldelight.get()}")
             implementation("app.cash.sqldelight:coroutines-extensions:${libs.versions.sqldelight.get()}")
             implementation(compose.materialIconsExtended)
+            
+            // Datetime
+            implementation(libs.kotlinx.datetime)
         }
         
         androidMain.dependencies {
