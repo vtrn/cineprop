@@ -38,8 +38,10 @@ val databaseModule = module {
  */
 val screenModelModule = module {
     factory { ProjectListScreenModel(get()) }
-    // Для моделей с параметрами используем factory с параметрами
-    factory { (sceneId: Long) -> SceneDetailScreenModel(get(), sceneId) }
+    // Обновляем фабрику для SceneDetailScreenModel с учетом новых параметров
+    factory { (sceneUserDataId: Long, scriptFileId: Long) -> 
+        SceneDetailScreenModel(get(), sceneUserDataId, scriptFileId) 
+    }
     factory { ScriptViewModel(get()) }
 }
 

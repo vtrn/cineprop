@@ -6,28 +6,28 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import org.mosyagin.project.Actor
 import org.mosyagin.project.Prop
-import org.mosyagin.project.Scene
+import org.mosyagin.project.GetSceneById
 import org.mosyagin.project.repository.SceneRepository
 
 class SceneDetailScreenModel(
     private val repository: SceneRepository,
-    private val sceneId: Long
+    private val sceneUserDataId: Long,
+    private val scriptFileId: Long
 ) : ScreenModel {
 
-    val scene: StateFlow<Scene?> = repository.getSceneById(sceneId)
+    val scene: StateFlow<GetSceneById?> = repository.getSceneById(sceneUserDataId, scriptFileId)
         .stateIn(screenModelScope, SharingStarted.Eagerly, null)
 
-    val actors: StateFlow<List<Actor>> = repository.getActorsForScene(sceneId)
+    val actors: StateFlow<List<Actor>> = repository.getActorsForScene(sceneUserDataId)
         .stateIn(screenModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val props: StateFlow<List<Prop>> = repository.getPropsForScene(sceneId)
+    val props: StateFlow<List<Prop>> = repository.getPropsForScene(sceneUserDataId)
         .stateIn(screenModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun addProp(name: String, startOffset: Long = 0, endOffset: Long = 0) {
         screenModelScope.launch {
-            // Используем именованные аргументы, чтобы пропустить 'status'
             repository.addProp(
-                sceneId = sceneId,
+                sceneUserDataId = sceneUserDataId,
                 name = name,
                 startOffset = startOffset,
                 endOffset = endOffset

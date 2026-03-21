@@ -31,8 +31,9 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import org.koin.compose.koinInject
 import org.mosyagin.project.Actor
-import org.mosyagin.project.Scene
+import org.mosyagin.project.GetScenesByActor
 import org.mosyagin.project.repository.SceneRepository
+import org.mosyagin.project.repository.ScriptRepository
 
 /**
  * Главный экран Библии персонажей.
@@ -43,9 +44,12 @@ data class CharacterBibleScreen(val projectId: Long) : Screen {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
-        val repository = koinInject<SceneRepository>()
+        val sceneRepository = koinInject<SceneRepository>()
+        val scriptRepository = koinInject<ScriptRepository>()
 
-        val actors by repository.getActorsByProject(projectId).collectAsState(initial = emptyList())
+        val actors by sceneRepository.getActorsByProject(projectId).collectAsState(initial = emptyList())
+        val scripts by scriptRepository.getScriptsForProject(projectId).collectAsState(initial = emptyList())
+        val latestScriptFileId = scripts.lastOrNull()?.id
 
         Scaffold(
             topBar = {
@@ -70,7 +74,7 @@ data class CharacterBibleScreen(val projectId: Long) : Screen {
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(actors) { actor ->
-                        ExpandableCharacterCard(actor)
+                        ExpandableCharacterCard(actor, latestScriptFileId)
                     }
                 }
             }
@@ -82,13 +86,13 @@ data class CharacterBibleScreen(val projectId: Long) : Screen {
  * Раскрывающаяся карточка персонажа.
  */
 @Composable
-fun ExpandableCharacterCard(actor: Actor) {
+fun ExpandableCharacterCard(actor: Actor, scriptFileId: Long?) {
     val repository = koinInject<SceneRepository>()
     var expanded by remember { mutableStateOf(false) }
 
-    // Загружаем сцены и локации только если карточка развернута
-    val actorScenes by remember(actor.id, expanded) {
-        if (expanded) repository.getScenesByActor(actor.id)
+    // Загружаем сцены и локации только если карточка развернута и есть ID сценария
+    val actorScenes by remember(actor.id, expanded, scriptFileId) {
+        if (expanded && scriptFileId != null) repository.getScenesByActor(actor.id, scriptFileId)
         else kotlinx.coroutines.flow.flowOf(emptyList())
     }.collectAsState(initial = emptyList())
 
@@ -139,7 +143,9 @@ fun ExpandableCharacterCard(actor: Actor) {
                     Text("СЦЕНЫ:", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.secondary)
                     Spacer(Modifier.height(8.dp))
                     
-                    if (actorScenes.isEmpty()) {
+                    if (scriptFileId == null) {
+                        Text("Загрузите сценарий для просмотра сцен", style = MaterialTheme.typography.bodySmall)
+                    } else if (actorScenes.isEmpty()) {
                         Text("Нет данных", style = MaterialTheme.typography.bodySmall)
                     } else {
                         actorScenes.forEach { scene ->
@@ -154,7 +160,7 @@ fun ExpandableCharacterCard(actor: Actor) {
 }
 
 @Composable
-fun SceneItem(scene: Scene) {
+fun SceneItem(scene: GetScenesByActor) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surfaceVariant,

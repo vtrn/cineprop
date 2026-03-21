@@ -1,0 +1,105 @@
+-- 1. Переименовываем старые таблицы во временные
+ALTER TABLE ScriptFile RENAME TO OldScriptFile;
+ALTER TABLE Scene RENAME TO OldScene;
+ALTER TABLE Prop RENAME TO OldProp;
+ALTER TABLE SceneActor RENAME TO OldSceneActor;
+ALTER TABLE ShiftScene RENAME TO OldShiftScene;
+
+-- 2. Создаем новые таблицы согласно Database.sq
+CREATE TABLE ScriptFile (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    projectId INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    filePath TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    previousVersionId INTEGER,
+    revisionColor TEXT DEFAULT 'White',
+    uploadedBy TEXT,
+    FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE,
+    FOREIGN KEY(previousVersionId) REFERENCES ScriptFile(id) ON DELETE SET NULL
+);
+
+CREATE TABLE SceneUserData (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    projectId INTEGER NOT NULL,
+    seriesNumber TEXT NOT NULL,
+    sceneNumber TEXT NOT NULL,
+    location TEXT NOT NULL,
+    isInterior INTEGER NOT NULL,
+    timeOfDay TEXT NOT NULL,
+    notes TEXT,
+    needsReview INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE
+);
+
+CREATE TABLE SceneVersion (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    scriptFileId INTEGER NOT NULL,
+    sceneUserDataId INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    contentHash TEXT NOT NULL,
+    positionIndex INTEGER NOT NULL,
+    FOREIGN KEY(scriptFileId) REFERENCES ScriptFile(id) ON DELETE CASCADE,
+    FOREIGN KEY(sceneUserDataId) REFERENCES SceneUserData(id) ON DELETE CASCADE
+);
+
+CREATE TABLE SceneActor (
+    sceneUserDataId INTEGER NOT NULL,
+    actorId INTEGER NOT NULL,
+    PRIMARY KEY(sceneUserDataId, actorId),
+    FOREIGN KEY(sceneUserDataId) REFERENCES SceneUserData(id) ON DELETE CASCADE,
+    FOREIGN KEY(actorId) REFERENCES Actor(id) ON DELETE CASCADE
+);
+
+CREATE TABLE Prop (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sceneUserDataId INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'Найти',
+    startOffset INTEGER NOT NULL,
+    endOffset INTEGER NOT NULL,
+    orphaned INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY(sceneUserDataId) REFERENCES SceneUserData(id) ON DELETE CASCADE
+);
+
+CREATE TABLE ShiftScene (
+    shiftId INTEGER NOT NULL,
+    sceneUserDataId INTEGER NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY(shiftId, sceneUserDataId),
+    FOREIGN KEY(shiftId) REFERENCES Shift(id) ON DELETE CASCADE,
+    FOREIGN KEY(sceneUserDataId) REFERENCES SceneUserData(id) ON DELETE CASCADE
+);
+
+-- 3. Миграция данных
+
+-- Копируем файлы сценариев
+INSERT INTO ScriptFile (id, projectId, title, filePath, createdAt, revisionColor)
+SELECT id, projectId, title, filePath, createdAt, 'White' FROM OldScriptFile;
+
+-- Создаем SceneUserData из старых сцен
+INSERT INTO SceneUserData (id, projectId, seriesNumber, sceneNumber, location, isInterior, timeOfDay, notes, needsReview)
+SELECT id, projectId, seriesNumber, sceneNumber, location, isInterior, timeOfDay, NULL, 0 FROM OldScene;
+
+-- Создаем SceneVersion для текущих сцен (как первая версия)
+INSERT INTO SceneVersion (scriptFileId, sceneUserDataId, content, contentHash, positionIndex)
+SELECT scriptFileId, id, content, '', 0 FROM OldScene;
+
+-- Переносим связи персонажей
+INSERT INTO SceneActor (sceneUserDataId, actorId)
+SELECT sceneId, actorId FROM OldSceneActor;
+
+-- Переносим реквизит
+INSERT INTO Prop (id, sceneUserDataId, name, status, startOffset, endOffset, orphaned)
+SELECT id, sceneId, name, status, startOffset, endOffset, 0 FROM OldProp;
+
+-- Переносим связи со сменами (КПП)
+INSERT INTO ShiftScene (shiftId, sceneUserDataId, position)
+SELECT shiftId, sceneId, position FROM OldShiftScene;
+
+-- 4. Удаляем старые таблицы
+DROP TABLE OldProp;
+DROP TABLE OldSceneActor;
+DROP TABLE OldShiftScene;
+DROP TABLE OldScene;
+DROP TABLE OldScriptFile;

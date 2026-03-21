@@ -72,7 +72,11 @@ data class ShiftDetailScreen(val shiftId: Long) : Screen {
                     items(scenes) { scene ->
                         Card(
                             modifier = Modifier.fillMaxWidth().clickable {
-                                navigator.push(SceneDetailScreen(scene.id, scene.projectId))
+                                navigator.push(SceneDetailScreen(
+                                    sceneUserDataId = scene.id, 
+                                    projectId = scene.projectId,
+                                    scriptFileId = scene.scriptFileId
+                                ))
                             },
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                         ) {

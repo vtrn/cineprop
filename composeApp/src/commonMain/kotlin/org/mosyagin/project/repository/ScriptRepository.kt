@@ -48,25 +48,40 @@ class ScriptRepositoryImpl(
                     projectId = projectId,
                     title = "Серия $seriesNumber",
                     filePath = filePath,
-                    createdAt = createdAt
+                    createdAt = createdAt,
+                    previousVersionId = null,
+                    revisionColor = "White",
+                    uploadedBy = null
                 )
 
                 val scriptFileId = queries.lastInsertRowId().executeAsOne()
 
                 // 2. Сохраняем сцены
-                parsedScenes.forEach { scene ->
-                    queries.insertScene(
+                parsedScenes.forEachIndexed { index, scene ->
+                    // Проверяем, существует ли уже такая сцена (по номеру серии и сцены)
+                    // Для первой загрузки мы всегда создаем новую SceneUserData, 
+                    // но в будущем здесь будет логика матчинга.
+                    
+                    queries.insertSceneUserData(
                         projectId = projectId,
-                        scriptFileId = scriptFileId,
                         seriesNumber = seriesNumber.toString(),
                         sceneNumber = scene.sceneNumber,
                         location = scene.location,
                         isInterior = if (scene.type == "ИНТ") 1L else 0L,
                         timeOfDay = scene.time,
-                        content = scene.content
+                        notes = null,
+                        needsReview = 0
                     )
 
-                    val sceneId = queries.lastInsertRowId().executeAsOne()
+                    val sceneUserDataId = queries.lastInsertRowId().executeAsOne()
+
+                    queries.insertSceneVersion(
+                        scriptFileId = scriptFileId,
+                        sceneUserDataId = sceneUserDataId,
+                        content = scene.content,
+                        contentHash = "", // Можно добавить вычисление хеша
+                        positionIndex = index.toLong()
+                    )
 
                     scene.actors.forEach { actorName ->
                         val cleanName = actorName.trim()
@@ -74,7 +89,7 @@ class ScriptRepositoryImpl(
                             queries.insertActor(projectId, cleanName)
                             val actor = queries.getActorByName(projectId, cleanName).executeAsOneOrNull()
                             if (actor != null) {
-                                queries.linkActorToScene(sceneId, actor.id)
+                                queries.linkActorToScene(sceneUserDataId, actor.id)
                             }
                         }
                     }
