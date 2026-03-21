@@ -1,6 +1,5 @@
 /**
  * Описание структуры базы данных и SQL-запросов (SQLDelight).
- * Из этого файла автоматически генерируется Kotlin-код для работы с данными.
  */
 
 -- ТАБЛИЦА ПРОЕКТОВ
@@ -31,15 +30,19 @@ SELECT * FROM Project WHERE id = ?;
 CREATE TABLE ScriptFile (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     projectId INTEGER NOT NULL,
-    title TEXT NOT NULL,      -- Например, "Серия 1"
-    filePath TEXT NOT NULL,   -- Путь к файлу
+    title TEXT NOT NULL,
+    filePath TEXT NOT NULL,
     createdAt INTEGER NOT NULL,
-    FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE
+    previousVersionId INTEGER, -- Ссылка на предыдущую ревизию
+    revisionColor TEXT DEFAULT 'White', -- Цвет поправок (Синий, Розовый и т.д.)
+    uploadedBy TEXT,
+    FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE,
+    FOREIGN KEY(previousVersionId) REFERENCES ScriptFile(id) ON DELETE SET NULL
 );
 
 insertScriptFile:
-INSERT INTO ScriptFile(projectId, title, filePath, createdAt)
-VALUES (?, ?, ?, ?);
+INSERT INTO ScriptFile(projectId, title, filePath, createdAt, previousVersionId, revisionColor, uploadedBy)
+VALUES (?, ?, ?, ?, ?, ?, ?);
 
 getScriptsForProject:
 SELECT * FROM ScriptFile WHERE projectId = ? ORDER BY createdAt ASC;
@@ -54,55 +57,83 @@ getScriptFileById:
 SELECT * FROM ScriptFile WHERE id = ?;
 
 
--- ТАБЛИЦА СЦЕН
-CREATE TABLE Scene (
+-- ТАБЛИЦА СЦЕН (Якорь для пользовательских данных)
+CREATE TABLE SceneUserData (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     projectId INTEGER NOT NULL,
-    scriptFileId INTEGER,        -- Ссылка на файл сценария, из которого спарсена сцена
-    seriesNumber TEXT NOT NULL,  -- Номер серии (из парсера)
-    sceneNumber TEXT NOT NULL,   -- Номер сцены (из парсера)
-    location TEXT NOT NULL,      -- Объект (ИНТ. КУХНЯ)
-    isInterior INTEGER NOT NULL, -- 1 для ИНТ, 0 для НАТ
-    timeOfDay TEXT NOT NULL,    -- ДЕНЬ / НОЧЬ
-    content TEXT NOT NULL,       -- Весь текст сцены
-    FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE,
-    FOREIGN KEY(scriptFileId) REFERENCES ScriptFile(id) ON DELETE CASCADE
+    seriesNumber TEXT NOT NULL,
+    sceneNumber TEXT NOT NULL,
+    location TEXT NOT NULL,
+    isInterior INTEGER NOT NULL,
+    timeOfDay TEXT NOT NULL,
+    notes TEXT, -- Заметки пользователя
+    needsReview INTEGER NOT NULL DEFAULT 0, -- Флаг, что текст изменился (Boolean 0/1)
+    FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE
 );
 
-insertScene:
-INSERT INTO Scene(projectId, scriptFileId, seriesNumber, sceneNumber, location, isInterior, timeOfDay, content)
+-- ТАБЛИЦА ВЕРСИЙ СЦЕН (Конкретное содержание текста в файле)
+CREATE TABLE SceneVersion (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    scriptFileId INTEGER NOT NULL,
+    sceneUserDataId INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    contentHash TEXT NOT NULL, -- SHA-256 для быстрого сравнения
+    positionIndex INTEGER NOT NULL, -- Позиция в сценарии
+    FOREIGN KEY(scriptFileId) REFERENCES ScriptFile(id) ON DELETE CASCADE,
+    FOREIGN KEY(sceneUserDataId) REFERENCES SceneUserData(id) ON DELETE CASCADE
+);
+
+-- Новые запросы для сцен
+insertSceneUserData:
+INSERT INTO SceneUserData(projectId, seriesNumber, sceneNumber, location, isInterior, timeOfDay, notes, needsReview)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 
+insertSceneVersion:
+INSERT INTO SceneVersion(scriptFileId, sceneUserDataId, content, contentHash, positionIndex)
+VALUES (?, ?, ?, ?, ?);
+
 getScenesBySeries:
-SELECT * FROM Scene
-WHERE projectId = ? AND seriesNumber = ?
-ORDER BY CAST(sceneNumber AS INTEGER) ASC, sceneNumber ASC;
+SELECT ud.*, v.content, v.contentHash
+FROM SceneUserData ud
+JOIN SceneVersion v ON ud.id = v.sceneUserDataId
+WHERE ud.projectId = ? AND ud.seriesNumber = ? AND v.scriptFileId = ?
+ORDER BY CAST(ud.sceneNumber AS INTEGER) ASC, ud.sceneNumber ASC;
 
 getScenesByProject:
-SELECT * FROM Scene
-WHERE projectId = ?
-ORDER BY CAST(seriesNumber AS INTEGER) ASC, seriesNumber ASC, CAST(sceneNumber AS INTEGER) ASC, sceneNumber ASC;
+SELECT ud.*, v.content, v.contentHash
+FROM SceneUserData ud
+JOIN SceneVersion v ON ud.id = v.sceneUserDataId
+WHERE ud.projectId = ? AND v.scriptFileId = ?
+ORDER BY CAST(ud.seriesNumber AS INTEGER) ASC, ud.seriesNumber ASC, CAST(ud.sceneNumber AS INTEGER) ASC, ud.sceneNumber ASC;
 
 getSceneById:
-SELECT * FROM Scene WHERE id = ?;
+SELECT ud.*, v.content, v.contentHash
+FROM SceneUserData ud
+JOIN SceneVersion v ON ud.id = v.sceneUserDataId
+WHERE ud.id = ? AND v.scriptFileId = ?;
 
-getSceneIdBySeriesAndNumber:
-SELECT id FROM Scene WHERE projectId = ? AND seriesNumber = ? AND sceneNumber = ? LIMIT 1;
+getSceneUserDataById:
+SELECT * FROM SceneUserData WHERE id = ?;
+
+getSceneUserDataBySeriesAndNumber:
+SELECT * FROM SceneUserData WHERE projectId = ? AND seriesNumber = ? AND sceneNumber = ? LIMIT 1;
 
 getScenesByActor:
-SELECT s.* FROM Scene s
-JOIN SceneActor sa ON s.id = sa.sceneId
-WHERE sa.actorId = ?
-ORDER BY CAST(s.seriesNumber AS INTEGER) ASC, CAST(s.sceneNumber AS INTEGER) ASC;
+SELECT ud.*, v.content, v.contentHash
+FROM SceneUserData ud
+JOIN SceneVersion v ON ud.id = v.sceneUserDataId
+JOIN SceneActor sa ON ud.id = sa.sceneUserDataId
+WHERE sa.actorId = ? AND v.scriptFileId = ?
+ORDER BY CAST(ud.seriesNumber AS INTEGER) ASC, CAST(ud.sceneNumber AS INTEGER) ASC;
 
 getLocationsByActor:
-SELECT DISTINCT s.location FROM Scene s
-JOIN SceneActor sa ON s.id = sa.sceneId
+SELECT DISTINCT ud.location FROM SceneUserData ud
+JOIN SceneActor sa ON ud.id = sa.sceneUserDataId
 WHERE sa.actorId = ?
-ORDER BY s.location ASC;
+ORDER BY ud.location ASC;
 
 deleteScenesByScriptFile:
-DELETE FROM Scene WHERE scriptFileId = ?;
+DELETE FROM SceneVersion WHERE scriptFileId = ?;
 
 
 -- ТАБЛИЦА ПЕРСОНАЖЕЙ
@@ -111,7 +142,7 @@ CREATE TABLE Actor (
     projectId INTEGER NOT NULL,
     name TEXT NOT NULL,
     FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE,
-    UNIQUE(projectId, name) -- Добавлена уникальность, чтобы персонажи не дублировались
+    UNIQUE(projectId, name)
 );
 
 insertActor:
@@ -124,46 +155,47 @@ getActorsByProject:
 SELECT * FROM Actor WHERE projectId = ? ORDER BY name ASC;
 
 
--- СВЯЗЬ СЦЕНА-АКТЕР (Многие-ко-многим)
+-- СВЯЗЬ СЦЕНА-АКТЕР (Теперь через SceneUserData)
 CREATE TABLE SceneActor (
-    sceneId INTEGER NOT NULL,
+    sceneUserDataId INTEGER NOT NULL,
     actorId INTEGER NOT NULL,
-    PRIMARY KEY(sceneId, actorId),
-    FOREIGN KEY(sceneId) REFERENCES Scene(id) ON DELETE CASCADE,
+    PRIMARY KEY(sceneUserDataId, actorId),
+    FOREIGN KEY(sceneUserDataId) REFERENCES SceneUserData(id) ON DELETE CASCADE,
     FOREIGN KEY(actorId) REFERENCES Actor(id) ON DELETE CASCADE
 );
 
 linkActorToScene:
-INSERT OR IGNORE INTO SceneActor(sceneId, actorId) VALUES (?, ?);
+INSERT OR IGNORE INTO SceneActor(sceneUserDataId, actorId) VALUES (?, ?);
 
 getActorsForScene:
 SELECT a.* FROM Actor a
 JOIN SceneActor sa ON a.id = sa.actorId
-WHERE sa.sceneId = ?;
+WHERE sa.sceneUserDataId = ?;
 
 
--- ТАБЛИЦА РЕКВИЗИТА
+-- ТАБЛИЦА РЕКВИЗИТА (Теперь через SceneUserData)
 CREATE TABLE Prop (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    sceneId INTEGER NOT NULL,
+    sceneUserDataId INTEGER NOT NULL,
     name TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'Найти',
     startOffset INTEGER NOT NULL,
     endOffset INTEGER NOT NULL,
-    FOREIGN KEY(sceneId) REFERENCES Scene(id) ON DELETE CASCADE
+    orphaned INTEGER NOT NULL DEFAULT 0, -- Реквизит пропал из текста (Boolean 0/1)
+    FOREIGN KEY(sceneUserDataId) REFERENCES SceneUserData(id) ON DELETE CASCADE
 );
 
 insertProp:
-INSERT INTO Prop(sceneId, name, status, startOffset, endOffset) VALUES (?, ?, ?, ?, ?);
+INSERT INTO Prop(sceneUserDataId, name, status, startOffset, endOffset, orphaned) VALUES (?, ?, ?, ?, ?, ?);
 
 getPropsForScene:
-SELECT * FROM Prop WHERE sceneId = ? ORDER BY id DESC;
+SELECT * FROM Prop WHERE sceneUserDataId = ? ORDER BY id DESC;
 
 getPropsByProject:
-SELECT p.*, s.seriesNumber, s.sceneNumber
+SELECT p.*, ud.seriesNumber, ud.sceneNumber
 FROM Prop p
-JOIN Scene s ON p.sceneId = s.id
-WHERE s.projectId = ?
+JOIN SceneUserData ud ON p.sceneUserDataId = ud.id
+WHERE ud.projectId = ?
 ORDER BY p.status ASC, p.name ASC;
 
 deleteProp:
@@ -212,25 +244,26 @@ getShiftById:
 SELECT * FROM Shift WHERE id = ?;
 
 
--- СВЯЗЬ СМЕНА-СЦЕНА
+-- СВЯЗЬ СМЕНА-СЦЕНА (Через SceneUserData)
 CREATE TABLE ShiftScene (
     shiftId INTEGER NOT NULL,
-    sceneId INTEGER NOT NULL,
-    position INTEGER NOT NULL DEFAULT 0, -- Добавили позицию для сохранения порядка из КПП
-    PRIMARY KEY(shiftId, sceneId),
+    sceneUserDataId INTEGER NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY(shiftId, sceneUserDataId),
     FOREIGN KEY(shiftId) REFERENCES Shift(id) ON DELETE CASCADE,
-    FOREIGN KEY(sceneId) REFERENCES Scene(id) ON DELETE CASCADE
+    FOREIGN KEY(sceneUserDataId) REFERENCES SceneUserData(id) ON DELETE CASCADE
 );
 
 linkShiftToScene:
-INSERT OR IGNORE INTO ShiftScene(shiftId, sceneId, position) VALUES (?, ?, ?);
+INSERT OR IGNORE INTO ShiftScene(shiftId, sceneUserDataId, position) VALUES (?, ?, ?);
 
 getScenesForShift:
-SELECT s.* FROM Scene s
-JOIN ShiftScene ss ON s.id = ss.sceneId
-WHERE ss.shiftId = ?
-ORDER BY ss.position ASC; -- Теперь сортируем строго по порядку из КПП
+SELECT ud.*, v.content, v.contentHash, v.scriptFileId
+FROM SceneUserData ud
+JOIN ShiftScene ss ON ud.id = ss.sceneUserDataId
+JOIN SceneVersion v ON ud.id = v.sceneUserDataId
+WHERE ss.shiftId = ? AND v.scriptFileId = (SELECT MAX(id) FROM ScriptFile WHERE projectId = ud.projectId)
+ORDER BY ss.position ASC;
 
--- СЛУЖЕБНЫЕ ЗАПРОСЫ
 lastInsertRowId:
 SELECT last_insert_rowid();

@@ -27,15 +27,21 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import org.koin.core.parameter.parametersOf
 
-data class SceneDetailScreen(val sceneId: Long, val projectId: Long) : Screen {
+data class SceneDetailScreen(
+    val sceneUserDataId: Long, 
+    val projectId: Long,
+    val scriptFileId: Long
+) : Screen {
 
     @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         
-        // Передаем sceneId как параметр в Koin
-        val screenModel = getScreenModel<SceneDetailScreenModel> { parametersOf(sceneId) }
+        // Передаем параметры в ScreenModel
+        val screenModel = getScreenModel<SceneDetailScreenModel> { 
+            parametersOf(sceneUserDataId, scriptFileId) 
+        }
 
         val scene by screenModel.scene.collectAsState()
         val actors by screenModel.actors.collectAsState()

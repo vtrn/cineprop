@@ -8,7 +8,11 @@ import kotlinx.coroutines.flow.map
 import org.mosyagin.project.Actor
 import org.mosyagin.project.DatabaseQueries
 import org.mosyagin.project.Prop
-import org.mosyagin.project.Scene
+import org.mosyagin.project.GetScenesByProject
+import org.mosyagin.project.GetScenesBySeries
+import org.mosyagin.project.GetSceneById
+import org.mosyagin.project.GetScenesByActor
+import org.mosyagin.project.GetScenesForShift
 
 data class PropWithScene(
     val id: Long,
@@ -19,33 +23,33 @@ data class PropWithScene(
 )
 
 interface SceneRepository {
-    fun getSceneById(sceneId: Long): Flow<Scene?>
-    fun getScenesByProject(projectId: Long): Flow<List<Scene>>
-    fun getActorsForScene(sceneId: Long): Flow<List<Actor>>
+    fun getSceneById(sceneId: Long, scriptFileId: Long): Flow<GetSceneById?>
+    fun getScenesByProject(projectId: Long, scriptFileId: Long): Flow<List<GetScenesByProject>>
+    fun getActorsForScene(sceneUserDataId: Long): Flow<List<Actor>>
     fun getActorsByProject(projectId: Long): Flow<List<Actor>>
-    fun getScenesByActor(actorId: Long): Flow<List<Scene>>
+    fun getScenesByActor(actorId: Long, scriptFileId: Long): Flow<List<GetScenesByActor>>
     fun getLocationsByActor(actorId: Long): Flow<List<String>>
-    fun getPropsForScene(sceneId: Long): Flow<List<Prop>>
+    fun getPropsForScene(sceneUserDataId: Long): Flow<List<Prop>>
     fun getPropsByProject(projectId: Long): Flow<List<PropWithScene>>
-    suspend fun getSceneIdBySeriesAndNumber(projectId: Long, series: String, sceneNumber: String): Long?
-    suspend fun addProp(sceneId: Long, name: String, status: String = "Найти", startOffset: Long = 0, endOffset: Long = 0)
+    suspend fun getSceneUserDataIdBySeriesAndNumber(projectId: Long, series: String, sceneNumber: String): Long?
+    suspend fun addProp(sceneUserDataId: Long, name: String, status: String = "Найти", startOffset: Long = 0, endOffset: Long = 0)
     suspend fun updatePropStatus(propId: Long, newStatus: String)
     suspend fun deleteProp(propId: Long)
 }
 
 class SceneRepositoryImpl(private val queries: DatabaseQueries) : SceneRepository {
-    override fun getSceneById(sceneId: Long): Flow<Scene?> =
-        queries.getSceneById(sceneId)
+    override fun getSceneById(sceneId: Long, scriptFileId: Long): Flow<GetSceneById?> =
+        queries.getSceneById(sceneId, scriptFileId)
             .asFlow()
             .map { it.executeAsOneOrNull() }
 
-    override fun getScenesByProject(projectId: Long): Flow<List<Scene>> =
-        queries.getScenesByProject(projectId)
+    override fun getScenesByProject(projectId: Long, scriptFileId: Long): Flow<List<GetScenesByProject>> =
+        queries.getScenesByProject(projectId, scriptFileId)
             .asFlow()
             .mapToList(Dispatchers.Default)
 
-    override fun getActorsForScene(sceneId: Long): Flow<List<Actor>> =
-        queries.getActorsForScene(sceneId)
+    override fun getActorsForScene(sceneUserDataId: Long): Flow<List<Actor>> =
+        queries.getActorsForScene(sceneUserDataId)
             .asFlow()
             .mapToList(Dispatchers.Default)
 
@@ -53,14 +57,9 @@ class SceneRepositoryImpl(private val queries: DatabaseQueries) : SceneRepositor
         queries.getActorsByProject(projectId)
             .asFlow()
             .mapToList(Dispatchers.Default)
-            .map { list ->
-                list.map { actor ->
-                    Actor(actor.id, actor.projectId, actor.name)
-                }
-            }
 
-    override fun getScenesByActor(actorId: Long): Flow<List<Scene>> =
-        queries.getScenesByActor(actorId)
+    override fun getScenesByActor(actorId: Long, scriptFileId: Long): Flow<List<GetScenesByActor>> =
+        queries.getScenesByActor(actorId, scriptFileId)
             .asFlow()
             .mapToList(Dispatchers.Default)
 
@@ -68,10 +67,9 @@ class SceneRepositoryImpl(private val queries: DatabaseQueries) : SceneRepositor
         queries.getLocationsByActor(actorId)
             .asFlow()
             .mapToList(Dispatchers.Default)
-            .map { list -> list.map { it } } // SqlDelight обычно возвращает String для одной колонки в SELECT DISTINCT
 
-    override fun getPropsForScene(sceneId: Long): Flow<List<Prop>> =
-        queries.getPropsForScene(sceneId)
+    override fun getPropsForScene(sceneUserDataId: Long): Flow<List<Prop>> =
+        queries.getPropsForScene(sceneUserDataId)
             .asFlow()
             .mapToList(Dispatchers.Default)
 
@@ -91,20 +89,18 @@ class SceneRepositoryImpl(private val queries: DatabaseQueries) : SceneRepositor
                 }
             }
 
-    override suspend fun getSceneIdBySeriesAndNumber(projectId: Long, series: String, sceneNumber: String): Long? {
-        val result = queries.getSceneIdBySeriesAndNumber(projectId, series, sceneNumber).executeAsOneOrNull()
-        // В SqlDelight если SELECT id, то возвращается объект с полем id или просто Long
-        // Если это объект, то result.id. Если Long, то result.
-        return result
+    override suspend fun getSceneUserDataIdBySeriesAndNumber(projectId: Long, series: String, sceneNumber: String): Long? {
+        return queries.getSceneUserDataBySeriesAndNumber(projectId, series, sceneNumber).executeAsOneOrNull()?.id
     }
 
-    override suspend fun addProp(sceneId: Long, name: String, status: String, startOffset: Long, endOffset: Long) {
+    override suspend fun addProp(sceneUserDataId: Long, name: String, status: String, startOffset: Long, endOffset: Long) {
         queries.insertProp(
-            sceneId = sceneId,
+            sceneUserDataId = sceneUserDataId,
             name = name,
             status = status,
             startOffset = startOffset,
-            endOffset = endOffset
+            endOffset = endOffset,
+            orphaned = 0
         )
     }
 

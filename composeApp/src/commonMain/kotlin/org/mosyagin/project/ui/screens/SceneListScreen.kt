@@ -15,6 +15,7 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import org.koin.compose.koinInject
 import org.mosyagin.project.repository.SceneRepository
+import org.mosyagin.project.repository.ScriptRepository
 import org.mosyagin.project.ui.components.CineCard
 import org.mosyagin.project.ui.components.CineTag
 
@@ -24,10 +25,21 @@ data class SceneListScreen(val projectId: Long, val projectName: String) : Scree
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
-        val repository = koinInject<SceneRepository>()
+        val sceneRepository = koinInject<SceneRepository>()
+        val scriptRepository = koinInject<ScriptRepository>()
 
-        // Получаем поток (Flow) сцен для данного проекта через репозиторий.
-        val scenes by repository.getScenesByProject(projectId).collectAsState(initial = emptyList())
+        // Получаем список файлов сценария, чтобы выбрать последний/актуальный
+        val scripts by scriptRepository.getScriptsForProject(projectId).collectAsState(initial = emptyList())
+        
+        // По умолчанию берем последний загруженный файл
+        val selectedScriptFileId = scripts.lastOrNull()?.id
+
+        // Получаем список сцен для выбранного файла
+        val scenes by if (selectedScriptFileId != null) {
+            sceneRepository.getScenesByProject(projectId, selectedScriptFileId).collectAsState(initial = emptyList())
+        } else {
+            remember { mutableStateOf(emptyList()) }
+        }
 
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
@@ -43,44 +55,54 @@ data class SceneListScreen(val projectId: Long, val projectName: String) : Scree
                 )
             }
         ) { padding ->
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(scenes) { scene ->
-                    CineCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = {
-                            navigator.push(SceneDetailScreen(sceneId = scene.id, projectId = projectId))
-                        }
-                    ) {
-                        Column {
-                            Text(
-                                text = "Сцена ${scene.seriesNumber}-${scene.sceneNumber}",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                text = scene.location,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(Modifier.height(12.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                CineTag(
-                                    text = if (scene.isInterior == 1L) "ИНТ" else "НАТ",
-                                    containerColor = if (scene.isInterior == 1L) 
-                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) 
-                                    else 
-                                        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
+            if (selectedScriptFileId == null) {
+                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                    Text("Загрузите сценарий, чтобы увидеть список сцен")
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(scenes) { scene ->
+                        CineCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = {
+                                navigator.push(SceneDetailScreen(
+                                    sceneUserDataId = scene.id, 
+                                    projectId = projectId,
+                                    scriptFileId = selectedScriptFileId
+                                ))
+                            }
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Сцена ${scene.seriesNumber}-${scene.sceneNumber}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold
                                 )
-                                CineTag(
-                                    text = scene.timeOfDay.uppercase(),
-                                    containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    text = scene.location,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
                                 )
+                                Spacer(Modifier.height(12.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    CineTag(
+                                        text = if (scene.isInterior == 1L) "ИНТ" else "НАТ",
+                                        containerColor = if (scene.isInterior == 1L) 
+                                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) 
+                                        else 
+                                            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
+                                    )
+                                    CineTag(
+                                        text = scene.timeOfDay.uppercase(),
+                                        containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
+                                    )
+                                }
                             }
                         }
                     }
