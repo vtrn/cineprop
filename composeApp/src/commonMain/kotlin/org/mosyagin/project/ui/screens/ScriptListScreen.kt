@@ -25,6 +25,7 @@ import org.mosyagin.project.util.rememberFilePickerLauncher
 import kotlinx.coroutines.launch
 import org.mosyagin.project.ScriptFile
 import org.mosyagin.project.repository.ScriptRepository
+import org.mosyagin.project.util.AppResult
 
 data class ScriptListScreen(val projectId: Long) : Screen {
 
@@ -36,6 +37,8 @@ data class ScriptListScreen(val projectId: Long) : Screen {
         val screenModel = getScreenModel<ScriptViewModel>()
 
         val isLoading by screenModel.isLoading.collectAsState()
+        val parseResult by screenModel.parseResult.collectAsState()
+        val snackbarHostState = remember { SnackbarHostState() }
         val scope = rememberCoroutineScope()
 
         val scripts by repository.getScriptsForProject(projectId).collectAsState(initial = emptyList())
@@ -58,8 +61,23 @@ data class ScriptListScreen(val projectId: Long) : Screen {
             }
         }
 
+        // Обработка результатов парсинга через Snackbar
+        LaunchedEffect(parseResult) {
+            parseResult?.let { result ->
+                if (result is AppResult.Error) {
+                    snackbarHostState.showSnackbar(
+                        message = result.message,
+                        duration = SnackbarDuration.Long
+                    )
+                } else if (result is AppResult.Success) {
+                    snackbarHostState.showSnackbar("Сценарий успешно загружен")
+                }
+            }
+        }
+
         Box(modifier = Modifier.fillMaxSize()) {
             Scaffold(
+                snackbarHost = { SnackbarHost(snackbarHostState) },
                 topBar = {
                     TopAppBar(
                         title = { Text("Сценарии") },
