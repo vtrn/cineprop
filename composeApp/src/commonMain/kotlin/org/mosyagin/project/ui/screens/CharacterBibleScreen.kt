@@ -33,6 +33,7 @@ import org.koin.compose.koinInject
 import org.mosyagin.project.Actor
 import org.mosyagin.project.Scene
 import org.mosyagin.project.repository.SceneRepository
+import org.mosyagin.project.ui.components.CineEmptyState
 
 /**
  * Главный экран Библии персонажей.
@@ -60,9 +61,12 @@ data class CharacterBibleScreen(val projectId: Long) : Screen {
             }
         ) { padding ->
             if (actors.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                    Text("Персонажи не найдены. Загрузите сценарий.", color = MaterialTheme.colorScheme.outline)
-                }
+                CineEmptyState(
+                    modifier = Modifier.padding(padding),
+                    title = "Библия пуста",
+                    description = "Здесь появится список героев после загрузки и парсинга сценария.",
+                    icon = Icons.Default.Person
+                )
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(padding),

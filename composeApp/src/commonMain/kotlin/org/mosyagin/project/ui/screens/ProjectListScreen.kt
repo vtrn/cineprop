@@ -24,6 +24,7 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import org.mosyagin.project.db.ProjectListScreenModel
 import org.mosyagin.project.ui.components.CineButton
 import org.mosyagin.project.ui.components.CineCard
+import org.mosyagin.project.ui.components.CineEmptyState
 
 class ProjectListScreen : Screen {
 
@@ -119,7 +120,18 @@ class ProjectListScreen : Screen {
                 Spacer(Modifier.height(24.dp))
 
                 if (projects.isEmpty()) {
-                    EmptyProjectsView(onCreateClick = { navigator.push(CreateProjectScreen()) })
+                    CineEmptyState(
+                        title = "Пока нет проектов",
+                        description = "Создайте свой первый проект, чтобы начать работу над фильмом.",
+                        icon = Icons.Default.CloudQueue,
+                        action = {
+                            CineButton(
+                                text = "Создать проект",
+                                onClick = { navigator.push(CreateProjectScreen()) },
+                                modifier = Modifier.width(200.dp)
+                            )
+                        }
+                    )
                 } else {
                     Text(
                         text = "Последние",
@@ -189,29 +201,6 @@ class ProjectListScreen : Screen {
                     )
                 }
             }
-        }
-    }
-
-    @Composable
-    private fun EmptyProjectsView(onCreateClick: () -> Unit) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                Icons.Default.CloudQueue, 
-                contentDescription = null, 
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
-            )
-            Spacer(Modifier.height(16.dp))
-            Text("Пока ничего нет", style = MaterialTheme.typography.titleMedium)
-            CineButton(
-                text = "Создать", 
-                onClick = onCreateClick, 
-                modifier = Modifier.padding(top = 16.dp).width(150.dp)
-            )
         }
     }
 }
