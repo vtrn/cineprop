@@ -49,12 +49,7 @@ data class SceneListScreen(val projectId: Long, val projectName: String) : Scree
                 val matchesFilter = when (selectedFilter) {
                     SceneFilter.ALL -> true
                     SceneFilter.MODIFIED -> scene.needsReview == 1L
-                    SceneFilter.NEW -> {
-                        val nowMs: Long = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
-                        val scriptTimeMs: Long = scene.scriptCreatedAt
-                        val diff: Long = nowMs - scriptTimeMs
-                        diff < 86400000L
-                    }
+                    SceneFilter.NEW -> scene.versionCount == 1L
                 }
                 matchesSearch && matchesFilter
             }
@@ -161,12 +156,7 @@ private fun SceneCardItem(
     onClick: () -> Unit,
     onDiffClick: () -> Unit
 ) {
-    val isNewScene = remember(scene.scriptCreatedAt) {
-        val nowMs: Long = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
-        val scriptTimeMs: Long = scene.scriptCreatedAt
-        val diff: Long = nowMs - scriptTimeMs
-        diff < 86400000L
-    }
+    val isBrandNew = scene.versionCount == 1L
 
     CineCard(
         modifier = Modifier.fillMaxWidth(),
@@ -187,7 +177,8 @@ private fun SceneCardItem(
                         fontWeight = FontWeight.SemiBold
                     )
                     
-                    if (scene.needsReview == 1L) {
+                    // Показываем желтый треугольник только если сцена НЕ новая и требует проверки
+                    if (!isBrandNew && scene.needsReview == 1L) {
                         Spacer(Modifier.width(8.dp))
                         TooltipBox(
                             positionProvider = TooltipDefaults.rememberTooltipPositionProvider(),
@@ -231,7 +222,8 @@ private fun SceneCardItem(
                         }
                     }
                     
-                    if (isNewScene) {
+                    // Зеленый бейдж NEW показывается только для абсолютно новых сцен
+                    if (isBrandNew) {
                         CineTag(
                             text = "NEW",
                             containerColor = Color(0xFFE8F5E9),
