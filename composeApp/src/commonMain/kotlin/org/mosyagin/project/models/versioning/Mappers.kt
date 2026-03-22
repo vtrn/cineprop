@@ -14,6 +14,7 @@ import org.mosyagin.project.GetScenesForShift
 fun DbScriptFile.toDomain(): ScriptFile = ScriptFile(
     id = id,
     projectId = projectId,
+    seriesNumber = seriesNumber,
     title = title,
     filePath = filePath,
     createdAt = createdAt,

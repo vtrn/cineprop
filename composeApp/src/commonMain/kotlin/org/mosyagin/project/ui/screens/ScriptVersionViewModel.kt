@@ -24,30 +24,31 @@ class ScriptVersionViewModel(
     val uiState: StateFlow<ScriptVersionUiState> = _uiState.asStateFlow()
 
     init {
-        loadVersions()
-    }
-
-    fun loadVersions() {
         screenModelScope.launch {
             repository.getScriptsForProject(projectId)
                 .map { list ->
-                    list.filter { it.seriesNumber == seriesNumber.toLong() }
+                    val versions = list.filter { it.seriesNumber == seriesNumber.toLong() }
                         .map { it.toDomain() }
                         .sortedByDescending { it.createdAt }
-                }
-                .collect { versions ->
-                    _uiState.value = ScriptVersionUiState.Success(
+                    
+                    ScriptVersionUiState.Success(
                         versions = versions,
-                        activeVersionId = versions.firstOrNull()?.id // По умолчанию последняя загруженная
-                    )
+                        activeVersionId = versions.firstOrNull()?.id
+                    ) as ScriptVersionUiState
+                }
+                .onStart { _uiState.value = ScriptVersionUiState.Loading }
+                .catch { _uiState.value = ScriptVersionUiState.Error(it.message ?: "Ошибка загрузки") }
+                .collect { newState ->
+                    _uiState.value = newState
                 }
         }
     }
 
+    fun loadVersions() { }
+
     fun deleteVersion(id: Long) {
         screenModelScope.launch {
             repository.deleteScriptFile(id)
-            // Список обновится автоматически через Flow в repository
         }
     }
 }

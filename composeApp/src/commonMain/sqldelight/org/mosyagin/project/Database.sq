@@ -92,6 +92,11 @@ CREATE TABLE SceneVersion (
 updateSceneUserDataReviewStatus:
 UPDATE SceneUserData SET needsReview = ? WHERE id = ?;
 
+updateSceneUserDataHeader:
+UPDATE SceneUserData
+SET location = ?, isInterior = ?, timeOfDay = ?
+WHERE id = ?;
+
 -- Новые запросы для сцен
 insertSceneUserData:
 INSERT INTO SceneUserData(projectId, seriesNumber, sceneNumber, location, isInterior, timeOfDay, notes, needsReview)
@@ -114,6 +119,18 @@ FROM SceneUserData ud
 JOIN SceneVersion v ON ud.id = v.sceneUserDataId
 WHERE ud.projectId = ? AND v.scriptFileId = ?
 ORDER BY v.positionIndex ASC;
+
+getLatestScenesForProject:
+SELECT ud.*, v.content, v.contentHash, v.scriptFileId
+FROM SceneUserData ud
+JOIN SceneVersion v ON ud.id = v.sceneUserDataId
+WHERE ud.projectId = :projectId
+  AND v.scriptFileId = (
+      SELECT id FROM ScriptFile
+      WHERE projectId = :projectId AND seriesNumber = CAST(ud.seriesNumber AS INTEGER)
+      ORDER BY createdAt DESC LIMIT 1
+  )
+ORDER BY CAST(ud.seriesNumber AS INTEGER) ASC, v.positionIndex ASC;
 
 getSceneById:
 SELECT ud.*, v.content, v.contentHash
@@ -175,6 +192,9 @@ CREATE TABLE SceneActor (
 
 linkActorToScene:
 INSERT OR IGNORE INTO SceneActor(sceneUserDataId, actorId) VALUES (?, ?);
+
+clearSceneActors:
+DELETE FROM SceneActor WHERE sceneUserDataId = ?;
 
 getActorsForScene:
 SELECT a.* FROM Actor a

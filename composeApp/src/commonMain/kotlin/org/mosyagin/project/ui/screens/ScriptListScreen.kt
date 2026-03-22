@@ -22,8 +22,10 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import org.koin.compose.koinInject
 import org.mosyagin.project.util.rememberFilePickerLauncher
 import kotlinx.coroutines.launch
+import org.mosyagin.project.parser.update.UpdateResult
 import org.mosyagin.project.repository.ScriptRepository
 import org.mosyagin.project.ui.components.CineCard
+import org.mosyagin.project.ui.components.UpdateReportDialog
 
 data class ScriptListScreen(val projectId: Long) : Screen {
 
@@ -35,6 +37,7 @@ data class ScriptListScreen(val projectId: Long) : Screen {
         val screenModel = getScreenModel<ScriptViewModel>()
 
         val isLoading by screenModel.isLoading.collectAsState()
+        val updateResult by screenModel.updateResult.collectAsState()
         val scope = rememberCoroutineScope()
 
         val scripts by repository.getScriptsForProject(projectId).collectAsState(initial = emptyList())
@@ -140,6 +143,36 @@ data class ScriptListScreen(val projectId: Long) : Screen {
                             }) { Text("Выбрать PDF") }
                         }
                     )
+                }
+            }
+
+            // Показ диалога с результатами обновления (Добавлено)
+            updateResult?.let { result ->
+                when (result) {
+                    is UpdateResult.Success -> {
+                        UpdateReportDialog(
+                            stats = result.stats,
+                            matches = result.matches,
+                            onConfirm = {
+                                scope.launch {
+                                    screenModel.commitUpdate()
+                                }
+                            },
+                            onCancel = { screenModel.clearUpdateResult() },
+                            onViewDiff = { /* Необязательно для новой серии */ }
+                        )
+                    }
+                    is UpdateResult.Error -> {
+                        AlertDialog(
+                            onDismissRequest = { screenModel.clearUpdateResult() },
+                            title = { Text("Ошибка") },
+                            text = { Text(result.message) },
+                            confirmButton = {
+                                TextButton(onClick = { screenModel.clearUpdateResult() }) { Text("OK") }
+                            }
+                        )
+                    }
+                    else -> {}
                 }
             }
 

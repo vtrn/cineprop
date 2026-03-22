@@ -15,7 +15,6 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import org.koin.compose.koinInject
 import org.mosyagin.project.repository.SceneRepository
-import org.mosyagin.project.repository.ScriptRepository
 import org.mosyagin.project.ui.components.CineCard
 import org.mosyagin.project.ui.components.CineTag
 
@@ -26,20 +25,9 @@ data class SceneListScreen(val projectId: Long, val projectName: String) : Scree
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val sceneRepository = koinInject<SceneRepository>()
-        val scriptRepository = koinInject<ScriptRepository>()
 
-        // Получаем список файлов сценария, чтобы выбрать последний/актуальный
-        val scripts by scriptRepository.getScriptsForProject(projectId).collectAsState(initial = emptyList())
-        
-        // По умолчанию берем последний загруженный файл
-        val selectedScriptFileId = scripts.lastOrNull()?.id
-
-        // Получаем список сцен для выбранного файла
-        val scenes by if (selectedScriptFileId != null) {
-            sceneRepository.getScenesByProject(projectId, selectedScriptFileId).collectAsState(initial = emptyList())
-        } else {
-            remember { mutableStateOf(emptyList()) }
-        }
+        // Получаем список актуальных сцен (последних версий каждой серии) для проекта
+        val scenes by sceneRepository.getLatestScenesForProject(projectId).collectAsState(initial = emptyList())
 
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
@@ -55,7 +43,7 @@ data class SceneListScreen(val projectId: Long, val projectName: String) : Scree
                 )
             }
         ) { padding ->
-            if (selectedScriptFileId == null) {
+            if (scenes.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = androidx.compose.ui.Alignment.Center) {
                     Text("Загрузите сценарий, чтобы увидеть список сцен")
                 }
@@ -72,7 +60,7 @@ data class SceneListScreen(val projectId: Long, val projectName: String) : Scree
                                 navigator.push(SceneDetailScreen(
                                     sceneUserDataId = scene.id, 
                                     projectId = projectId,
-                                    scriptFileId = selectedScriptFileId
+                                    scriptFileId = scene.scriptFileId // Используем ID файла из JOIN результата
                                 ))
                             }
                         ) {

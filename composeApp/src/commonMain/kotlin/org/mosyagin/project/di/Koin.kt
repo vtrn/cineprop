@@ -8,6 +8,7 @@ import org.mosyagin.project.db.createDriver
 import org.mosyagin.project.db.ProjectListScreenModel
 import org.mosyagin.project.parser.KppParser
 import org.mosyagin.project.parser.ScriptParser
+import org.mosyagin.project.parser.update.ScriptUpdateManager
 import org.mosyagin.project.repository.*
 import org.mosyagin.project.ui.screens.*
 
@@ -55,6 +56,7 @@ val screenModelModule = module {
 val appModule = module {
     single { ScriptParser() }
     single { KppParser(get(), get()) }
+    single { ScriptUpdateManager(get(), get()) }
     
     single<ProjectRepository> { ProjectRepositoryImpl(get()) }
     single<SceneRepository> { SceneRepositoryImpl(get()) }
