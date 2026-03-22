@@ -5,11 +5,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,8 +22,8 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import org.koin.compose.koinInject
 import org.mosyagin.project.util.rememberFilePickerLauncher
 import kotlinx.coroutines.launch
-import org.mosyagin.project.ScriptFile
 import org.mosyagin.project.repository.ScriptRepository
+import org.mosyagin.project.ui.components.CineCard
 
 data class ScriptListScreen(val projectId: Long) : Screen {
 
@@ -40,14 +39,13 @@ data class ScriptListScreen(val projectId: Long) : Screen {
 
         val scripts by repository.getScriptsForProject(projectId).collectAsState(initial = emptyList())
 
-        // Состояния для диалогов
+        // Группируем скрипты по номеру серии
+        val groupedScripts = remember(scripts) {
+            scripts.groupBy { it.seriesNumber }
+        }
+
         var showAddDialog by remember { mutableStateOf(false) }
         var seriesNumberInput by remember { mutableStateOf("1") }
-
-        var scriptToEdit by remember { mutableStateOf<ScriptFile?>(null) }
-        var editTitleInput by remember { mutableStateOf("") }
-
-        var scriptToDelete by remember { mutableStateOf<ScriptFile?>(null) }
 
         val filePicker = rememberFilePickerLauncher { platformFile ->
             platformFile?.uriString?.let { uri ->
@@ -65,7 +63,7 @@ data class ScriptListScreen(val projectId: Long) : Screen {
                         title = { Text("Сценарии") },
                         navigationIcon = {
                             IconButton(onClick = { navigator.pop() }) {
-                                Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                             }
                         }
                     )
@@ -76,7 +74,7 @@ data class ScriptListScreen(val projectId: Long) : Screen {
                     }
                 }
             ) { padding ->
-                if (scripts.isEmpty()) {
+                if (groupedScripts.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                         Text("Нет загруженных сценариев", color = MaterialTheme.colorScheme.outline)
                     }
@@ -84,34 +82,45 @@ data class ScriptListScreen(val projectId: Long) : Screen {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize().padding(padding),
                         contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        items(scripts) { script ->
-                            ListItem(
-                                headlineContent = { Text(script.title) },
-                                supportingContent = { Text("Создан: ${formatDate(script.createdAt)}") },
-                                leadingContent = { Icon(Icons.Default.Description, tint = MaterialTheme.colorScheme.primary, contentDescription = null) },
-                                trailingContent = {
-                                    Row {
-                                        IconButton(onClick = {
-                                            scriptToEdit = script
-                                            editTitleInput = script.title
-                                        }) {
-                                            Icon(Icons.Default.Edit, contentDescription = "Изменить")
-                                        }
-                                        IconButton(onClick = { scriptToDelete = script }) {
-                                            Icon(Icons.Default.Delete, contentDescription = "Удалить", tint = MaterialTheme.colorScheme.error)
+                        items(groupedScripts.keys.toList().sorted()) { seriesNum ->
+                            val versions = groupedScripts[seriesNum] ?: emptyList()
+                            val latestVersion = versions.maxByOrNull { it.createdAt }
+
+                            CineCard(
+                                onClick = {
+                                    // Переходим к истории версий этой серии
+                                    navigator.push(ScriptVersionScreen(projectId, seriesNum.toInt()))
+                                }
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Description, tint = MaterialTheme.colorScheme.primary, contentDescription = null)
+                                        Spacer(Modifier.width(16.dp))
+                                        Column {
+                                            Text(
+                                                text = "Серия $seriesNum",
+                                                style = MaterialTheme.typography.titleMedium
+                                            )
+                                            Text(
+                                                text = "${versions.size} версий • Посл. от ${formatDate(latestVersion?.createdAt ?: 0)}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
                                         }
                                     }
-                                },
-                                colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                                modifier = Modifier.clickable { /* Можно открывать список сцен этого файла */ }
-                            )
+                                    Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.outline)
+                                }
+                            }
                         }
                     }
                 }
 
-                // Диалог добавления
                 if (showAddDialog) {
                     AlertDialog(
                         onDismissRequest = { showAddDialog = false },
@@ -132,52 +141,6 @@ data class ScriptListScreen(val projectId: Long) : Screen {
                         }
                     )
                 }
-
-                // Диалог редактирования названия
-                scriptToEdit?.let { script ->
-                    AlertDialog(
-                        onDismissRequest = { scriptToEdit = null },
-                        title = { Text("Изменить название") },
-                        text = {
-                            OutlinedTextField(
-                                value = editTitleInput,
-                                onValueChange = { editTitleInput = it },
-                                label = { Text("Название") },
-                                singleLine = true
-                            )
-                        },
-                        confirmButton = {
-                            TextButton(onClick = {
-                                screenModel.updateScriptTitle(script.id, editTitleInput)
-                                scriptToEdit = null
-                            }) { Text("Сохранить") }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { scriptToEdit = null }) { Text("Отмена") }
-                        }
-                    )
-                }
-
-                // Диалог удаления
-                scriptToDelete?.let { script ->
-                    AlertDialog(
-                        onDismissRequest = { scriptToDelete = null },
-                        title = { Text("Удалить сценарий?") },
-                        text = { Text("Это удалит файл '${script.title}' и ВСЕ связанные с ним сцены. Это действие нельзя отменить.") },
-                        confirmButton = {
-                            Button(
-                                onClick = {
-                                    screenModel.deleteScriptFile(script.id)
-                                    scriptToDelete = null
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                            ) { Text("Удалить") }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { scriptToDelete = null }) { Text("Отмена") }
-                        }
-                    )
-                }
             }
 
             if (isLoading) {
@@ -193,6 +156,6 @@ data class ScriptListScreen(val projectId: Long) : Screen {
     }
 
     private fun formatDate(timestamp: Long): String {
-        return "от " + (timestamp / 1000 / 3600 / 24 % 31).toString()
+        return (timestamp / 1000 / 3600 / 24 % 31).toString() + " числа"
     }
 }
