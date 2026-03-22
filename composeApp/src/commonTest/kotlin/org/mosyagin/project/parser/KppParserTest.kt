@@ -2,7 +2,7 @@ package org.mosyagin.project.parser
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import org.mosyagin.project.Scene
+import org.mosyagin.project.GetScenesByProject
 import org.mosyagin.project.repository.FakeSceneRepository
 import org.mosyagin.project.repository.FakeShiftRepository
 
@@ -17,8 +17,8 @@ class KppParserTest {
         val projectId = 1L
         
         // 1. Предварительно добавляем сцены в "базу"
-        sceneRepo.addFakeScene(Scene(101, projectId, 1, "1", "1", "КУХНЯ", 1, "ДЕНЬ", ""))
-        sceneRepo.addFakeScene(Scene(102, projectId, 1, "1", "2", "ДВОР", 0, "НОЧЬ", ""))
+        sceneRepo.addFakeScene(GetScenesByProject(101, projectId, "1", "1", "КУХНЯ", 1, "ДЕНЬ", null, 0, "Текст", "hash"))
+        sceneRepo.addFakeScene(GetScenesByProject(102, projectId, "1", "2", "ДВОР", 0, "НОЧЬ", null, 0, "Текст", "hash"))
 
         // 2. CSV текст КПП (Серия; Сцена; ...)
         val csvText = """
@@ -40,8 +40,8 @@ class KppParserTest {
     fun testMultipleShiftsInOneCsv() {
         val projectId = 1L
         
-        sceneRepo.addFakeScene(Scene(101, projectId, 1, "1", "1", "КУХНЯ", 1, "ДЕНЬ", ""))
-        sceneRepo.addFakeScene(Scene(102, projectId, 1, "1", "2", "ДВОР", 0, "НОЧЬ", ""))
+        sceneRepo.addFakeScene(GetScenesByProject(101, projectId, "1", "1", "КУХНЯ", 1, "ДЕНЬ", null, 0, "Текст", "hash"))
+        sceneRepo.addFakeScene(GetScenesByProject(102, projectId, "1", "2", "ДВОР", 0, "НОЧЬ", null, 0, "Текст", "hash"))
 
         val csvText = """
             15.03.2024;;;;;

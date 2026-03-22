@@ -10,7 +10,6 @@ import org.mosyagin.project.db.createTestDriver
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
 
 class SceneRepositoryTest {
     private lateinit var repository: SceneRepository
@@ -27,18 +26,23 @@ class SceneRepositoryTest {
 
     @Test
     fun testAddAndGetProp() = runTest {
-        // 1. Создаем проект и сцену (нужны для внешних ключей)
+        // 1. Создаем проект, файл сценария и сцену
         queries.insertProject("Проект", "Реж")
-        val projectId = queries.getAllProjects().executeAsList()[0].id
-        
-        queries.insertScene(projectId, null, "1", "1", "ЛОКАЦИЯ", 1, "ДЕНЬ", "Текст")
-        val sceneId = queries.getScenesByProject(projectId).executeAsList()[0].id
+        val projectId = queries.lastInsertRowId().executeAsOne()
 
-        // 2. Добавляем реквизит
-        repository.addProp(sceneId, "Меч", "Найти", 0, 10)
+        queries.insertScriptFile(projectId, "Серия 1", "path/to/file", 123456789L, null, "White", "User")
+        val scriptFileId = queries.lastInsertRowId().executeAsOne()
+        
+        queries.insertSceneUserData(projectId, "1", "1", "ЛОКАЦИЯ", 1, "ДЕНЬ", null, 0)
+        val sceneUserDataId = queries.lastInsertRowId().executeAsOne()
+
+        queries.insertSceneVersion(scriptFileId, sceneUserDataId, "Текст сцены", "hash", 0)
+
+        // 2. Добавляем реквизит (привязывается к SceneUserData)
+        repository.addProp(sceneUserDataId, "Меч", "Найти", 0, 10)
 
         // 3. Проверяем
-        val props = repository.getPropsForScene(sceneId).first()
+        val props = repository.getPropsForScene(sceneUserDataId).first()
         assertEquals(1, props.size)
         assertEquals("Меч", props[0].name)
     }
@@ -47,11 +51,13 @@ class SceneRepositoryTest {
     fun testUpdatePropStatus() = runTest {
         queries.insertProject("Проект", "Реж")
         val projectId = queries.lastInsertRowId().executeAsOne()
-        queries.insertScene(projectId, null, "1", "1", "ЛОКАЦИЯ", 1, "ДЕНЬ", "Текст")
-        val sceneId = queries.lastInsertRowId().executeAsOne()
 
-        repository.addProp(sceneId, "Ваза", "Найти")
-        val propId = repository.getPropsByProject(projectId).first()[0].id
+        queries.insertSceneUserData(projectId, "1", "1", "ЛОКАЦИЯ", 1, "ДЕНЬ", null, 0)
+        val sceneUserDataId = queries.lastInsertRowId().executeAsOne()
+
+        repository.addProp(sceneUserDataId, "Ваза", "Найти")
+        val props = repository.getPropsByProject(projectId).first()
+        val propId = props[0].id
 
         repository.updatePropStatus(propId, "Готово")
 

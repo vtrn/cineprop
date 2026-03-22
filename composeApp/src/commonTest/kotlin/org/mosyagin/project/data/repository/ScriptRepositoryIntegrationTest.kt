@@ -52,8 +52,11 @@ class ScriptRepositoryIntegrationTest {
             createdAt = 123456789L
         )
 
-        // 4. Проверяем БД напрямую через queries
-        val scenes = queries.getScenesByProject(projectId).executeAsList()
+        // 4. Получаем ID созданного файла сценария
+        val scriptFileId = queries.getScriptsForProject(projectId).executeAsList().first().id
+
+        // 5. Проверяем БД напрямую через queries
+        val scenes = queries.getScenesByProject(projectId, scriptFileId).executeAsList()
         assertEquals(2, scenes.size)
         
         assertEquals("1", scenes[0].sceneNumber)
@@ -78,10 +81,11 @@ class ScriptRepositoryIntegrationTest {
 
         repository.saveParsedScript(projectId, 1, "path", scriptText, 0L)
 
-        val scenes = queries.getScenesByProject(projectId).executeAsList()
-        val sceneId = scenes[0].id
+        val scriptFileId = queries.getScriptsForProject(projectId).executeAsList().first().id
+        val scenes = queries.getScenesByProject(projectId, scriptFileId).executeAsList()
+        val sceneUserDataId = scenes[0].id
 
-        val actors = queries.getActorsForScene(sceneId).executeAsList()
+        val actors = queries.getActorsForScene(sceneUserDataId).executeAsList()
         assertEquals(2, actors.size)
         assertTrue(actors.any { it.name == "ГЕРОЙ" })
         assertTrue(actors.any { it.name == "МАМА" })
