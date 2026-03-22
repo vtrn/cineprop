@@ -3,12 +3,14 @@ package org.mosyagin.project.repository
 import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.mosyagin.project.Actor
 import org.mosyagin.project.DatabaseQueries
 import org.mosyagin.project.Prop
 import org.mosyagin.project.GetScenesByProject
+import org.mosyagin.project.GetLatestScenesForProject
 import org.mosyagin.project.GetScenesBySeries
 import org.mosyagin.project.GetSceneById
 import org.mosyagin.project.GetScenesByActor
@@ -25,6 +27,7 @@ data class PropWithScene(
 interface SceneRepository {
     fun getSceneById(sceneId: Long, scriptFileId: Long): Flow<GetSceneById?>
     fun getScenesByProject(projectId: Long, scriptFileId: Long): Flow<List<GetScenesByProject>>
+    fun getLatestScenesForProject(projectId: Long): Flow<List<GetLatestScenesForProject>>
     fun getActorsForScene(sceneUserDataId: Long): Flow<List<Actor>>
     fun getActorsByProject(projectId: Long): Flow<List<Actor>>
     fun getScenesByActor(actorId: Long, scriptFileId: Long): Flow<List<GetScenesByActor>>
@@ -46,37 +49,42 @@ class SceneRepositoryImpl(private val queries: DatabaseQueries) : SceneRepositor
     override fun getScenesByProject(projectId: Long, scriptFileId: Long): Flow<List<GetScenesByProject>> =
         queries.getScenesByProject(projectId, scriptFileId)
             .asFlow()
-            .mapToList(Dispatchers.Default)
+            .mapToList(Dispatchers.IO)
+
+    override fun getLatestScenesForProject(projectId: Long): Flow<List<GetLatestScenesForProject>> =
+        queries.getLatestScenesForProject(projectId)
+            .asFlow()
+            .mapToList(Dispatchers.IO)
 
     override fun getActorsForScene(sceneUserDataId: Long): Flow<List<Actor>> =
         queries.getActorsForScene(sceneUserDataId)
             .asFlow()
-            .mapToList(Dispatchers.Default)
+            .mapToList(Dispatchers.IO)
 
     override fun getActorsByProject(projectId: Long): Flow<List<Actor>> =
         queries.getActorsByProject(projectId)
             .asFlow()
-            .mapToList(Dispatchers.Default)
+            .mapToList(Dispatchers.IO)
 
     override fun getScenesByActor(actorId: Long, scriptFileId: Long): Flow<List<GetScenesByActor>> =
         queries.getScenesByActor(actorId, scriptFileId)
             .asFlow()
-            .mapToList(Dispatchers.Default)
+            .mapToList(Dispatchers.IO)
 
     override fun getLocationsByActor(actorId: Long): Flow<List<String>> =
         queries.getLocationsByActor(actorId)
             .asFlow()
-            .mapToList(Dispatchers.Default)
+            .mapToList(Dispatchers.IO)
 
     override fun getPropsForScene(sceneUserDataId: Long): Flow<List<Prop>> =
         queries.getPropsForScene(sceneUserDataId)
             .asFlow()
-            .mapToList(Dispatchers.Default)
+            .mapToList(Dispatchers.IO)
 
     override fun getPropsByProject(projectId: Long): Flow<List<PropWithScene>> =
         queries.getPropsByProject(projectId)
             .asFlow()
-            .mapToList(Dispatchers.Default)
+            .mapToList(Dispatchers.IO)
             .map { list ->
                 list.map { prop ->
                     PropWithScene(

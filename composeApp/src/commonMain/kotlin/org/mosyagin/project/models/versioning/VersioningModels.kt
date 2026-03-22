@@ -42,6 +42,7 @@ enum class PropStatus(val displayName: String) {
 data class ScriptFile(
     val id: Long,
     val projectId: Long,
+    val seriesNumber: Long, // Добавлено
     val title: String,
     val filePath: String,
     val createdAt: Long,

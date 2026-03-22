@@ -21,11 +21,15 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.koin.getScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import kotlinx.coroutines.launch
 import org.koin.core.parameter.parametersOf
 import org.mosyagin.project.models.versioning.RevisionColor
 import org.mosyagin.project.models.versioning.ScriptFile
+import org.mosyagin.project.parser.update.UpdateResult
 import org.mosyagin.project.ui.components.CineCard
 import org.mosyagin.project.ui.components.CineTag
+import org.mosyagin.project.ui.components.UpdateReportDialog
+import org.mosyagin.project.util.rememberFilePickerLauncher
 
 data class ScriptVersionScreen(val projectId: Long, val seriesNumber: Int) : Screen {
 
@@ -33,8 +37,25 @@ data class ScriptVersionScreen(val projectId: Long, val seriesNumber: Int) : Scr
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
+        val scope = rememberCoroutineScope()
+        
+        // Модель для списка версий
         val viewModel = getScreenModel<ScriptVersionViewModel> { parametersOf(projectId, seriesNumber) }
         val uiState by viewModel.uiState.collectAsState()
+
+        // Общая модель для обработки PDF
+        val scriptViewModel = getScreenModel<ScriptViewModel>()
+        val isParsing by scriptViewModel.isLoading.collectAsState()
+        val updateResult by scriptViewModel.updateResult.collectAsState()
+
+        // Инициализация выбора файла
+        val filePicker = rememberFilePickerLauncher { platformFile ->
+            platformFile?.uriString?.let { uri ->
+                scope.launch {
+                    scriptViewModel.processPdfUri(projectId, seriesNumber, uri)
+                }
+            }
+        }
 
         Scaffold(
             topBar = {
@@ -48,27 +69,84 @@ data class ScriptVersionScreen(val projectId: Long, val seriesNumber: Int) : Scr
                 )
             },
             floatingActionButton = {
-                FloatingActionButton(onClick = { /* Вызов выбора файла будет здесь */ }) {
+                FloatingActionButton(onClick = { filePicker.launch() }) {
                     Icon(Icons.Default.Add, contentDescription = "Новая ревизия")
                 }
             }
         ) { padding ->
-            when (val state = uiState) {
-                is ScriptVersionUiState.Loading -> {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+            Box(Modifier.fillMaxSize()) {
+                when (val state = uiState) {
+                    is ScriptVersionUiState.Loading -> {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                    }
+                    is ScriptVersionUiState.Success -> {
+                        if (state.versions.isEmpty()) {
+                            EmptyState(padding)
+                        } else {
+                            VersionList(state.versions, state.activeVersionId, viewModel, padding)
+                        }
+                    }
+                    is ScriptVersionUiState.Error -> {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(state.message, color = MaterialTheme.colorScheme.error)
+                        }
                     }
                 }
-                is ScriptVersionUiState.Success -> {
-                    if (state.versions.isEmpty()) {
-                        EmptyState(padding)
-                    } else {
-                        VersionList(state.versions, state.activeVersionId, viewModel, padding)
+
+                // Индикатор парсинга нового файла
+                if (isParsing) {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = Color.Black.copy(alpha = 0.4f)
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            CircularProgressIndicator(color = Color.White)
+                            Spacer(Modifier.height(16.dp))
+                            Text("Обработка данных...", color = Color.White)
+                        }
                     }
                 }
-                is ScriptVersionUiState.Error -> {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(state.message, color = MaterialTheme.colorScheme.error)
+            }
+        }
+
+        // Показ диалога с результатами обновления
+        updateResult?.let { result ->
+            when (result) {
+                is UpdateResult.Success -> {
+                    UpdateReportDialog(
+                        stats = result.stats,
+                        matches = result.matches,
+                        onConfirm = { 
+                            scope.launch {
+                                scriptViewModel.commitUpdate()
+                                viewModel.loadVersions() // Обновляем список после сохранения
+                            }
+                        },
+                        onCancel = { scriptViewModel.clearUpdateResult() },
+                        onViewDiff = { match ->
+                            // TODO: Переход к Diff Viewer
+                        }
+                    )
+                }
+                is UpdateResult.Error -> {
+                    AlertDialog(
+                        onDismissRequest = { scriptViewModel.clearUpdateResult() },
+                        title = { Text("Ошибка") },
+                        text = { Text(result.message) },
+                        confirmButton = {
+                            TextButton(onClick = { scriptViewModel.clearUpdateResult() }) { Text("OK") }
+                        }
+                    )
+                }
+                UpdateResult.NoChanges -> {
+                    LaunchedEffect(Unit) {
+                        // Можно показать Snackbar
+                        scriptViewModel.clearUpdateResult()
                     }
                 }
             }
@@ -95,7 +173,12 @@ data class ScriptVersionScreen(val projectId: Long, val seriesNumber: Int) : Scr
 
     @Composable
     private fun VersionCard(version: ScriptFile, isActive: Boolean, onDelete: () -> Unit) {
+        val navigator = LocalNavigator.currentOrThrow
         CineCard(
+            onClick = {
+                // При клике открываем список сцен этой версии
+                navigator.push(SceneListScreen(version.projectId, "Серия ${version.seriesNumber}"))
+            },
             containerColor = if (isActive) 
                 MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f) 
             else 
@@ -105,7 +188,6 @@ data class ScriptVersionScreen(val projectId: Long, val seriesNumber: Int) : Scr
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // Цвет ревизии
                 Box(
                     modifier = Modifier
                         .size(12.dp)
@@ -125,13 +207,6 @@ data class ScriptVersionScreen(val projectId: Long, val seriesNumber: Int) : Scr
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    if (version.uploadedBy != null) {
-                        Text(
-                            text = "Автор: ${version.uploadedBy}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
                 }
 
                 if (isActive) {
@@ -159,11 +234,14 @@ data class ScriptVersionScreen(val projectId: Long, val seriesNumber: Int) : Scr
     }
 
     private fun formatDate(timestamp: Long): String {
-        // Упрощенное форматирование для KMP
-        return "от " + (timestamp / 1000 / 3600 / 24 % 31).toString() + " числа"
+        return (timestamp / 1000 / 3600 / 24 % 31).toString() + " числа"
     }
 
     private fun parseColor(hex: String): Long {
-        return hex.removePrefix("#").toLong(16) or 0xFF000000
+        return try {
+            hex.removePrefix("#").toLong(16) or 0xFF000000
+        } catch (e: Exception) {
+            0xFFFFFFFF
+        }
     }
 }

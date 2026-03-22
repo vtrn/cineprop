@@ -1,78 +1,138 @@
-/**
- * Парсер сценария.
- */
 package org.mosyagin.project.parser
 
 class ScriptParser {
-    
-    /**
-     * Группа 1: Номер сцены (8, 5А, 1.12)
-     * Группа 2: Тип (ИНТ/НАТ)
-     * Группа 3: Локация
-     * Группа 4: Время суток
-     */
-    private val sceneHeaderRegex = Regex(
-        """(?:([\d\wА-Яа-я.-]+)\.?\s+)?(ИНТ|НАТ|INT|EXT)\.?\s+(.+?)(?:\.|\s+--|(?:\s+(?=ДЕНЬ|НОЧЬ|УТРО|ВЕЧЕР|DAY|NIGHT)))\s*(ДЕНЬ|НОЧЬ|УТРО|ВЕЧЕР|DAY|NIGHT)""",
-        RegexOption.IGNORE_CASE
-    )
+
+    private val sceneTypeRegex = Regex("""\b(ИНТ|НАТ|INT|EXT|инт|нат|int|ext)\b""")
 
     fun parse(text: String, seriesNumber: Int): List<ParsedScene> {
         val scenes = mutableListOf<ParsedScene>()
         val cleanedText = text.replace("\r\n", "\n").replace("\r", "\n")
+        val lines = cleanedText.lines()
         
-        val matches = sceneHeaderRegex.findAll(cleanedText).toList()
-        
-        for (i in matches.indices) {
-            val currentMatch = matches[i]
-            val nextMatchStart = if (i + 1 < matches.size) matches[i + 1].range.first else cleanedText.length
-            val fullSceneText = cleanedText.substring(currentMatch.range.first, nextMatchStart)
+        var currentSceneContent = StringBuilder()
+        var currentHeader: HeaderInfo? = null
 
-            val rawNum = currentMatch.groups[1]?.value?.trim()?.removeSuffix(".") ?: ""
-            
-            val sceneNumber = if (rawNum.isEmpty()) {
-                (i + 1).toString()
-            } else {
-                val parts = rawNum.split(Regex("[-.]")).filter { it.isNotEmpty() }
-                parts.lastOrNull() ?: (i + 1).toString()
+        for (i in lines.indices) {
+            val line = lines[i].trim()
+            if (line.isEmpty()) {
+                if (currentHeader != null) currentSceneContent.append("\n")
+                continue
             }
 
-            val type = currentMatch.groupValues[2].trim().uppercase()
-            // Улучшенная очистка локации от тире и пробелов
-            val location = currentMatch.groupValues[3].trim().removeSuffix(".").trim('-', ' ')
-            val time = currentMatch.groupValues[4].trim().uppercase()
+            val typeMatch = sceneTypeRegex.find(line)
+            
+            // Если нашли ИНТ/НАТ и это похоже на заголовок
+            if (typeMatch != null && isLikelyHeader(line, typeMatch)) {
+                // Сохраняем предыдущую накопленную сцену
+                currentHeader?.let { 
+                    scenes.add(createParsedScene(it, currentSceneContent.toString(), seriesNumber)) 
+                }
+                
+                // Извлекаем номер сцены (то, что перед типом)
+                val rawNum = line.substring(0, typeMatch.range.first).trim().removeSuffix(".")
+                
+                // Если на этой строке номера нет, попробуем взять со строки выше (бывает в PDF)
+                var sceneNum = rawNum
+                if (sceneNum.isEmpty() && i > 0) {
+                    val prevLine = lines[i-1].trim()
+                    // Номер обычно короткий: "15" или "10-А"
+                    if (prevLine.length in 1..8 && prevLine.all { it.isDigit() || it.isLetter() || it == '-' || it == '.' }) {
+                        sceneNum = prevLine.removeSuffix(".")
+                    }
+                }
+                
+                // Если всё равно пусто, даем порядковый номер
+                if (sceneNum.isEmpty()) {
+                    sceneNum = (scenes.size + 1).toString()
+                }
 
-            val actors = extractActors(fullSceneText)
-
-            scenes.add(ParsedScene(
-                seriesNumber = seriesNumber.toString(),
-                sceneNumber = sceneNumber,
-                type = type,
-                location = location,
-                time = time,
-                content = fullSceneText,
-                actors = actors
-            ))
+                // Извлекаем локацию и время (то, что после типа)
+                val afterType = line.substring(typeMatch.range.last + 1).trim().removePrefix(".")
+                val (location, time) = parseLocationAndTime(afterType)
+                
+                currentHeader = HeaderInfo(
+                    number = sceneNum,
+                    type = typeMatch.value.uppercase(),
+                    location = location,
+                    time = time
+                )
+                currentSceneContent = StringBuilder(line).append("\n")
+            } else {
+                // Это текст текущей сцены
+                if (currentHeader != null) {
+                    currentSceneContent.append(lines[i]).append("\n")
+                }
+            }
         }
+        
+        // Не забываем добавить последнюю сцену
+        currentHeader?.let { 
+            scenes.add(createParsedScene(it, currentSceneContent.toString(), seriesNumber)) 
+        }
+        
         return scenes
+    }
+
+    private data class HeaderInfo(val number: String, val type: String, val location: String, val time: String)
+
+    private fun isLikelyHeader(line: String, match: MatchResult): Boolean {
+        // Проверка: ИНТ/НАТ должен быть в начале строки (или после номера)
+        val before = line.substring(0, match.range.first).trim()
+        if (before.isNotEmpty() && before.length > 8) return false // Если перед ИНТ много текста - это диалог
+        
+        // После ИНТ/НАТ должна быть локация
+        val after = line.substring(match.range.last + 1).trim().removePrefix(".")
+        if (after.isEmpty()) return false
+        
+        // Локация в сценариях почти всегда начинается с заглавной буквы
+        val firstLetter = after.firstOrNull { it.isLetter() }
+        if (firstLetter != null && !firstLetter.isUpperCase()) return false
+        
+        // Заголовок не бывает слишком длинным
+        if (line.length > 150) return false 
+        
+        return true
+    }
+
+    private fun parseLocationAndTime(text: String): Pair<String, String> {
+        val timeRegex = Regex("""\b(ДЕНЬ|НОЧЬ|УТРО|ВЕЧЕР|DAY|NIGHT|день|ночь|утро|вечер|day|night)\b""", RegexOption.IGNORE_CASE)
+        val timeMatch = timeRegex.find(text)
+        
+        return if (timeMatch != null) {
+            val location = text.substring(0, timeMatch.range.first).trim().removeSuffix(".").trim('-', ' ', '.')
+            location to timeMatch.value.uppercase()
+        } else {
+            text.trim().removeSuffix(".").trim('-', ' ', '.') to "НЕ УКАЗАНО"
+        }
+    }
+
+    private fun createParsedScene(header: HeaderInfo, content: String, seriesNum: Int): ParsedScene {
+        return ParsedScene(
+            seriesNumber = seriesNum.toString(),
+            sceneNumber = header.number,
+            type = header.type,
+            location = header.location,
+            time = header.time,
+            content = content.trim(),
+            actors = extractActors(content)
+        )
     }
 
     private fun extractActors(text: String): List<String> {
         val lines = text.lines().map { it.trim() }.filter { it.isNotEmpty() }
-        val possibleActorLines = lines.drop(1).take(5) // Расширим поиск актеров
-
+        if (lines.isEmpty()) return emptyList()
+        val actors = mutableSetOf<String>()
+        val possibleActorLines = lines.drop(1).take(20)
         for (line in possibleActorLines) {
-            val cleanLine = line.replace(Regex("""\(\d{2}:\d{2}\)"""), "")
-                .replace(Regex("""\(.*?\)"""), "")
-                .trim()
-
-            val isActorLine = cleanLine.isNotEmpty() &&
-                    cleanLine.all { it.isUpperCase() || it.isWhitespace() || it == ',' || it == '.' || it == '-' } &&
-                    !cleanLine.startsWith("ИНТ") && !cleanLine.startsWith("НАТ") && !cleanLine.startsWith("КОНЕЦ")
-
-            if (isActorLine) {
-                return cleanLine.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+            val cleanLine = line.replace(Regex("""\(.*?\)"""), "").trim()
+            // Персонажи обычно пишутся капсом в центре строки
+            if (cleanLine.length in 2..30 && 
+                cleanLine.all { it.isUpperCase() || it.isWhitespace() || it == '.' } &&
+                !cleanLine.contains(Regex("ИНТ|НАТ|INT|EXT|СЦЕНА|СЕРИЯ"))
+            ) {
+                actors.add(cleanLine)
             }
         }
-        return emptyList()
+        return actors.toList()
     }
 }
