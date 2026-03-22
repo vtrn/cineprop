@@ -30,10 +30,19 @@ class SceneRepositoryTest {
         queries.insertProject("Проект", "Реж")
         val projectId = queries.lastInsertRowId().executeAsOne()
 
-        queries.insertScriptFile(projectId, "Серия 1", "path/to/file", 123456789L, null, "White", "User")
+        queries.insertScriptFile(
+            projectId = projectId,
+            seriesNumber = 1L,
+            title = "Сценарий",
+            filePath = "path/to/file",
+            createdAt = 123456789L,
+            previousVersionId = null,
+            revisionColor = "White",
+            uploadedBy = "User"
+        )
         val scriptFileId = queries.lastInsertRowId().executeAsOne()
         
-        queries.insertSceneUserData(projectId, "1", "1", "ЛОКАЦИЯ", 1, "ДЕНЬ", null, 0)
+        queries.insertSceneUserData(projectId, "1", "1", "ЛОКАЦИЯ", 1L, "ДЕНЬ", null, 0L)
         val sceneUserDataId = queries.lastInsertRowId().executeAsOne()
 
         queries.insertSceneVersion(scriptFileId, sceneUserDataId, "Текст сцены", "hash", 0)
@@ -52,7 +61,7 @@ class SceneRepositoryTest {
         queries.insertProject("Проект", "Реж")
         val projectId = queries.lastInsertRowId().executeAsOne()
 
-        queries.insertSceneUserData(projectId, "1", "1", "ЛОКАЦИЯ", 1, "ДЕНЬ", null, 0)
+        queries.insertSceneUserData(projectId, "1", "1", "ЛОКАЦИЯ", 1L, "ДЕНЬ", null, 0L)
         val sceneUserDataId = queries.lastInsertRowId().executeAsOne()
 
         repository.addProp(sceneUserDataId, "Ваза", "Найти")

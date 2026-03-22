@@ -121,9 +121,12 @@ WHERE ud.projectId = ? AND v.scriptFileId = ?
 ORDER BY v.positionIndex ASC;
 
 getLatestScenesForProject:
-SELECT ud.*, v.content, v.contentHash, v.scriptFileId
+SELECT ud.*, v.content, v.contentHash, v.scriptFileId,
+       (SELECT COUNT(*) FROM Prop WHERE sceneUserDataId = ud.id AND orphaned = 1) > 0 AS hasOrphanedProps,
+       sf.createdAt AS scriptCreatedAt
 FROM SceneUserData ud
 JOIN SceneVersion v ON ud.id = v.sceneUserDataId
+JOIN ScriptFile sf ON v.scriptFileId = sf.id
 WHERE ud.projectId = :projectId
   AND v.scriptFileId = (
       SELECT id FROM ScriptFile
