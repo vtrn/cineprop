@@ -123,7 +123,8 @@ ORDER BY v.positionIndex ASC;
 getLatestScenesForProject:
 SELECT ud.*, v.content, v.contentHash, v.scriptFileId,
        (SELECT COUNT(*) FROM Prop WHERE sceneUserDataId = ud.id AND orphaned = 1) > 0 AS hasOrphanedProps,
-       sf.createdAt AS scriptCreatedAt
+       sf.createdAt AS scriptCreatedAt,
+       (SELECT COUNT(*) FROM SceneVersion WHERE sceneUserDataId = ud.id) AS versionCount
 FROM SceneUserData ud
 JOIN SceneVersion v ON ud.id = v.sceneUserDataId
 JOIN ScriptFile sf ON v.scriptFileId = sf.id
@@ -187,7 +188,7 @@ getActorsByProject:
 SELECT * FROM Actor WHERE projectId = ? ORDER BY name ASC;
 
 
--- СВЯЗЬ СЦЕНА-АКТЕР
+-- СВЯЗЬ СМЕНА-СЦЕНА
 CREATE TABLE SceneActor (
     sceneUserDataId INTEGER NOT NULL,
     actorId INTEGER NOT NULL,

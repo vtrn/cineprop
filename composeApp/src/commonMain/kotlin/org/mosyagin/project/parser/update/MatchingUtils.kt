@@ -4,25 +4,38 @@ package org.mosyagin.project.parser.update
  * Утилиты для нормализации текста перед сравнением.
  */
 object TextNormalizer {
+
     /**
-     * Мягкая нормализация: удаляет лишние пробелы и знаки препинания, 
-     * но сохраняет структуру слов для Fuzzy поиска.
+     * Очистка текста от технического мусора PDF (номера страниц).
+     * Удаляет строки, состоящие только из цифр.
      */
-    fun normalizeForFuzzy(text: String): String {
-        return text.lowercase()
-            .replace(Regex("[^a-zа-яё\\s]"), "") // Оставляем только буквы и пробелы
-            .replace(Regex("\\s+"), " ")
+    fun normalize(text: String): String {
+        return text.lines()
+            .filter { line -> !line.trim().matches(Regex("^\\d+$")) }
+            .joinToString("\n")
             .trim()
     }
 
     /**
-     * Максимально жесткая нормализация: оставляет только буквы.
-     * Игнорирует цифры, пробелы, знаки препинания и переносы строк.
-     * Используется для определения факта изменения сцены.
+     * Максимально жесткая очистка для хеширования: только буквы.
+     * Игнорирует регистр, цифры, знаки препинания и любые пробелы.
      */
-    fun normalize(text: String): String {
-        return text.lowercase()
+    fun sanitizeForHashing(text: String): String {
+        return normalize(text)
+            .lowercase()
             .replace(Regex("[^a-zа-яё]"), "")
+    }
+
+    /**
+     * Мягкая нормализация для Fuzzy поиска.
+     * Сохраняет пробелы для разбивки на слова.
+     */
+    fun normalizeForFuzzy(text: String): String {
+        return normalize(text)
+            .lowercase()
+            .replace(Regex("[^a-zа-яё\\s]"), "")
+            .replace(Regex("\\s+"), " ")
+            .trim()
     }
 }
 
@@ -36,13 +49,13 @@ expect fun calculateSha256(input: String): String
  */
 object QuickComparator {
     /**
-     * Возвращает true, если нормализованные тексты (только буквы) полностью идентичны.
+     * Возвращает true, если нормализованные тексты (без мусора и небуквенных знаков) идентичны.
      */
     fun compareExact(text1: String, text2: String): Boolean {
         if (text1 == text2) return true
         
-        val norm1 = TextNormalizer.normalize(text1)
-        val norm2 = TextNormalizer.normalize(text2)
+        val norm1 = TextNormalizer.sanitizeForHashing(text1)
+        val norm2 = TextNormalizer.sanitizeForHashing(text2)
         
         if (norm1 == norm2) return true
 
