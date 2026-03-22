@@ -9,8 +9,7 @@ import org.mosyagin.project.db.ProjectListScreenModel
 import org.mosyagin.project.parser.KppParser
 import org.mosyagin.project.parser.ScriptParser
 import org.mosyagin.project.repository.*
-import org.mosyagin.project.ui.screens.SceneDetailScreenModel
-import org.mosyagin.project.ui.screens.ScriptViewModel
+import org.mosyagin.project.ui.screens.*
 
 /**
  * Инициализация Koin.
@@ -43,6 +42,11 @@ val screenModelModule = module {
         SceneDetailScreenModel(get(), sceneUserDataId, scriptFileId) 
     }
     factory { ScriptViewModel(get()) }
+    
+    // Регистрация для управления версиями
+    factory { (projectId: Long, seriesNumber: Int) -> 
+        ScriptVersionViewModel(get(), projectId, seriesNumber) 
+    }
 }
 
 /**
