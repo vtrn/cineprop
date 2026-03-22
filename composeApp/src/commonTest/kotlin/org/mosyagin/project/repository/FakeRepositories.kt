@@ -6,10 +6,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flowOf
 import org.mosyagin.project.Actor
 import org.mosyagin.project.Prop
-import org.mosyagin.project.Scene
 import org.mosyagin.project.Shift
 import org.mosyagin.project.Project
 import org.mosyagin.project.ScriptFile
+import org.mosyagin.project.GetScenesByProject
+import org.mosyagin.project.GetScenesBySeries
+import org.mosyagin.project.GetSceneById
+import org.mosyagin.project.GetScenesByActor
+import org.mosyagin.project.GetScenesForShift
 
 class FakeProjectRepository : ProjectRepository {
     private val projects = MutableStateFlow<List<Project>>(emptyList())
@@ -46,7 +50,7 @@ class FakeScriptRepository : ScriptRepository {
         saveParsedScriptCalled = true
         lastSavedText = fullText
         val newId = (scripts.value.size + 1).toLong()
-        scripts.value += ScriptFile(newId, projectId, "Серия $seriesNumber", filePath, createdAt)
+        scripts.value += ScriptFile(newId, projectId, "Серия $seriesNumber", filePath, createdAt, null, "White", null)
     }
 
     override suspend fun deleteScriptFile(fileId: Long) {
@@ -61,37 +65,41 @@ class FakeScriptRepository : ScriptRepository {
 }
 
 class FakeSceneRepository : SceneRepository {
-    private val scenes = mutableListOf<Scene>()
+    private val scenes = mutableListOf<GetScenesByProject>()
     
-    fun addFakeScene(scene: Scene) {
+    fun addFakeScene(scene: GetScenesByProject) {
         scenes.add(scene)
     }
 
-    override fun getSceneById(sceneId: Long): Flow<Scene?> = flowOf(scenes.find { it.id == sceneId })
-    override fun getScenesByProject(projectId: Long): Flow<List<Scene>> = flowOf(scenes.filter { it.projectId == projectId })
-    override fun getActorsForScene(sceneId: Long): Flow<List<Actor>> = flowOf(emptyList())
+    override fun getSceneById(sceneId: Long, scriptFileId: Long): Flow<GetSceneById?> = 
+        flowOf(null) // Упростим для фейка
+
+    override fun getScenesByProject(projectId: Long, scriptFileId: Long): Flow<List<GetScenesByProject>> = 
+        flowOf(scenes.filter { it.projectId == projectId })
+
+    override fun getActorsForScene(sceneUserDataId: Long): Flow<List<Actor>> = flowOf(emptyList())
     override fun getActorsByProject(projectId: Long): Flow<List<Actor>> = flowOf(emptyList())
-    override fun getScenesByActor(actorId: Long): Flow<List<Scene>> = flowOf(emptyList())
+    override fun getScenesByActor(actorId: Long, scriptFileId: Long): Flow<List<GetScenesByActor>> = flowOf(emptyList())
     override fun getLocationsByActor(actorId: Long): Flow<List<String>> = flowOf(emptyList())
-    override fun getPropsForScene(sceneId: Long): Flow<List<Prop>> = flowOf(emptyList())
+    override fun getPropsForScene(sceneUserDataId: Long): Flow<List<Prop>> = flowOf(emptyList())
     override fun getPropsByProject(projectId: Long): Flow<List<PropWithScene>> = flowOf(emptyList())
 
-    override suspend fun getSceneIdBySeriesAndNumber(projectId: Long, series: String, sceneNumber: String): Long? {
+    override suspend fun getSceneUserDataIdBySeriesAndNumber(projectId: Long, series: String, sceneNumber: String): Long? {
         return scenes.find { it.projectId == projectId && it.seriesNumber == series && it.sceneNumber == sceneNumber }?.id
     }
 
-    override suspend fun addProp(sceneId: Long, name: String, status: String, startOffset: Long, endOffset: Long) {}
+    override suspend fun addProp(sceneUserDataId: Long, name: String, status: String, startOffset: Long, endOffset: Long) {}
     override suspend fun updatePropStatus(propId: Long, newStatus: String) {}
     override suspend fun deleteProp(propId: Long) {}
 }
 
 class FakeShiftRepository : ShiftRepository {
     private val shifts = mutableListOf<Shift>()
-    private val links = mutableListOf<Triple<Long, Long, Long>>() // shiftId, sceneId, position
+    private val links = mutableListOf<Triple<Long, Long, Long>>() // shiftId, sceneUserDataId, position
 
     override fun getShiftsByProject(projectId: Long): Flow<List<Shift>> = flowOf(shifts.filter { it.projectId == projectId })
     override fun getShiftById(shiftId: Long): Flow<Shift?> = flowOf(shifts.find { it.id == shiftId })
-    override fun getScenesForShift(shiftId: Long): Flow<List<Scene>> = flowOf(emptyList())
+    override fun getScenesForShift(shiftId: Long): Flow<List<GetScenesForShift>> = flowOf(emptyList())
 
     override suspend fun addShift(projectId: Long, shiftNumber: Long, date: String): Long {
         val id = (shifts.size + 1).toLong()
@@ -99,8 +107,8 @@ class FakeShiftRepository : ShiftRepository {
         return id
     }
 
-    override suspend fun linkSceneToShift(shiftId: Long, sceneId: Long, position: Long) {
-        links.add(Triple(shiftId, sceneId, position))
+    override suspend fun linkSceneToShift(shiftId: Long, sceneUserDataId: Long, position: Long) {
+        links.add(Triple(shiftId, sceneUserDataId, position))
     }
 
     override suspend fun getShiftByNumber(projectId: Long, shiftNumber: Long): Shift? {
