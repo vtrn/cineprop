@@ -10,6 +10,7 @@ import org.mosyagin.project.Shift
 import org.mosyagin.project.Project
 import org.mosyagin.project.ScriptFile
 import org.mosyagin.project.GetScenesByProject
+import org.mosyagin.project.GetLatestScenesForProject
 import org.mosyagin.project.GetScenesBySeries
 import org.mosyagin.project.GetSceneById
 import org.mosyagin.project.GetScenesByActor
@@ -50,7 +51,17 @@ class FakeScriptRepository : ScriptRepository {
         saveParsedScriptCalled = true
         lastSavedText = fullText
         val newId = (scripts.value.size + 1).toLong()
-        scripts.value += ScriptFile(newId, projectId, "Серия $seriesNumber", filePath, createdAt, null, "White", null)
+        scripts.value += ScriptFile(
+            id = newId,
+            projectId = projectId,
+            seriesNumber = seriesNumber.toLong(),
+            title = "Серия $seriesNumber",
+            filePath = filePath,
+            createdAt = createdAt,
+            previousVersionId = null,
+            revisionColor = "White",
+            uploadedBy = null
+        )
     }
 
     override suspend fun deleteScriptFile(fileId: Long) {
@@ -76,6 +87,9 @@ class FakeSceneRepository : SceneRepository {
 
     override fun getScenesByProject(projectId: Long, scriptFileId: Long): Flow<List<GetScenesByProject>> = 
         flowOf(scenes.filter { it.projectId == projectId })
+
+    override fun getLatestScenesForProject(projectId: Long): Flow<List<GetLatestScenesForProject>> =
+        flowOf(emptyList())
 
     override fun getActorsForScene(sceneUserDataId: Long): Flow<List<Actor>> = flowOf(emptyList())
     override fun getActorsByProject(projectId: Long): Flow<List<Actor>> = flowOf(emptyList())
