@@ -5,10 +5,11 @@ ALTER TABLE Prop RENAME TO OldProp;
 ALTER TABLE SceneActor RENAME TO OldSceneActor;
 ALTER TABLE ShiftScene RENAME TO OldShiftScene;
 
--- 2. Создаем новые таблицы согласно Database.sq
+-- 2. Создаем новые таблицы согласно актуальному Database.sq
 CREATE TABLE ScriptFile (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     projectId INTEGER NOT NULL,
+    seriesNumber INTEGER NOT NULL DEFAULT 1,
     title TEXT NOT NULL,
     filePath TEXT NOT NULL,
     createdAt INTEGER NOT NULL,
@@ -73,9 +74,9 @@ CREATE TABLE ShiftScene (
 
 -- 3. Миграция данных
 
--- Копируем файлы сценариев
-INSERT INTO ScriptFile (id, projectId, title, filePath, createdAt, revisionColor)
-SELECT id, projectId, title, filePath, createdAt, 'White' FROM OldScriptFile;
+-- Копируем файлы сценариев (серия по умолчанию 1 для старых данных)
+INSERT INTO ScriptFile (id, projectId, seriesNumber, title, filePath, createdAt, revisionColor)
+SELECT id, projectId, 1, title, filePath, createdAt, 'White' FROM OldScriptFile;
 
 -- Создаем SceneUserData из старых сцен
 INSERT INTO SceneUserData (id, projectId, seriesNumber, sceneNumber, location, isInterior, timeOfDay, notes, needsReview)

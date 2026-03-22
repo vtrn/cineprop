@@ -46,22 +46,19 @@ class ScriptRepositoryImpl(
                 // 1. Создаем запись о файле
                 queries.insertScriptFile(
                     projectId = projectId,
+                    seriesNumber = seriesNumber.toLong(),
                     title = "Серия $seriesNumber",
                     filePath = filePath,
                     createdAt = createdAt,
                     previousVersionId = null,
                     revisionColor = "White",
-                    uploadedBy = null
+                    uploadedBy = "User"
                 )
 
                 val scriptFileId = queries.lastInsertRowId().executeAsOne()
 
                 // 2. Сохраняем сцены
                 parsedScenes.forEachIndexed { index, scene ->
-                    // Проверяем, существует ли уже такая сцена (по номеру серии и сцены)
-                    // Для первой загрузки мы всегда создаем новую SceneUserData, 
-                    // но в будущем здесь будет логика матчинга.
-                    
                     queries.insertSceneUserData(
                         projectId = projectId,
                         seriesNumber = seriesNumber.toString(),
@@ -70,7 +67,7 @@ class ScriptRepositoryImpl(
                         isInterior = if (scene.type == "ИНТ") 1L else 0L,
                         timeOfDay = scene.time,
                         notes = null,
-                        needsReview = 0
+                        needsReview = 0L
                     )
 
                     val sceneUserDataId = queries.lastInsertRowId().executeAsOne()
@@ -79,7 +76,7 @@ class ScriptRepositoryImpl(
                         scriptFileId = scriptFileId,
                         sceneUserDataId = sceneUserDataId,
                         content = scene.content,
-                        contentHash = "", // Можно добавить вычисление хеша
+                        contentHash = "",
                         positionIndex = index.toLong()
                     )
 
