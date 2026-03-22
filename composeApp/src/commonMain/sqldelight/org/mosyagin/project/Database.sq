@@ -30,22 +30,28 @@ SELECT * FROM Project WHERE id = ?;
 CREATE TABLE ScriptFile (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     projectId INTEGER NOT NULL,
+    seriesNumber INTEGER NOT NULL DEFAULT 1, -- Номер серии для группировки версий
     title TEXT NOT NULL,
     filePath TEXT NOT NULL,
     createdAt INTEGER NOT NULL,
-    previousVersionId INTEGER, -- Ссылка на предыдущую ревизию
-    revisionColor TEXT DEFAULT 'White', -- Цвет поправок (Синий, Розовый и т.д.)
+    previousVersionId INTEGER,
+    revisionColor TEXT DEFAULT 'White',
     uploadedBy TEXT,
     FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE,
     FOREIGN KEY(previousVersionId) REFERENCES ScriptFile(id) ON DELETE SET NULL
 );
 
 insertScriptFile:
-INSERT INTO ScriptFile(projectId, title, filePath, createdAt, previousVersionId, revisionColor, uploadedBy)
-VALUES (?, ?, ?, ?, ?, ?, ?);
+INSERT INTO ScriptFile(projectId, seriesNumber, title, filePath, createdAt, previousVersionId, revisionColor, uploadedBy)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 
 getScriptsForProject:
 SELECT * FROM ScriptFile WHERE projectId = ? ORDER BY createdAt ASC;
+
+getLatestScriptVersion:
+SELECT * FROM ScriptFile
+WHERE projectId = ? AND seriesNumber = ?
+ORDER BY createdAt DESC LIMIT 1;
 
 deleteScriptFile:
 DELETE FROM ScriptFile WHERE id = ?;
@@ -66,22 +72,25 @@ CREATE TABLE SceneUserData (
     location TEXT NOT NULL,
     isInterior INTEGER NOT NULL,
     timeOfDay TEXT NOT NULL,
-    notes TEXT, -- Заметки пользователя
-    needsReview INTEGER NOT NULL DEFAULT 0, -- Флаг, что текст изменился (Boolean 0/1)
+    notes TEXT,
+    needsReview INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE
 );
 
--- ТАБЛИЦА ВЕРСИЙ СЦЕН (Конкретное содержание текста в файле)
+-- ТАБЛИЦА ВЕРСИЙ СЦЕН
 CREATE TABLE SceneVersion (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     scriptFileId INTEGER NOT NULL,
     sceneUserDataId INTEGER NOT NULL,
     content TEXT NOT NULL,
-    contentHash TEXT NOT NULL, -- SHA-256 для быстрого сравнения
-    positionIndex INTEGER NOT NULL, -- Позиция в сценарии
+    contentHash TEXT NOT NULL,
+    positionIndex INTEGER NOT NULL,
     FOREIGN KEY(scriptFileId) REFERENCES ScriptFile(id) ON DELETE CASCADE,
     FOREIGN KEY(sceneUserDataId) REFERENCES SceneUserData(id) ON DELETE CASCADE
 );
+
+updateSceneUserDataReviewStatus:
+UPDATE SceneUserData SET needsReview = ? WHERE id = ?;
 
 -- Новые запросы для сцен
 insertSceneUserData:
@@ -97,14 +106,14 @@ SELECT ud.*, v.content, v.contentHash
 FROM SceneUserData ud
 JOIN SceneVersion v ON ud.id = v.sceneUserDataId
 WHERE ud.projectId = ? AND ud.seriesNumber = ? AND v.scriptFileId = ?
-ORDER BY CAST(ud.sceneNumber AS INTEGER) ASC, ud.sceneNumber ASC;
+ORDER BY v.positionIndex ASC; -- Сортируем по индексу позиции
 
 getScenesByProject:
 SELECT ud.*, v.content, v.contentHash
 FROM SceneUserData ud
 JOIN SceneVersion v ON ud.id = v.sceneUserDataId
 WHERE ud.projectId = ? AND v.scriptFileId = ?
-ORDER BY CAST(ud.seriesNumber AS INTEGER) ASC, ud.seriesNumber ASC, CAST(ud.sceneNumber AS INTEGER) ASC, ud.sceneNumber ASC;
+ORDER BY v.positionIndex ASC;
 
 getSceneById:
 SELECT ud.*, v.content, v.contentHash
@@ -155,7 +164,7 @@ getActorsByProject:
 SELECT * FROM Actor WHERE projectId = ? ORDER BY name ASC;
 
 
--- СВЯЗЬ СЦЕНА-АКТЕР (Теперь через SceneUserData)
+-- СВЯЗЬ СЦЕНА-АКТЕР
 CREATE TABLE SceneActor (
     sceneUserDataId INTEGER NOT NULL,
     actorId INTEGER NOT NULL,
@@ -173,7 +182,7 @@ JOIN SceneActor sa ON a.id = sa.actorId
 WHERE sa.sceneUserDataId = ?;
 
 
--- ТАБЛИЦА РЕКВИЗИТА (Теперь через SceneUserData)
+-- ТАБЛИЦА РЕКВИЗИТА
 CREATE TABLE Prop (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     sceneUserDataId INTEGER NOT NULL,
@@ -181,7 +190,7 @@ CREATE TABLE Prop (
     status TEXT NOT NULL DEFAULT 'Найти',
     startOffset INTEGER NOT NULL,
     endOffset INTEGER NOT NULL,
-    orphaned INTEGER NOT NULL DEFAULT 0, -- Реквизит пропал из текста (Boolean 0/1)
+    orphaned INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY(sceneUserDataId) REFERENCES SceneUserData(id) ON DELETE CASCADE
 );
 
@@ -203,6 +212,9 @@ DELETE FROM Prop WHERE id = ?;
 
 updatePropStatus:
 UPDATE Prop SET status = ? WHERE id = ?;
+
+updatePropOrphanedStatus:
+UPDATE Prop SET orphaned = ? WHERE id = ?;
 
 
 -- ТАБЛИЦА ФАЙЛОВ КПП
@@ -244,7 +256,7 @@ getShiftById:
 SELECT * FROM Shift WHERE id = ?;
 
 
--- СВЯЗЬ СМЕНА-СЦЕНА (Через SceneUserData)
+-- СВЯЗЬ СМЕНА-СЦЕНА
 CREATE TABLE ShiftScene (
     shiftId INTEGER NOT NULL,
     sceneUserDataId INTEGER NOT NULL,
