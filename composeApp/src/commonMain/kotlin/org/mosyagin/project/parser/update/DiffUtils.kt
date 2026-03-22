@@ -18,14 +18,28 @@ object DiffUtils {
      * Сравнивает два текста построчно.
      */
     fun diff(oldText: String, newText: String): List<DiffLine> {
-        val oldLines = oldText.lines()
-        val newLines = newText.lines()
-        return calculateDiff(oldLines, newLines)
+        return try {
+            val oldLines = oldText.lines()
+            val newLines = newText.lines()
+            calculateDiff(oldLines, newLines)
+        } catch (e: Exception) {
+            // Фолбек при ошибке: помечаем всё старое как удаленное, новое как добавленное
+            fallback(oldText.lines(), newText.lines())
+        }
+    }
+
+    private fun fallback(oldLines: List<String>, newLines: List<String>): List<DiffLine> {
+        val result = mutableListOf<DiffLine>()
+        oldLines.forEach { result.add(DiffLine(it, DiffType.DELETED)) }
+        newLines.forEach { result.add(DiffLine(it, DiffType.ADDED)) }
+        return result
     }
 
     private fun calculateDiff(oldLines: List<String>, newLines: List<String>): List<DiffLine> {
         val n = oldLines.size
         val m = newLines.size
+        if (n == 0 && m == 0) return emptyList()
+        
         val max = n + m
         val v = IntArray(2 * max + 1)
         val trace = mutableListOf<IntArray>()
@@ -34,7 +48,7 @@ object DiffUtils {
             val vCopy = v.copyOf()
             for (k in -d..d step 2) {
                 val index = k + max
-                var x = if (k == -d || (k != d && v[index - 1] < v[index + 1])) {
+                var x = if (k == -d || (k != d && index + 1 < v.size && index - 1 >= 0 && v[index - 1] < v[index + 1])) {
                     v[index + 1]
                 } else {
                     v[index - 1] + 1
@@ -52,7 +66,7 @@ object DiffUtils {
             }
             trace.add(vCopy)
         }
-        return emptyList()
+        return fallback(oldLines, newLines)
     }
 
     private fun backtrack(trace: List<IntArray>, oldLines: List<String>, newLines: List<String>): List<DiffLine> {
@@ -66,28 +80,50 @@ object DiffUtils {
             val k = x - y
             val index = k + max
             
-            val prevK = if (k == -d || (k != d && v[index - 1] < v[index + 1])) {
+            if (index < 0 || index >= v.size) continue
+
+            val prevK = if (k == -d || (k != d && index + 1 < v.size && index - 1 >= 0 && v[index - 1] < v[index + 1])) {
                 k + 1
             } else {
                 k - 1
             }
-            val prevX = v[prevK + max]
+            
+            val prevIndex = prevK + max
+            if (prevIndex < 0 || prevIndex >= v.size) break
+            
+            val prevX = v[prevIndex]
             val prevY = prevX - prevK
 
-            while (x > prevX && y > prevY) {
+            while (x > prevX && y > prevY && x > 0 && y > 0) {
                 result.add(0, DiffLine(oldLines[x - 1], DiffType.UNCHANGED))
                 x--
                 y--
             }
 
-            if (x > prevX) {
+            if (x > prevX && x > 0) {
                 result.add(0, DiffLine(oldLines[x - 1], DiffType.DELETED))
-            } else if (y > prevY) {
+            } else if (y > prevY && y > 0) {
                 result.add(0, DiffLine(newLines[y - 1], DiffType.ADDED))
             }
             x = prevX
             y = prevY
         }
+        
+        // Обработка остатков
+        while (x > 0 && y > 0 && oldLines[x-1] == newLines[y-1]) {
+            result.add(0, DiffLine(oldLines[x - 1], DiffType.UNCHANGED))
+            x--
+            y--
+        }
+        while (x > 0) {
+            result.add(0, DiffLine(oldLines[x - 1], DiffType.DELETED))
+            x--
+        }
+        while (y > 0) {
+            result.add(0, DiffLine(newLines[y - 1], DiffType.ADDED))
+            y--
+        }
+
         return result
     }
 }

@@ -50,10 +50,8 @@ data class SceneListScreen(val projectId: Long, val projectName: String) : Scree
                     SceneFilter.ALL -> true
                     SceneFilter.MODIFIED -> scene.needsReview == 1L
                     SceneFilter.NEW -> {
-                        // Используем полное имя для избежания конфликта с kotlin.time.Clock
                         val nowMs: Long = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
                         val scriptTimeMs: Long = scene.scriptCreatedAt
-                        // Явное вычисление для избежания проблем с операторами
                         val diff: Long = nowMs - scriptTimeMs
                         diff < 86400000L
                     }
@@ -145,8 +143,7 @@ data class SceneListScreen(val projectId: Long, val projectName: String) : Scree
                                     ))
                                 },
                                 onDiffClick = {
-                                    // TODO: Навигация на DiffScreen при нажатии на индикатор изменений
-                                    // navigator.push(SceneDiffScreen(scene.id))
+                                    navigator.push(SceneDiffScreen(scene.id))
                                 }
                             )
                         }
@@ -211,7 +208,6 @@ private fun SceneCardItem(
 
                 // Индикаторы: Реквизит и NEW
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // SQLDelight > 0 возвращает Boolean в данном случае
                     if (scene.hasOrphanedProps == true) {
                         TooltipBox(
                             positionProvider = TooltipDefaults.rememberTooltipPositionProvider(),

@@ -5,33 +5,29 @@ package org.mosyagin.project.parser.update
  */
 object TextNormalizer {
     /**
-     * Приводит текст к нижнему регистру, удаляет пунктуацию и нормализует пробелы.
-     * Превращает текст в сплошную строку слов, разделенных одним пробелом.
+     * Мягкая нормализация: удаляет лишние пробелы и знаки препинания, 
+     * но сохраняет структуру слов для Fuzzy поиска.
+     */
+    fun normalizeForFuzzy(text: String): String {
+        return text.lowercase()
+            .replace(Regex("[^a-zа-яё\\s]"), "") // Оставляем только буквы и пробелы
+            .replace(Regex("\\s+"), " ")
+            .trim()
+    }
+
+    /**
+     * Максимально жесткая нормализация: оставляет только буквы.
+     * Игнорирует цифры, пробелы, знаки препинания и переносы строк.
+     * Используется для определения факта изменения сцены.
      */
     fun normalize(text: String): String {
         return text.lowercase()
-            // 1. Удаляем все переносы строк
-            .replace("\n", " ")
-            .replace("\r", " ")
-            // 2. Удаляем пунктуацию (оставляем буквы, цифры и пробелы)
-            .replace(Regex("[^a-zа-я0-9ё\\s]"), "")
-            // 3. Заменяем множественные пробелы на один
-            .replace("\\s+".toRegex(), " ")
-            .trim()
+            .replace(Regex("[^a-zа-яё]"), "")
     }
 }
 
 /**
  * Ожидаемая функция хеширования для разных платформ.
- *
- * TODO: Реализация для androidMain / jvmMain:
- * import java.security.MessageDigest
- * val bytes = input.toByteArray()
- * val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
- * return digest.fold("") { str, it -> str + "%02x".format(it) }
- *
- * TODO: Реализация для iosMain:
- * Используйте platform.CoreCrypto (CC_SHA256) или аналогичные библиотеки.
  */
 expect fun calculateSha256(input: String): String
 
@@ -40,15 +36,19 @@ expect fun calculateSha256(input: String): String
  */
 object QuickComparator {
     /**
-     * Возвращает true, если нормализованные тексты полностью идентичны.
-     * Использует SHA-256 хеширование для сравнения.
+     * Возвращает true, если нормализованные тексты (только буквы) полностью идентичны.
      */
     fun compareExact(text1: String, text2: String): Boolean {
         if (text1 == text2) return true
+        
+        val norm1 = TextNormalizer.normalize(text1)
+        val norm2 = TextNormalizer.normalize(text2)
+        
+        if (norm1 == norm2) return true
 
-        val hash1 = calculateSha256(TextNormalizer.normalize(text1))
-        val hash2 = calculateSha256(TextNormalizer.normalize(text2))
+        val hash1 = calculateSha256(norm1)
+        val hash2 = calculateSha256(norm2)
 
-        return hash1 == hash2
+        return hash1 != "" && hash1 == hash2
     }
 }

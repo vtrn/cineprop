@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.map
 import org.mosyagin.project.Actor
 import org.mosyagin.project.DatabaseQueries
 import org.mosyagin.project.Prop
+import org.mosyagin.project.SceneUserData
+import org.mosyagin.project.SceneVersion
 import org.mosyagin.project.GetScenesByProject
 import org.mosyagin.project.GetLatestScenesForProject
 import org.mosyagin.project.GetScenesBySeries
@@ -26,6 +28,8 @@ data class PropWithScene(
 
 interface SceneRepository {
     fun getSceneById(sceneId: Long, scriptFileId: Long): Flow<GetSceneById?>
+    fun getSceneUserDataById(id: Long): Flow<SceneUserData?>
+    fun getSceneVersionsForUserData(sceneUserDataId: Long): Flow<List<SceneVersion>>
     fun getScenesByProject(projectId: Long, scriptFileId: Long): Flow<List<GetScenesByProject>>
     fun getLatestScenesForProject(projectId: Long): Flow<List<GetLatestScenesForProject>>
     fun getActorsForScene(sceneUserDataId: Long): Flow<List<Actor>>
@@ -38,6 +42,7 @@ interface SceneRepository {
     suspend fun addProp(sceneUserDataId: Long, name: String, status: String = "Найти", startOffset: Long = 0, endOffset: Long = 0)
     suspend fun updatePropStatus(propId: Long, newStatus: String)
     suspend fun deleteProp(propId: Long)
+    suspend fun updateSceneUserDataReviewStatus(needsReview: Long, id: Long)
 }
 
 class SceneRepositoryImpl(private val queries: DatabaseQueries) : SceneRepository {
@@ -45,6 +50,16 @@ class SceneRepositoryImpl(private val queries: DatabaseQueries) : SceneRepositor
         queries.getSceneById(sceneId, scriptFileId)
             .asFlow()
             .map { it.executeAsOneOrNull() }
+
+    override fun getSceneUserDataById(id: Long): Flow<SceneUserData?> =
+        queries.getSceneUserDataById(id)
+            .asFlow()
+            .map { it.executeAsOneOrNull() }
+
+    override fun getSceneVersionsForUserData(sceneUserDataId: Long): Flow<List<SceneVersion>> =
+        queries.getSceneVersionsForUserData(sceneUserDataId)
+            .asFlow()
+            .mapToList(Dispatchers.IO)
 
     override fun getScenesByProject(projectId: Long, scriptFileId: Long): Flow<List<GetScenesByProject>> =
         queries.getScenesByProject(projectId, scriptFileId)
@@ -118,5 +133,9 @@ class SceneRepositoryImpl(private val queries: DatabaseQueries) : SceneRepositor
 
     override suspend fun deleteProp(propId: Long) {
         queries.deleteProp(propId)
+    }
+
+    override suspend fun updateSceneUserDataReviewStatus(needsReview: Long, id: Long) {
+        queries.updateSceneUserDataReviewStatus(needsReview, id)
     }
 }

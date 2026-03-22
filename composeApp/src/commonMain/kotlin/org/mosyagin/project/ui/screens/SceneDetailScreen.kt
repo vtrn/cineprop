@@ -1,8 +1,6 @@
 package org.mosyagin.project.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -37,8 +35,6 @@ data class SceneDetailScreen(
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
-        
-        // Передаем параметры в ScreenModel
         val screenModel = getScreenModel<SceneDetailScreenModel> { 
             parametersOf(sceneUserDataId, scriptFileId) 
         }
@@ -46,9 +42,8 @@ data class SceneDetailScreen(
         val scene by screenModel.scene.collectAsState()
         val actors by screenModel.actors.collectAsState()
         val props by screenModel.props.collectAsState()
-        var showProps by remember { mutableStateOf(true) }
 
-        // Состояния UI
+        var showProps by remember { mutableStateOf(true) }
         var showActors by remember { mutableStateOf(true) }
         var showScript by remember { mutableStateOf(true) }
         var showAddPropDialog by remember { mutableStateOf(false) }
@@ -58,10 +53,23 @@ data class SceneDetailScreen(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text(scene?.let { "Сцена ${scene!!.seriesNumber}-${it.sceneNumber}" } ?: "Загрузка...") },
+                    title = { Text(scene?.let { "Сцена ${it.seriesNumber}-${it.sceneNumber}" } ?: "Загрузка...") },
                     navigationIcon = {
                         IconButton(onClick = { navigator.pop() }) {
                             Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
+                        }
+                    },
+                    actions = {
+                        // Если сцена требует проверки, показываем кнопку сравнения
+                        if (scene?.needsReview == 1L) {
+                            TextButton(
+                                onClick = { navigator.push(SceneDiffScreen(sceneUserDataId)) },
+                                colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFFF9800))
+                            ) {
+                                Icon(Icons.Default.Difference, null)
+                                Spacer(Modifier.width(4.dp))
+                                Text("Изменения")
+                            }
                         }
                     }
                 )
@@ -94,28 +102,16 @@ data class SceneDetailScreen(
                     }
 
                     // Вкладка РЕКВИЗИТ
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
+                    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                         Column {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().clickable { showProps = !showProps }.padding(16.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
+                            Row(modifier = Modifier.fillMaxWidth().clickable { showProps = !showProps }.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                 Text("РЕКВИЗИТ (${props.size})", style = MaterialTheme.typography.titleMedium)
                                 Icon(if (showProps) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, null)
                             }
-
                             AnimatedVisibility(visible = showProps) {
                                 Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                                     props.forEach { prop ->
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
+                                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                             Text(prop.name, style = MaterialTheme.typography.bodyLarge)
                                             IconButton(onClick = { screenModel.deleteProp(prop.id) }) {
                                                 Icon(Icons.Default.Delete, null, tint = Color.Red.copy(alpha = 0.7f))
@@ -127,7 +123,7 @@ data class SceneDetailScreen(
                         }
                     }
 
-                    // Вкладка Текст сценария (Интерактивная)
+                    // Вкладка Текст сценария
                     Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                         Column {
                             Row(modifier = Modifier.fillMaxWidth().clickable { showScript = !showScript }.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {

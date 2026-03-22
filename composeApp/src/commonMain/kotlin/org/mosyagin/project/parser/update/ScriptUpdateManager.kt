@@ -95,7 +95,6 @@ class ScriptUpdateManager(
             data.matches.forEachIndexed { index, match ->
                 when (match) {
                     is SceneMatch.Exact -> {
-                        // Обновляем метаданные основной сцены из нового файла
                         queries.updateSceneUserDataHeader(
                             location = match.scene.location,
                             isInterior = if (match.scene.type == "ИНТ" || match.scene.type == "INT") 1L else 0L,
@@ -103,13 +102,10 @@ class ScriptUpdateManager(
                             id = match.oldSceneUserDataId
                         )
                         saveSceneVersion(scriptFileId, match.oldSceneUserDataId, match.scene, index.toLong())
-                        
-                        // Обновляем актеров для этой сцены
                         queries.clearSceneActors(match.oldSceneUserDataId)
                         updateSceneActors(data.projectId, match.oldSceneUserDataId, match.scene.actors)
                     }
                     is SceneMatch.Fuzzy -> {
-                        // Обновляем метаданные даже при неточном совпадении (заголовок мог измениться)
                         queries.updateSceneUserDataHeader(
                             location = match.scene.location,
                             isInterior = if (match.scene.type == "ИНТ" || match.scene.type == "INT") 1L else 0L,
@@ -117,11 +113,11 @@ class ScriptUpdateManager(
                             id = match.oldSceneUserDataId
                         )
                         saveSceneVersion(scriptFileId, match.oldSceneUserDataId, match.scene, index.toLong())
-                        
                         queries.clearSceneActors(match.oldSceneUserDataId)
                         updateSceneActors(data.projectId, match.oldSceneUserDataId, match.scene.actors)
                         
-                        if (match.score < 0.90) queries.updateSceneUserDataReviewStatus(1L, match.oldSceneUserDataId)
+                        // Помечаем для проверки
+                        queries.updateSceneUserDataReviewStatus(1L, match.oldSceneUserDataId)
                         preserveUserData(match.oldSceneUserDataId, match.scene.content)
                     }
                     is SceneMatch.New -> {
@@ -149,16 +145,27 @@ class ScriptUpdateManager(
             val exactMatch = remainingOld.find { cleanNumber(it.sceneNumber) == cleanNewNum }
             
             if (exactMatch != null) {
-                val score = SceneFuzzyComparator.compare(exactMatch.location, newScene.location, exactMatch.content, newScene.content)
-                if (score > 0.99) finalMatches.add(SceneMatch.Exact(exactMatch.id, newScene))
-                else finalMatches.add(SceneMatch.Fuzzy(exactMatch.id, newScene, score))
+                // Если номер совпал точно - это та же сцена, даже если текст сильно изменился
+                if (QuickComparator.compareExact(exactMatch.content, newScene.content)) {
+                    finalMatches.add(SceneMatch.Exact(exactMatch.id, newScene))
+                } else {
+                    val score = SceneFuzzyComparator.compare(exactMatch.location, newScene.location, exactMatch.content, newScene.content)
+                    // Для того же номера порог очень низкий (0.2), так как это почти наверняка та же сцена
+                    if (score >= 0.2) {
+                        finalMatches.add(SceneMatch.Fuzzy(exactMatch.id, newScene, score))
+                    } else {
+                        finalMatches.add(SceneMatch.New(newScene))
+                        continue 
+                    }
+                }
                 remainingOld.remove(exactMatch)
                 continue
             }
 
+            // Если номера не совпали, ищем похожую среди оставшихся
             val fuzzyMatch = remainingOld
                 .map { old -> old to SceneFuzzyComparator.compare(old.location, newScene.location, old.content, newScene.content) }
-                .filter { it.second > 0.6 }
+                .filter { it.second >= 0.45 } // Порог для нечеткого поиска без совпадения номера
                 .maxByOrNull { it.second }
 
             if (fuzzyMatch != null) {
@@ -175,8 +182,7 @@ class ScriptUpdateManager(
     }
     
     private fun cleanNumber(num: String): String {
-        val parts = num.split(Regex("[-.]")).filter { it.isNotEmpty() }
-        return parts.lastOrNull() ?: num
+        return num.trim().lowercase().removePrefix("сцена").trim()
     }
 
     private fun preserveUserData(sceneUserDataId: Long, newContent: String) {
@@ -212,5 +218,9 @@ class ScriptUpdateManager(
             newCount = matches.count { it is SceneMatch.New },
             deletedCount = matches.count { it is SceneMatch.Deleted }
         )
+    }
+
+    private fun calculateSha256(input: String): String {
+        return ""
     }
 }

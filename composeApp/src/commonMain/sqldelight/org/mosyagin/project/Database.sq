@@ -141,6 +141,9 @@ FROM SceneUserData ud
 JOIN SceneVersion v ON ud.id = v.sceneUserDataId
 WHERE ud.id = ? AND v.scriptFileId = ?;
 
+getSceneVersionsForUserData:
+SELECT * FROM SceneVersion WHERE sceneUserDataId = ? ORDER BY id DESC;
+
 getSceneUserDataById:
 SELECT * FROM SceneUserData WHERE id = ?;
 

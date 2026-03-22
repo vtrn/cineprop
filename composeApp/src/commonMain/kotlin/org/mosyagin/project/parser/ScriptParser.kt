@@ -73,6 +73,41 @@ class ScriptParser {
         return scenes
     }
 
+    /**
+     * Разбить текст сцены на типизированные блоки для отображения и сравнения.
+     */
+    fun parseBlocks(content: String): List<ScriptBlock> {
+        val blocks = mutableListOf<ScriptBlock>()
+        val lines = content.lines().map { it.trim() }.filter { it.isNotEmpty() }
+        
+        for (i in lines.indices) {
+            val line = lines[i]
+            
+            val type = when {
+                // Заголовок сцены
+                i == 0 && sceneTypeRegex.containsMatchIn(line) -> BlockType.SLUGLINE
+                
+                // Персонаж (Капс, короткая строка, обычно после пустой строки или действия)
+                line.all { it.isUpperCase() || it.isWhitespace() || it == '.' || it == ':' } && line.length in 2..40 -> BlockType.CHARACTER
+                
+                // Ремарка (В скобках)
+                line.startsWith("(") && line.endsWith(")") -> BlockType.PARENTHETICAL
+                
+                // Диалог (Обычно следует за персонажем или ремаркой)
+                i > 0 && (blocks.last().type == BlockType.CHARACTER || blocks.last().type == BlockType.PARENTHETICAL) -> BlockType.DIALOGUE
+                
+                // Переход (Капс в конце или специфические слова)
+                line.endsWith(":") || line.contains("СКЛЕЙКА") || line.contains("ЗТМ") || line.contains("CUT TO") -> BlockType.TRANSITION
+                
+                // По умолчанию - действие
+                else -> BlockType.ACTION
+            }
+            
+            blocks.add(ScriptBlock(type, line))
+        }
+        return blocks
+    }
+
     private data class HeaderInfo(val number: String, val type: String, val location: String, val time: String)
 
     private fun isLikelyHeader(line: String, match: MatchResult): Boolean {
