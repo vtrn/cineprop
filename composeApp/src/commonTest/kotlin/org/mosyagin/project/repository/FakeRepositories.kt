@@ -15,6 +15,8 @@ import org.mosyagin.project.GetScenesBySeries
 import org.mosyagin.project.GetSceneById
 import org.mosyagin.project.GetScenesByActor
 import org.mosyagin.project.GetScenesForShift
+import org.mosyagin.project.SceneUserData
+import org.mosyagin.project.SceneVersion
 
 class FakeProjectRepository : ProjectRepository {
     private val projects = MutableStateFlow<List<Project>>(emptyList())
@@ -83,7 +85,11 @@ class FakeSceneRepository : SceneRepository {
     }
 
     override fun getSceneById(sceneId: Long, scriptFileId: Long): Flow<GetSceneById?> = 
-        flowOf(null) // Упростим для фейка
+       flowOf(null)
+
+    override fun getSceneUserDataById(id: Long): Flow<SceneUserData?> = flowOf(null)
+
+    override fun getSceneVersionsForUserData(sceneUserDataId: Long): Flow<List<SceneVersion>> = flowOf(emptyList())
 
     override fun getScenesByProject(projectId: Long, scriptFileId: Long): Flow<List<GetScenesByProject>> = 
         flowOf(scenes.filter { it.projectId == projectId })
@@ -105,6 +111,7 @@ class FakeSceneRepository : SceneRepository {
     override suspend fun addProp(sceneUserDataId: Long, name: String, status: String, startOffset: Long, endOffset: Long) {}
     override suspend fun updatePropStatus(propId: Long, newStatus: String) {}
     override suspend fun deleteProp(propId: Long) {}
+    override suspend fun updateSceneUserDataReviewStatus(needsReview: Long, id: Long) {}
 }
 
 class FakeShiftRepository : ShiftRepository {

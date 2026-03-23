@@ -3,17 +3,21 @@ package org.mosyagin.project.parser
 class ScriptParser {
 
     private val sceneTypeRegex = Regex("""\b(ИНТ|НАТ|INT|EXT|инт|нат|int|ext)\b""")
+    private val pageNumberRegex = Regex("""^\d+$""")
 
     fun parse(text: String, seriesNumber: Int): List<ParsedScene> {
         val scenes = mutableListOf<ParsedScene>()
         val cleanedText = text.replace("\r\n", "\n").replace("\r", "\n")
-        val lines = cleanedText.lines()
+        
+        // Предварительная очистка текста от мусора PDF (номера страниц на отдельных строках)
+        val filteredLines = cleanedText.lines()
+            .filter { line -> !line.trim().matches(pageNumberRegex) }
         
         var currentSceneContent = StringBuilder()
         var currentHeader: HeaderInfo? = null
 
-        for (i in lines.indices) {
-            val line = lines[i].trim()
+        for (i in filteredLines.indices) {
+            val line = filteredLines[i].trim()
             if (line.isEmpty()) {
                 if (currentHeader != null) currentSceneContent.append("\n")
                 continue
@@ -31,27 +35,29 @@ class ScriptParser {
                 // Извлекаем номер сцены (то, что перед типом)
                 val rawNum = line.substring(0, typeMatch.range.first).trim().removeSuffix(".")
                 
-                // Если на этой строке номера нет, попробуем взять со строки выше (бывает в PDF)
+                // Если на этой строке номера нет, попробуем взять со строки выше
                 var sceneNum = rawNum
                 if (sceneNum.isEmpty() && i > 0) {
-                    val prevLine = lines[i-1].trim()
-                    // Номер обычно короткий: "15" или "10-А"
+                    val prevLine = filteredLines[i-1].trim()
                     if (prevLine.length in 1..8 && prevLine.all { it.isDigit() || it.isLetter() || it == '-' || it == '.' }) {
                         sceneNum = prevLine.removeSuffix(".")
                     }
                 }
                 
-                // Если всё равно пусто, даем порядковый номер
-                if (sceneNum.isEmpty()) {
-                    sceneNum = (scenes.size + 1).toString()
+                // Очистка номера от дублирующейся серии
+                val cleanedSceneNum = sanitizeSceneNumber(sceneNum, seriesNumber)
+
+                val finalSceneNum = if (cleanedSceneNum.isEmpty()) {
+                    (scenes.size + 1).toString()
+                } else {
+                    cleanedSceneNum
                 }
 
-                // Извлекаем локацию и время (то, что после типа)
                 val afterType = line.substring(typeMatch.range.last + 1).trim().removePrefix(".")
                 val (location, time) = parseLocationAndTime(afterType)
                 
                 currentHeader = HeaderInfo(
-                    number = sceneNum,
+                    number = finalSceneNum,
                     type = typeMatch.value.uppercase(),
                     location = location,
                     time = time
@@ -60,7 +66,7 @@ class ScriptParser {
             } else {
                 // Это текст текущей сцены
                 if (currentHeader != null) {
-                    currentSceneContent.append(lines[i]).append("\n")
+                    currentSceneContent.append(filteredLines[i]).append("\n")
                 }
             }
         }
@@ -73,33 +79,42 @@ class ScriptParser {
         return scenes
     }
 
-    /**
-     * Разбить текст сцены на типизированные блоки для отображения и сравнения.
-     */
+    private fun sanitizeSceneNumber(rawNum: String, currentSeries: Int): String {
+        val seriesPrefixes = listOf("$currentSeries-", "$currentSeries.")
+        var result = rawNum.trim()
+        
+        for (prefix in seriesPrefixes) {
+            if (result.startsWith(prefix)) {
+                result = result.substring(prefix.length).trim()
+            }
+        }
+        
+        if (result.contains("-") || result.contains(".")) {
+             val parts = result.split(Regex("[-.]"))
+             if (parts.firstOrNull() == currentSeries.toString()) {
+                 return parts.drop(1).joinToString("-")
+             }
+        }
+
+        return result
+    }
+
     fun parseBlocks(content: String): List<ScriptBlock> {
         val blocks = mutableListOf<ScriptBlock>()
-        val lines = content.lines().map { it.trim() }.filter { it.isNotEmpty() }
+        // При разбиении на блоки также игнорируем строки-числа (номера страниц)
+        val lines = content.lines()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !it.matches(pageNumberRegex) }
         
         for (i in lines.indices) {
             val line = lines[i]
             
             val type = when {
-                // Заголовок сцены
                 i == 0 && sceneTypeRegex.containsMatchIn(line) -> BlockType.SLUGLINE
-                
-                // Персонаж (Капс, короткая строка, обычно после пустой строки или действия)
                 line.all { it.isUpperCase() || it.isWhitespace() || it == '.' || it == ':' } && line.length in 2..40 -> BlockType.CHARACTER
-                
-                // Ремарка (В скобках)
                 line.startsWith("(") && line.endsWith(")") -> BlockType.PARENTHETICAL
-                
-                // Диалог (Обычно следует за персонажем или ремаркой)
                 i > 0 && (blocks.last().type == BlockType.CHARACTER || blocks.last().type == BlockType.PARENTHETICAL) -> BlockType.DIALOGUE
-                
-                // Переход (Капс в конце или специфические слова)
                 line.endsWith(":") || line.contains("СКЛЕЙКА") || line.contains("ЗТМ") || line.contains("CUT TO") -> BlockType.TRANSITION
-                
-                // По умолчанию - действие
                 else -> BlockType.ACTION
             }
             
@@ -111,21 +126,13 @@ class ScriptParser {
     private data class HeaderInfo(val number: String, val type: String, val location: String, val time: String)
 
     private fun isLikelyHeader(line: String, match: MatchResult): Boolean {
-        // Проверка: ИНТ/НАТ должен быть в начале строки (или после номера)
         val before = line.substring(0, match.range.first).trim()
-        if (before.isNotEmpty() && before.length > 8) return false // Если перед ИНТ много текста - это диалог
-        
-        // После ИНТ/НАТ должна быть локация
+        if (before.isNotEmpty() && before.length > 12) return false 
         val after = line.substring(match.range.last + 1).trim().removePrefix(".")
         if (after.isEmpty()) return false
-        
-        // Локация в сценариях почти всегда начинается с заглавной буквы
         val firstLetter = after.firstOrNull { it.isLetter() }
         if (firstLetter != null && !firstLetter.isUpperCase()) return false
-        
-        // Заголовок не бывает слишком длинным
         if (line.length > 150) return false 
-        
         return true
     }
 
@@ -160,7 +167,6 @@ class ScriptParser {
         val possibleActorLines = lines.drop(1).take(20)
         for (line in possibleActorLines) {
             val cleanLine = line.replace(Regex("""\(.*?\)"""), "").trim()
-            // Персонажи обычно пишутся капсом в центре строки
             if (cleanLine.length in 2..30 && 
                 cleanLine.all { it.isUpperCase() || it.isWhitespace() || it == '.' } &&
                 !cleanLine.contains(Regex("ИНТ|НАТ|INT|EXT|СЦЕНА|СЕРИЯ"))

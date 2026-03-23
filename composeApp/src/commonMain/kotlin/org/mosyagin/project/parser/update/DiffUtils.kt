@@ -1,7 +1,7 @@
 package org.mosyagin.project.parser.update
 
 /**
- * Представление одной строки в результате сравнения.
+ * Представление одной строки или слова в результате сравнения.
  */
 data class DiffLine(
     val text: String,
@@ -23,21 +23,61 @@ object DiffUtils {
             val newLines = newText.lines()
             calculateDiff(oldLines, newLines)
         } catch (e: Exception) {
-            // Фолбек при ошибке: помечаем всё старое как удаленное, новое как добавленное
             fallback(oldText.lines(), newText.lines())
         }
     }
 
-    private fun fallback(oldLines: List<String>, newLines: List<String>): List<DiffLine> {
+    /**
+     * Сравнивает два текста пословно, игнорируя принудительные переносы строк.
+     * Использует гранулярность до знака препинания для лучшего выравнивания (alignment).
+     */
+    fun diffWords(oldText: String, newText: String): List<DiffLine> {
+        val oldClean = oldText.replace("\n", " ").replace(Regex("\\s+"), " ").trim()
+        val newClean = newText.replace("\n", " ").replace(Regex("\\s+"), " ").trim()
+
+        val oldTokens = tokenize(oldClean)
+        val newTokens = tokenize(newClean)
+
+        return try {
+            calculateDiff(oldTokens, newTokens)
+        } catch (e: Exception) {
+            fallback(oldTokens, newTokens)
+        }
+    }
+
+    /**
+     * Разбивает текст на слова, пробелы и знаки препинания как отдельные токены.
+     */
+    private fun tokenize(text: String): List<String> {
+        if (text.isEmpty()) return emptyList()
+        val res = mutableListOf<String>()
+        val current = StringBuilder()
+        
+        for (char in text) {
+            if (char.isWhitespace() || !char.isLetterOrDigit()) {
+                if (current.isNotEmpty()) {
+                    res.add(current.toString())
+                    current.clear()
+                }
+                res.add(char.toString())
+            } else {
+                current.append(char)
+            }
+        }
+        if (current.isNotEmpty()) res.add(current.toString())
+        return res
+    }
+
+    private fun fallback(oldElements: List<String>, newElements: List<String>): List<DiffLine> {
         val result = mutableListOf<DiffLine>()
-        oldLines.forEach { result.add(DiffLine(it, DiffType.DELETED)) }
-        newLines.forEach { result.add(DiffLine(it, DiffType.ADDED)) }
+        oldElements.forEach { result.add(DiffLine(it, DiffType.DELETED)) }
+        newElements.forEach { result.add(DiffLine(it, DiffType.ADDED)) }
         return result
     }
 
-    private fun calculateDiff(oldLines: List<String>, newLines: List<String>): List<DiffLine> {
-        val n = oldLines.size
-        val m = newLines.size
+    private fun calculateDiff(oldElements: List<String>, newElements: List<String>): List<DiffLine> {
+        val n = oldElements.size
+        val m = newElements.size
         if (n == 0 && m == 0) return emptyList()
         
         val max = n + m
@@ -45,82 +85,77 @@ object DiffUtils {
         val trace = mutableListOf<IntArray>()
 
         for (d in 0..max) {
-            val vCopy = v.copyOf()
             for (k in -d..d step 2) {
                 val index = k + max
-                var x = if (k == -d || (k != d && index + 1 < v.size && index - 1 >= 0 && v[index - 1] < v[index + 1])) {
+                var x = if (k == -d || (k != d && v[index - 1] < v[index + 1])) {
                     v[index + 1]
                 } else {
                     v[index - 1] + 1
                 }
                 var y = x - k
-                while (x < n && y < m && oldLines[x] == newLines[y]) {
+                while (x < n && y < m && oldElements[x] == newElements[y]) {
                     x++
                     y++
                 }
                 v[index] = x
                 if (x >= n && y >= m) {
-                    trace.add(vCopy)
-                    return backtrack(trace, oldLines, newLines)
+                    trace.add(v.copyOf())
+                    return backtrack(trace, oldElements, newElements)
                 }
             }
-            trace.add(vCopy)
+            trace.add(v.copyOf())
         }
-        return fallback(oldLines, newLines)
+        return fallback(oldElements, newElements)
     }
 
-    private fun backtrack(trace: List<IntArray>, oldLines: List<String>, newLines: List<String>): List<DiffLine> {
+    private fun backtrack(trace: List<IntArray>, oldElements: List<String>, newElements: List<String>): List<DiffLine> {
         val result = mutableListOf<DiffLine>()
-        var x = oldLines.size
-        var y = newLines.size
+        var x = oldElements.size
+        var y = newElements.size
         val max = x + y
 
-        for (d in trace.size - 1 downTo 0) {
+        for (d in trace.size - 1 downTo 1) {
             val v = trace[d]
+            val prevV = trace[d - 1]
             val k = x - y
             val index = k + max
             
-            if (index < 0 || index >= v.size) continue
-
-            val prevK = if (k == -d || (k != d && index + 1 < v.size && index - 1 >= 0 && v[index - 1] < v[index + 1])) {
-                k + 1
-            } else {
-                k - 1
-            }
+            val kPlus = k + 1
+            val kMinus = k - 1
             
-            val prevIndex = prevK + max
-            if (prevIndex < 0 || prevIndex >= v.size) break
+            // Определяем, откуда мы пришли: сверху (инсерт) или слева (делит)
+            val goUp = k == -d || (k != d && prevV[kMinus + max] < prevV[kPlus + max])
             
-            val prevX = v[prevIndex]
+            val prevK = if (goUp) kPlus else kMinus
+            val prevX = prevV[prevK + max]
             val prevY = prevX - prevK
 
-            while (x > prevX && y > prevY && x > 0 && y > 0) {
-                result.add(0, DiffLine(oldLines[x - 1], DiffType.UNCHANGED))
+            while (x > prevX && y > prevY) {
+                result.add(0, DiffLine(oldElements[x - 1], DiffType.UNCHANGED))
                 x--
                 y--
             }
 
-            if (x > prevX && x > 0) {
-                result.add(0, DiffLine(oldLines[x - 1], DiffType.DELETED))
-            } else if (y > prevY && y > 0) {
-                result.add(0, DiffLine(newLines[y - 1], DiffType.ADDED))
+            if (x > prevX) {
+                result.add(0, DiffLine(oldElements[x - 1], DiffType.DELETED))
+                x--
+            } else if (y > prevY) {
+                result.add(0, DiffLine(newElements[y - 1], DiffType.ADDED))
+                y--
             }
-            x = prevX
-            y = prevY
         }
         
-        // Обработка остатков
-        while (x > 0 && y > 0 && oldLines[x-1] == newLines[y-1]) {
-            result.add(0, DiffLine(oldLines[x - 1], DiffType.UNCHANGED))
+        while (x > 0 && y > 0 && oldElements[x-1] == newElements[y-1]) {
+            result.add(0, DiffLine(oldElements[x - 1], DiffType.UNCHANGED))
             x--
             y--
         }
         while (x > 0) {
-            result.add(0, DiffLine(oldLines[x - 1], DiffType.DELETED))
+            result.add(0, DiffLine(oldElements[x - 1], DiffType.DELETED))
             x--
         }
         while (y > 0) {
-            result.add(0, DiffLine(newLines[y - 1], DiffType.ADDED))
+            result.add(0, DiffLine(newElements[y - 1], DiffType.ADDED))
             y--
         }
 
