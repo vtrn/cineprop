@@ -300,8 +300,15 @@ getScenesForShift:
 SELECT ud.*, v.content, v.contentHash, v.scriptFileId
 FROM SceneUserData ud
 JOIN ShiftScene ss ON ud.id = ss.sceneUserDataId
-JOIN SceneVersion v ON ud.id = v.sceneUserDataId
-WHERE ss.shiftId = ? AND v.scriptFileId = (SELECT MAX(id) FROM ScriptFile WHERE projectId = ud.projectId)
+LEFT JOIN SceneVersion v ON v.id = (
+    SELECT sv.id
+    FROM SceneVersion sv
+    JOIN ScriptFile sf ON sv.scriptFileId = sf.id
+    WHERE sv.sceneUserDataId = ud.id
+    ORDER BY sf.createdAt DESC
+    LIMIT 1
+)
+WHERE ss.shiftId = ?
 ORDER BY ss.position ASC;
 
 lastInsertRowId:

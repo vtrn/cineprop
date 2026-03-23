@@ -26,9 +26,9 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import org.koin.core.parameter.parametersOf
 
 data class SceneDetailScreen(
-    val sceneUserDataId: Long, 
+    val sceneUserDataId: Long,
     val projectId: Long,
-    val scriptFileId: Long
+    val scriptFileId: Long?
 ) : Screen {
 
     @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
