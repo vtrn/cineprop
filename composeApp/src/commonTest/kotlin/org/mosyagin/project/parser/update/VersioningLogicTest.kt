@@ -44,7 +44,7 @@ class VersioningLogicTest {
         
         val deleted = diff.find { it.type == DiffType.DELETED }?.text
         val added = diff.find { it.type == DiffType.ADDED }?.text
-        val unchanged = diff.filter { it.type == DiffType.UNCHANGED }.map { it.text }.joinToString("")
+        val unchanged = diff.filter { it.type == DiffType.UNCHANGED }.joinToString("") { it.text }
 
         assertEquals("Я", deleted)
         assertEquals("Он", added)
@@ -73,10 +73,10 @@ class VersioningLogicTest {
 
         // 2. Новые сцены (из парсера)
         val newScenes = listOf(
-            ParsedScene("1", "ИНТ. ОФИС", "ДЕНЬ", "Старый текст офиса", emptyList()), // Exact Match
-            ParsedScene("2", "НАТ. ПАРК", "ДЕНЬ", "Текст который изменится на 10 процентов!!!", emptyList()), // Fuzzy Match (номер совпал)
-            ParsedScene("10А", "ИНТ. КУХНЯ", "НОЧЬ", "Текст для смены номера", emptyList()), // Fuzzy Match (текст совпал, номер нет)
-            ParsedScene("11", "НАТ. УЛИЦА", "ДЕНЬ", "Совершенно новая сцена", emptyList()) // New
+            ParsedScene("1", "1", "ИНТ", "ОФИС", "ДЕНЬ", "Старый текст офиса", emptyList()), // Exact Match
+            ParsedScene("1", "2", "НАТ", "ПАРК", "ДЕНЬ", "Текст который изменится на 10 процентов!!!", emptyList()), // Fuzzy Match (номер совпал)
+            ParsedScene("1", "10А", "ИНТ", "КУХНЯ", "НОЧЬ", "Текст для смены номера", emptyList()), // Fuzzy Match (текст совпал, номер нет)
+            ParsedScene("1", "11", "НАТ", "УЛИЦА", "ДЕНЬ", "Совершенно новая сцена", emptyList()) // New
         )
 
         // Используем внутреннюю логику матчинга (упрощенно для теста)
@@ -102,19 +102,19 @@ class VersioningLogicTest {
     // Вспомогательные методы для тестов
     
     private fun mockDbScene(id: Long, num: String, loc: String, content: String) = 
-        object : org.mosyagin.project.GetScenesBySeries {
-            override val id: Long = id
-            override val projectId: Long = 1
-            override val seriesNumber: String = "1"
-            override val sceneNumber: String = num
-            override val location: String = loc
-            override val isInterior: Long = 1
-            override val timeOfDay: String = "ДЕНЬ"
-            override val notes: String? = null
-            override val needsReview: Long = 0
-            override val content: String = content
-            override val contentHash: String = ""
-        }
+        org.mosyagin.project.GetScenesBySeries(
+            id = id,
+            projectId = 1,
+            seriesNumber = "1",
+            sceneNumber = num,
+            location = loc,
+            isInterior = 1,
+            timeOfDay = "ДЕНЬ",
+            notes = null,
+            needsReview = 0,
+            content = content,
+            contentHash = ""
+        )
 
     private fun manualMatch(old: List<org.mosyagin.project.GetScenesBySeries>, new: List<ParsedScene>): List<SceneMatch> {
         val results = mutableListOf<SceneMatch>()

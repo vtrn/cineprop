@@ -5,13 +5,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flowOf
 import org.mosyagin.project.Actor
-import org.mosyagin.project.Prop
+import org.mosyagin.project.models.versioning.Prop
 import org.mosyagin.project.Shift
 import org.mosyagin.project.Project
 import org.mosyagin.project.ScriptFile
 import org.mosyagin.project.GetScenesByProject
 import org.mosyagin.project.GetLatestScenesForProject
-import org.mosyagin.project.GetScenesBySeries
 import org.mosyagin.project.GetSceneById
 import org.mosyagin.project.GetScenesByActor
 import org.mosyagin.project.GetScenesForShift
@@ -112,6 +111,7 @@ class FakeSceneRepository : SceneRepository {
     override suspend fun updatePropStatus(propId: Long, newStatus: String) {}
     override suspend fun deleteProp(propId: Long) {}
     override suspend fun updateSceneUserDataReviewStatus(needsReview: Long, id: Long) {}
+    override suspend fun confirmAllProps(sceneUserDataId: Long) {}
 }
 
 class FakeShiftRepository : ShiftRepository {
