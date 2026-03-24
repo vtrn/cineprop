@@ -104,6 +104,9 @@ class ScriptUpdateManager(
                         saveSceneVersion(scriptFileId, match.oldSceneUserDataId, match.scene, index.toLong())
                         queries.clearSceneActors(match.oldSceneUserDataId)
                         updateSceneActors(data.projectId, match.oldSceneUserDataId, match.scene.actors)
+                        
+                        // Обновляем статус сиротских реквизитов для Exact матчей
+                        preserveUserData(match.oldSceneUserDataId, match.scene.content)
                     }
                     is SceneMatch.Fuzzy -> {
                         queries.updateSceneUserDataHeader(
@@ -118,6 +121,8 @@ class ScriptUpdateManager(
                         
                         // Помечаем для проверки
                         queries.updateSceneUserDataReviewStatus(1L, match.oldSceneUserDataId)
+                        
+                        // Обновляем статус сиротских реквизитов для Fuzzy матчей
                         preserveUserData(match.oldSceneUserDataId, match.scene.content)
                     }
                     is SceneMatch.New -> {
@@ -187,8 +192,13 @@ class ScriptUpdateManager(
 
     private fun preserveUserData(sceneUserDataId: Long, newContent: String) {
         val props = queries.getPropsForScene(sceneUserDataId).executeAsList()
+        val cleanContent = TextNormalizer.normalize(newContent)
+        
         props.forEach { prop ->
-            val isFound = newContent.contains(prop.name, ignoreCase = true)
+            val cleanPropName = TextNormalizer.normalize(prop.name)
+            val isFound = cleanContent.contains(cleanPropName)
+            
+            println("DEBUG: Проверка реквизита ${prop.name} в сцене. Найдено: $isFound")
             queries.updatePropOrphanedStatus(if (isFound) 0L else 1L, prop.id)
         }
     }
@@ -206,7 +216,7 @@ class ScriptUpdateManager(
             scriptFileId = scriptFileId,
             sceneUserDataId = userDataId,
             content = scene.content,
-            contentHash = calculateSha256(TextNormalizer.normalize(scene.content)),
+            contentHash = calculateSha256(TextNormalizer.sanitizeForHashing(scene.content)),
             positionIndex = positionIndex
         )
     }

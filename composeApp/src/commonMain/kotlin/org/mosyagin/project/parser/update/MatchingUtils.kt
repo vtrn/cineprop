@@ -6,10 +6,19 @@ package org.mosyagin.project.parser.update
 object TextNormalizer {
 
     /**
-     * Очистка текста от технического мусора PDF (номера страниц).
-     * Удаляет строки, состоящие только из цифр.
+     * Агрессивная нормализация: удаляет пробелы, знаки препинания и переносы строк.
+     * Оставляет только буквы и цифры в нижнем регистре.
      */
     fun normalize(text: String): String {
+        return text.lowercase()
+            .replace(Regex("[^a-zа-яё0-9]"), "")
+    }
+
+    /**
+     * Очистка текста от технического мусора PDF (номера страниц).
+     * Оставляем этот метод для обратной совместимости, если нужно.
+     */
+    fun cleanPdfGarbage(text: String): String {
         return text.lines()
             .filter { line -> !line.trim().matches(Regex("^\\d+$")) }
             .joinToString("\n")
@@ -21,8 +30,7 @@ object TextNormalizer {
      * Игнорирует регистр, цифры, знаки препинания и любые пробелы.
      */
     fun sanitizeForHashing(text: String): String {
-        return normalize(text)
-            .lowercase()
+        return text.lowercase()
             .replace(Regex("[^a-zа-яё]"), "")
     }
 
@@ -31,7 +39,7 @@ object TextNormalizer {
      * Сохраняет пробелы для разбивки на слова.
      */
     fun normalizeForFuzzy(text: String): String {
-        return normalize(text)
+        return cleanPdfGarbage(text)
             .lowercase()
             .replace(Regex("[^a-zа-яё\\s]"), "")
             .replace(Regex("\\s+"), " ")

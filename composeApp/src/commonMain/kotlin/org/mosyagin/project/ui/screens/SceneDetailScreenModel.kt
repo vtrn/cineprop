@@ -5,7 +5,7 @@ import cafe.adriel.voyager.core.model.screenModelScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import org.mosyagin.project.Actor
-import org.mosyagin.project.Prop
+import org.mosyagin.project.models.versioning.Prop
 import org.mosyagin.project.GetSceneById
 import org.mosyagin.project.repository.SceneRepository
 
@@ -38,6 +38,12 @@ class SceneDetailScreenModel(
     fun deleteProp(propId: Long) {
         screenModelScope.launch {
             repository.deleteProp(propId)
+        }
+    }
+
+    fun confirmAllProps() {
+        screenModelScope.launch {
+            repository.confirmAllProps(sceneUserDataId)
         }
     }
 }

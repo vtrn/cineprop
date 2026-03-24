@@ -1,0 +1,14 @@
+-- Миграция: Добавление scriptFileId в SceneUserData для каскадного удаления
+
+-- 1. Добавляем колонку (разрешаем NULL для старых данных)
+ALTER TABLE SceneUserData ADD COLUMN scriptFileId INTEGER REFERENCES ScriptFile(id) ON DELETE CASCADE;
+
+-- 2. Пытаемся заполнить scriptFileId для существующих сцен на основе их первой версии (если возможно)
+UPDATE SceneUserData
+SET scriptFileId = (
+    SELECT scriptFileId
+    FROM SceneVersion
+    WHERE sceneUserDataId = SceneUserData.id
+    LIMIT 1
+)
+WHERE scriptFileId IS NULL;
