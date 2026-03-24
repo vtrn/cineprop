@@ -15,7 +15,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 @RunWith(RobolectricTestRunner::class)
-class ScriptRepositoryIntegrationTest {
+class ScriptRepositoryAndroidIntegrationTest {
     private lateinit var repository: ScriptRepository
     private lateinit var queries: DatabaseQueries
     private val parser = ScriptParser()
