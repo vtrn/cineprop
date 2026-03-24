@@ -8,15 +8,14 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.mosyagin.project.Actor
 import org.mosyagin.project.DatabaseQueries
-import org.mosyagin.project.Prop
 import org.mosyagin.project.SceneUserData
 import org.mosyagin.project.SceneVersion
 import org.mosyagin.project.GetScenesByProject
 import org.mosyagin.project.GetLatestScenesForProject
-import org.mosyagin.project.GetScenesBySeries
 import org.mosyagin.project.GetSceneById
 import org.mosyagin.project.GetScenesByActor
-import org.mosyagin.project.GetScenesForShift
+import org.mosyagin.project.models.versioning.Prop
+import org.mosyagin.project.models.versioning.toDomain
 
 data class PropWithScene(
     val id: Long,
@@ -43,6 +42,7 @@ interface SceneRepository {
     suspend fun updatePropStatus(propId: Long, newStatus: String)
     suspend fun deleteProp(propId: Long)
     suspend fun updateSceneUserDataReviewStatus(needsReview: Long, id: Long)
+    suspend fun confirmAllProps(sceneUserDataId: Long)
 }
 
 class SceneRepositoryImpl(private val queries: DatabaseQueries) : SceneRepository {
@@ -95,6 +95,7 @@ class SceneRepositoryImpl(private val queries: DatabaseQueries) : SceneRepositor
         queries.getPropsForScene(sceneUserDataId)
             .asFlow()
             .mapToList(Dispatchers.IO)
+            .map { list -> list.map { it.toDomain() } }
 
     override fun getPropsByProject(projectId: Long): Flow<List<PropWithScene>> =
         queries.getPropsByProject(projectId)
@@ -137,5 +138,14 @@ class SceneRepositoryImpl(private val queries: DatabaseQueries) : SceneRepositor
 
     override suspend fun updateSceneUserDataReviewStatus(needsReview: Long, id: Long) {
         queries.updateSceneUserDataReviewStatus(needsReview, id)
+    }
+
+    override suspend fun confirmAllProps(sceneUserDataId: Long) {
+        queries.transaction {
+            val props = queries.getPropsForScene(sceneUserDataId).executeAsList()
+            props.forEach { prop ->
+                queries.updatePropOrphanedStatus(0L, prop.id)
+            }
+        }
     }
 }

@@ -1,6 +1,7 @@
 package org.mosyagin.project.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -18,12 +19,14 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.koin.getScreenModel
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import org.koin.core.parameter.parametersOf
+import org.mosyagin.project.models.versioning.Prop
 
 data class SceneDetailScreen(
     val sceneUserDataId: Long,
@@ -36,7 +39,7 @@ data class SceneDetailScreen(
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val screenModel = getScreenModel<SceneDetailScreenModel> { 
-            parametersOf(sceneUserDataId, scriptFileId) 
+            parametersOf(sceneUserDataId, scriptFileId ?: 0L) 
         }
 
         val scene by screenModel.scene.collectAsState()
@@ -50,6 +53,8 @@ data class SceneDetailScreen(
         var selectedWord by remember { mutableStateOf("") }
         var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
 
+        val hasOrphanedProps = props.any { it.isOrphaned }
+
         Scaffold(
             topBar = {
                 TopAppBar(
@@ -60,7 +65,6 @@ data class SceneDetailScreen(
                         }
                     },
                     actions = {
-                        // Если сцена требует проверки, показываем кнопку сравнения
                         if (scene?.needsReview == 1L) {
                             TextButton(
                                 onClick = { navigator.push(SceneDiffScreen(sceneUserDataId)) },
@@ -86,6 +90,27 @@ data class SceneDetailScreen(
                         color = MaterialTheme.colorScheme.primary
                     )
 
+                    // Баннер о сиротских реквизитах
+                    if (hasOrphanedProps) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFFF9800))
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    "Некоторые предметы больше не упоминаются в новой версии сценария. Проверьте их актуальность.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color(0xFF6D4C41)
+                                )
+                            }
+                        }
+                    }
+
                     // Вкладка Персонажи
                     Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                         Column {
@@ -104,15 +129,56 @@ data class SceneDetailScreen(
                     // Вкладка РЕКВИЗИТ
                     Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                         Column {
-                            Row(modifier = Modifier.fillMaxWidth().clickable { showProps = !showProps }.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().clickable { showProps = !showProps }.padding(16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Text("РЕКВИЗИТ (${props.size})", style = MaterialTheme.typography.titleMedium)
-                                Icon(if (showProps) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, null)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (hasOrphanedProps) {
+                                        TextButton(onClick = { screenModel.confirmAllProps() }) {
+                                            Text("Оставить всё", style = MaterialTheme.typography.labelLarge)
+                                        }
+                                    }
+                                    Icon(if (showProps) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, null)
+                                }
                             }
                             AnimatedVisibility(visible = showProps) {
-                                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                                     props.forEach { prop ->
-                                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                            Text(prop.name, style = MaterialTheme.typography.bodyLarge)
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                                if (prop.isOrphaned) {
+                                                    Icon(
+                                                        Icons.Default.RunningWithErrors,
+                                                        contentDescription = null,
+                                                        tint = Color(0xFFFF9800),
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                    Spacer(Modifier.width(8.dp))
+                                                }
+                                                
+                                                Column {
+                                                    Text(
+                                                        prop.name,
+                                                        style = MaterialTheme.typography.bodyLarge,
+                                                        color = if (prop.isOrphaned) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f) 
+                                                                else MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                    if (prop.isOrphaned) {
+                                                        Text(
+                                                            "Не найден в тексте",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = Color(0xFFFF9800)
+                                                        )
+                                                    }
+                                                }
+                                            }
                                             IconButton(onClick = { screenModel.deleteProp(prop.id) }) {
                                                 Icon(Icons.Default.Delete, null, tint = Color.Red.copy(alpha = 0.7f))
                                             }
@@ -136,7 +202,15 @@ data class SceneDetailScreen(
                                     props.forEach { prop ->
                                         val index = currentScene.content.indexOf(prop.name, ignoreCase = true)
                                         if (index != -1) {
-                                            addStyle(SpanStyle(color = Color(0xFFFF9800), fontWeight = FontWeight.Bold), index, index + prop.name.length)
+                                            addStyle(
+                                                SpanStyle(
+                                                    color = if (prop.isOrphaned) Color.Gray else Color(0xFFFF9800),
+                                                    fontWeight = FontWeight.Bold,
+                                                    textDecoration = if (prop.isOrphaned) TextDecoration.LineThrough else TextDecoration.None
+                                                ),
+                                                index,
+                                                index + prop.name.length
+                                            )
                                         }
                                     }
                                 }
