@@ -141,9 +141,18 @@ compose.desktop {
         mainClass = "org.mosyagin.project.MainKt"
 
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "org.mosyagin.project"
+            targetFormats(TargetFormat.Dmg)
+            packageName = "CineApp"
             packageVersion = "1.0.0"
+            
+            // Добавляем необходимые модули JDK
+            modules("java.sql")
+
+            macOS {
+                bundleID = "org.mosyagin.cineapp"
+                packageName = "CineApp"
+                dockName = "CineApp"
+            }
         }
     }
 }

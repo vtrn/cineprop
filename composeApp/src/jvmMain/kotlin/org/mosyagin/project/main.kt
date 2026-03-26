@@ -2,6 +2,7 @@ package org.mosyagin.project
 
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
+import androidx.compose.ui.window.rememberWindowState
 import org.mosyagin.project.di.initKoin
 
 fun main() {
@@ -9,10 +10,14 @@ fun main() {
     initKoin()
     
     application {
+        val windowState = rememberWindowState()
+        
         Window(
             onCloseRequest = ::exitApplication,
-            title = "cineapp",
+            state = windowState,
+            title = "CineApp",
         ) {
+            // Основной компонент приложения из commonMain
             App()
         }
     }
