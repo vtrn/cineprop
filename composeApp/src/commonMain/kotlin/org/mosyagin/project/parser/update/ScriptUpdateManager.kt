@@ -57,7 +57,7 @@ class ScriptUpdateManager(
             val matches = if (lastScriptFile == null) {
                 newParsedScenes.map { SceneMatch.New(it) }
             } else {
-                val oldScenes = queries.getScenesBySeries(projectId, seriesNumber.toString(), lastScriptFile.id).executeAsList()
+                val oldScenes = queries.getScenesBySeries(projectId, seriesNumber.toLong(), lastScriptFile.id).executeAsList()
                 matchScenes(oldScenes, newParsedScenes)
             }
 
@@ -127,7 +127,7 @@ class ScriptUpdateManager(
                     }
                     is SceneMatch.New -> {
                         queries.insertSceneUserData(
-                            data.projectId, data.seriesNumber.toString(), match.scene.sceneNumber, 
+                            data.projectId, data.seriesNumber.toLong(), match.scene.sceneNumber,
                             match.scene.location, if (match.scene.type == "ИНТ" || match.scene.type == "INT") 1L else 0L, 
                             match.scene.time, null, 0L
                         )

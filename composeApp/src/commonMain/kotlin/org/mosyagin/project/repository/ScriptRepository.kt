@@ -61,7 +61,7 @@ class ScriptRepositoryImpl(
                 parsedScenes.forEachIndexed { index, scene ->
                     queries.insertSceneUserData(
                         projectId = projectId,
-                        seriesNumber = seriesNumber.toString(),
+                        seriesNumber = seriesNumber.toLong(),
                         sceneNumber = scene.sceneNumber,
                         location = scene.location,
                         isInterior = if (scene.type == "ИНТ") 1L else 0L,

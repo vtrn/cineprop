@@ -15,7 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import cafe.adriel.voyager.koin.getScreenModel
+import cafe.adriel.voyager.koin.koinScreenModel
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -34,7 +34,7 @@ data class ScriptListScreen(val projectId: Long) : Screen {
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val repository = koinInject<ScriptRepository>()
-        val screenModel = getScreenModel<ScriptViewModel>()
+        val screenModel = koinScreenModel<ScriptViewModel>()
 
         val isLoading by screenModel.isLoading.collectAsState()
         val updateResult by screenModel.updateResult.collectAsState()
@@ -76,14 +76,14 @@ data class ScriptListScreen(val projectId: Long) : Screen {
                         Icon(Icons.Default.Add, contentDescription = "Добавить")
                     }
                 }
-            ) { padding ->
+            ) { paddingValues ->
                 if (groupedScripts.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
                         Text("Нет загруженных сценариев", color = MaterialTheme.colorScheme.outline)
                     }
                 } else {
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize().padding(padding),
+                        modifier = Modifier.fillMaxSize().padding(paddingValues),
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {

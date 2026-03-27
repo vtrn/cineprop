@@ -7,9 +7,6 @@ import org.mosyagin.project.SceneVersion as DbSceneVersion
 import org.mosyagin.project.Actor as DbActor
 import org.mosyagin.project.GetSceneById
 import org.mosyagin.project.GetScenesByProject
-import org.mosyagin.project.GetScenesBySeries
-import org.mosyagin.project.GetScenesByActor
-import org.mosyagin.project.GetScenesForShift
 
 fun DbScriptFile.toDomain(): ScriptFile = ScriptFile(
     id = id,

@@ -5,5 +5,6 @@ import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 
 actual fun createTestDriver(): SqlDriver {
     val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+    CinePropDatabase.Schema.create(driver)
     return driver
 }

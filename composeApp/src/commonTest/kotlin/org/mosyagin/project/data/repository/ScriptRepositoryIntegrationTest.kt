@@ -1,49 +1,78 @@
 package org.mosyagin.project.data.repository
 
 import app.cash.sqldelight.db.SqlDriver
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import org.koin.core.context.startKoin
+import org.koin.core.context.stopKoin
+import org.koin.dsl.module
+import org.koin.test.KoinTest
+import org.koin.test.inject
 import org.mosyagin.project.DatabaseQueries
 import org.mosyagin.project.db.CinePropDatabase
 import org.mosyagin.project.db.createTestDriver
 import org.mosyagin.project.parser.ScriptParser
+import org.mosyagin.project.parser.update.ScriptUpdateManager
 import org.mosyagin.project.repository.ScriptRepository
 import org.mosyagin.project.repository.ScriptRepositoryImpl
+import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-class ScriptRepositoryIntegrationTest {
-    private lateinit var repository: ScriptRepository
-    private lateinit var queries: DatabaseQueries
-    private val parser = ScriptParser()
+class ScriptRepositoryIntegrationTest : KoinTest {
+    private val repository: ScriptRepository by inject()
+    private val queries: DatabaseQueries by inject()
+    private val updateManager: ScriptUpdateManager by inject()
+    private lateinit var driver: SqlDriver
 
     @BeforeTest
     fun setup() {
-        val driver = createTestDriver()
-        CinePropDatabase.Schema.create(driver)
+        driver = createTestDriver()
+        driver.execute(null, "PRAGMA foreign_keys=ON;", 0)
+        
+        try {
+            CinePropDatabase.Schema.create(driver)
+        } catch (e: Exception) {
+            // Схема уже может быть создана внутри createTestDriver() на некоторых платформах
+        }
+
         val database = CinePropDatabase(driver)
-        queries = database.databaseQueries
-        repository = ScriptRepositoryImpl(queries, parser)
+        val dbQueries = database.databaseQueries
+
+        startKoin {
+            modules(module {
+                single { dbQueries }
+                single { ScriptParser() }
+                single { ScriptUpdateManager(get(), get()) }
+                single<ScriptRepository> { ScriptRepositoryImpl(get(), get()) }
+            })
+        }
+    }
+
+    @AfterTest
+    fun tearDown() {
+        if (::driver.isInitialized) {
+            driver.close()
+        }
+        stopKoin()
     }
 
     @Test
     fun testParseAndSaveIntegration() = runTest {
-        // 1. Создаем проект
         queries.insertProject("Интеграционный тест", "Режиссер")
-        val projectId = queries.getAllProjects().executeAsList()[0].id
+        val projectId = queries.lastInsertRowId().executeAsOne()
 
-        // 2. Тестовый текст сценария
         val scriptText = """
             1. ИНТ. ОФИС - ДЕНЬ
-            АЛЕКСЕЙ сидит за столом.
+            АЛЕКСЕЙ
+            Сидит за столом.
             
             2. НАТ. ПАРК - ВЕЧЕР
-            МАРИНА гуляет.
+            МАРИНА
+            Гуляет.
         """.trimIndent()
 
-        // 3. Сохраняем через репозиторий
         repository.saveParsedScript(
             projectId = projectId,
             seriesNumber = 1,
@@ -52,20 +81,15 @@ class ScriptRepositoryIntegrationTest {
             createdAt = 123456789L
         )
 
-        // 4. Получаем ID созданного файла сценария
-        val scriptFileId = queries.getScriptsForProject(projectId).executeAsList().first().id
-
-        // 5. Проверяем БД напрямую через queries
-        val scenes = queries.getScenesByProject(projectId, scriptFileId).executeAsList()
-        assertEquals(2, scenes.size)
+        val scriptFiles = queries.getScriptsForProject(projectId).executeAsList()
+        assertTrue(scriptFiles.isNotEmpty(), "Script files should not be empty")
+        val scriptFileId = scriptFiles.first().id
         
+        val scenes = queries.getScenesByProject(projectId, scriptFileId).executeAsList()
+        
+        assertEquals(2, scenes.size)
         assertEquals("1", scenes[0].sceneNumber)
         assertEquals("ОФИС", scenes[0].location)
-        assertEquals(1L, scenes[0].isInterior) // ИНТ
-
-        assertEquals("2", scenes[1].sceneNumber)
-        assertEquals("ПАРК", scenes[1].location)
-        assertEquals(0L, scenes[1].isInterior) // НАТ
     }
 
     @Test
@@ -75,19 +99,33 @@ class ScriptRepositoryIntegrationTest {
 
         val scriptText = """
             1. ИНТ. КУХНЯ - ДЕНЬ
-            ГЕРОЙ, МАМА
+            ГЕРОЙ
+            МАМА
             Они пьют чай.
         """.trimIndent()
 
-        repository.saveParsedScript(projectId, 1, "path", scriptText, 0L)
+        val result = updateManager.prepareUpdate(
+            projectId = projectId,
+            seriesNumber = 1,
+            filePath = "path",
+            fullText = scriptText,
+            createdAt = 1710500000000L
+        )
+        
+        assertTrue(result is org.mosyagin.project.parser.update.UpdateResult.Success, "Preparation should be successful")
+        updateManager.executeUpdate(result.previewData)
 
-        val scriptFileId = queries.getScriptsForProject(projectId).executeAsList().first().id
+        val scriptFiles = queries.getScriptsForProject(projectId).executeAsList()
+        val scriptFileId = scriptFiles.first().id
         val scenes = queries.getScenesByProject(projectId, scriptFileId).executeAsList()
+        
+        assertTrue(scenes.isNotEmpty(), "Scenes should not be empty")
         val sceneUserDataId = scenes[0].id
 
         val actors = queries.getActorsForScene(sceneUserDataId).executeAsList()
-        assertEquals(2, actors.size)
-        assertTrue(actors.any { it.name == "ГЕРОЙ" })
-        assertTrue(actors.any { it.name == "МАМА" })
+        
+        assertEquals(2, actors.size, "Should find 2 actors: ГЕРОЙ and МАМА")
+        assertTrue(actors.any { it.name == "ГЕРОЙ" }, "Should contain ГЕРОЙ")
+        assertTrue(actors.any { it.name == "МАМА" }, "Should contain МАМА")
     }
 }

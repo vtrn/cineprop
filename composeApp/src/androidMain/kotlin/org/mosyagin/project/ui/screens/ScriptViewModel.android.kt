@@ -19,7 +19,9 @@ import org.mosyagin.project.parser.update.ScriptUpdateManager
 import org.mosyagin.project.parser.update.UpdateResult
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import androidx.core.net.toUri
 
+@Suppress("EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING")
 actual class ScriptViewModel actual constructor(actual val repository: ScriptRepository) : ScreenModel, KoinComponent {
 
     private val _isLoading = MutableStateFlow(false)
@@ -36,7 +38,7 @@ actual class ScriptViewModel actual constructor(actual val repository: ScriptRep
 
         withContext(Dispatchers.IO) {
             try {
-                val uri = android.net.Uri.parse(uriString)
+                val uri = uriString.toUri()
                 val inputStream = appContext.contentResolver.openInputStream(uri)
                 val document = PDDocument.load(inputStream)
                 

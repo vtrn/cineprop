@@ -105,7 +105,7 @@ class VersioningLogicTest {
         org.mosyagin.project.GetScenesBySeries(
             id = id,
             projectId = 1,
-            seriesNumber = "1",
+            seriesNumber = 1L,
             sceneNumber = num,
             location = loc,
             isInterior = 1,

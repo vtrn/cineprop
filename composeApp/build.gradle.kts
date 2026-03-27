@@ -68,6 +68,7 @@ kotlin {
             
             // Datetime
             implementation(libs.kotlinx.datetime)
+            //implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.7.1")
         }
         
         androidMain.dependencies {
@@ -84,6 +85,7 @@ kotlin {
 
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            implementation(libs.koin.test)
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:${libs.versions.kotlinx.coroutines.get()}")
         }
 
@@ -100,6 +102,7 @@ kotlin {
         androidUnitTest.dependencies {
             implementation("androidx.test:core:1.6.1")
             implementation("org.robolectric:robolectric:4.12.2")
+            implementation(libs.koin.test)
         }
     }
 }

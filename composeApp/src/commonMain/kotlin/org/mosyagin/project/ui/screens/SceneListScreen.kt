@@ -65,11 +65,17 @@ data class SceneListScreen(val projectId: Long, val projectName: String) : Scree
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                         }
                     },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        scrolledContainerColor = Color.Unspecified,
+                        navigationIconContentColor = Color.Unspecified,
+                        titleContentColor = Color.Unspecified,
+                        actionIconContentColor = Color.Unspecified
+                    )
                 )
             }
-        ) { padding ->
-            Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+        ) { paddingValues ->
+            Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
                 // Поиск
                 OutlinedTextField(
                     value = searchQuery,
@@ -181,7 +187,7 @@ private fun SceneCardItem(
                     if (!isBrandNew && scene.needsReview == 1L) {
                         Spacer(Modifier.width(8.dp))
                         TooltipBox(
-                            positionProvider = TooltipDefaults.rememberTooltipPositionProvider(),
+                            positionProvider = TooltipDefaults.rememberTooltipPositionProvider(positioning = TooltipAnchorPosition.Above),
                             tooltip = { PlainTooltip { Text("Изменена — требует проверки") } },
                             state = rememberTooltipState()
                         ) {
@@ -201,7 +207,7 @@ private fun SceneCardItem(
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (scene.hasOrphanedProps == true) {
                         TooltipBox(
-                            positionProvider = TooltipDefaults.rememberTooltipPositionProvider(),
+                            positionProvider = TooltipDefaults.rememberTooltipPositionProvider(positioning = TooltipAnchorPosition.Above),
                             tooltip = { PlainTooltip { Text("Есть осиротевший реквизит") } },
                             state = rememberTooltipState()
                         ) {

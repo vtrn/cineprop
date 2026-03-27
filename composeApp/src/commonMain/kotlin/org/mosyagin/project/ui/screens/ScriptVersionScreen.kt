@@ -18,7 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
-import cafe.adriel.voyager.koin.getScreenModel
+import cafe.adriel.voyager.koin.koinScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import kotlinx.coroutines.launch
@@ -40,11 +40,11 @@ data class ScriptVersionScreen(val projectId: Long, val seriesNumber: Int) : Scr
         val scope = rememberCoroutineScope()
         
         // Модель для списка версий
-        val viewModel = getScreenModel<ScriptVersionViewModel> { parametersOf(projectId, seriesNumber) }
+        val viewModel = koinScreenModel<ScriptVersionViewModel> { parametersOf(projectId, seriesNumber) }
         val uiState by viewModel.uiState.collectAsState()
 
         // Общая модель для обработки PDF
-        val scriptViewModel = getScreenModel<ScriptViewModel>()
+        val scriptViewModel = koinScreenModel<ScriptViewModel>()
         val isParsing by scriptViewModel.isLoading.collectAsState()
         val updateResult by scriptViewModel.updateResult.collectAsState()
 
@@ -73,7 +73,7 @@ data class ScriptVersionScreen(val projectId: Long, val seriesNumber: Int) : Scr
                     Icon(Icons.Default.Add, contentDescription = "Новая ревизия")
                 }
             }
-        ) { padding ->
+        ) { paddingValues ->
             Box(Modifier.fillMaxSize()) {
                 when (val state = uiState) {
                     is ScriptVersionUiState.Loading -> {
@@ -83,9 +83,9 @@ data class ScriptVersionScreen(val projectId: Long, val seriesNumber: Int) : Scr
                     }
                     is ScriptVersionUiState.Success -> {
                         if (state.versions.isEmpty()) {
-                            EmptyState(padding)
+                            EmptyState(paddingValues)
                         } else {
-                            VersionList(state.versions, state.activeVersionId, viewModel, padding)
+                            VersionList(state.versions, state.activeVersionId, viewModel, paddingValues)
                         }
                     }
                     is ScriptVersionUiState.Error -> {
@@ -221,9 +221,9 @@ data class ScriptVersionScreen(val projectId: Long, val seriesNumber: Int) : Scr
     }
 
     @Composable
-    private fun EmptyState(padding: PaddingValues) {
+    private fun EmptyState(paddingValues: PaddingValues) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding),
+            modifier = Modifier.fillMaxSize().padding(paddingValues),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {

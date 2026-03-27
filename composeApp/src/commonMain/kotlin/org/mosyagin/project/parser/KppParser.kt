@@ -52,15 +52,18 @@ class KppParser(
                     val shift = shiftRepository.getShiftByNumber(projectId, currentShiftNumber)
                     val shiftId = shift?.id ?: shiftRepository.addShift(projectId, currentShiftNumber, currentDate)
 
-                    val sceneUserDataId = sceneRepository.getSceneUserDataIdBySeriesAndNumber(projectId, series, sceneNumber)
+                    val seriesLong = series.filter { it.isDigit() }.toLongOrNull()
+                    if (seriesLong != null) {
+                        val sceneUserDataId = sceneRepository.getSceneUserDataIdBySeriesAndNumber(projectId, seriesLong, sceneNumber)
 
-                    if (sceneUserDataId != null) {
-                        shiftRepository.linkSceneToShift(
-                            shiftId = shiftId, 
-                            sceneUserDataId = sceneUserDataId, 
-                            position = currentPosition
-                        )
-                        currentPosition++
+                        if (sceneUserDataId != null) {
+                            shiftRepository.linkSceneToShift(
+                                shiftId = shiftId, 
+                                sceneUserDataId = sceneUserDataId, 
+                                position = currentPosition
+                            )
+                            currentPosition++
+                        }
                     }
                 }
             }
