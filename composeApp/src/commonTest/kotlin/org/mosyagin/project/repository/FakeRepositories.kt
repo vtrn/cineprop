@@ -103,7 +103,7 @@ class FakeSceneRepository : SceneRepository {
     override fun getPropsForScene(sceneUserDataId: Long): Flow<List<Prop>> = flowOf(emptyList())
     override fun getPropsByProject(projectId: Long): Flow<List<PropWithScene>> = flowOf(emptyList())
 
-    override suspend fun getSceneUserDataIdBySeriesAndNumber(projectId: Long, series: String, sceneNumber: String): Long? {
+    override suspend fun getSceneUserDataIdBySeriesAndNumber(projectId: Long, series: Long, sceneNumber: String): Long? {
         return scenes.find { it.projectId == projectId && it.seriesNumber == series && it.sceneNumber == sceneNumber }?.id
     }
 

@@ -20,19 +20,13 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import kotlinx.datetime.Clock
+import kotlinx.datetime.*
 import kotlinx.datetime.LocalDate
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
-import kotlinx.datetime.Month
-import kotlinx.datetime.DatePeriod
-import kotlinx.datetime.minus
-import kotlinx.datetime.plus
-import kotlinx.datetime.isoDayNumber // Важный импорт!
 import org.koin.compose.koinInject
 import org.mosyagin.project.Shift
 import org.mosyagin.project.repository.ShiftRepository
 import org.mosyagin.project.ui.components.CineCard
+import kotlin.time.Clock
 
 data class KppCalendarScreen(val projectId: Long) : Screen {
 
@@ -43,18 +37,19 @@ data class KppCalendarScreen(val projectId: Long) : Screen {
         val shiftRepository = koinInject<ShiftRepository>()
         val shifts by shiftRepository.getShiftsByProject(projectId).collectAsState(initial = emptyList())
 
-        val today = remember {
-            Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+        // 1. Инициализируем стейт первым числом текущего месяца.
+        val initialDate = remember {
+            val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
+            LocalDate(today.year, today.month, 1)
         }
 
-        var currentMonth by remember { mutableStateOf(today) }
+        var currentMonthDate by remember { mutableStateOf(initialDate) }
 
-        LaunchedEffect(shifts) {
-            if (shifts.isNotEmpty()) {
-                val firstShiftDate = shifts.mapNotNull { parseShiftDate(it.date) }.minByOrNull { it }
-                if (firstShiftDate != null && currentMonth == today) {
-                    currentMonth = firstShiftDate
-                }
+        // 2. Оптимизация: парсим даты смен только тогда, когда меняется список shifts.
+        val parsedShiftsWithDates = remember(shifts) {
+            shifts.mapNotNull { shift ->
+                val date = parseShiftDate(shift.date)
+                if (date != null) shift to date else null
             }
         }
 
@@ -68,7 +63,13 @@ data class KppCalendarScreen(val projectId: Long) : Screen {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                         }
                     },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        scrolledContainerColor = Color.Unspecified,
+                        navigationIconContentColor = Color.Unspecified,
+                        titleContentColor = Color.Unspecified,
+                        actionIconContentColor = Color.Unspecified
+                    )
                 )
             }
         ) { paddingValues ->
@@ -79,9 +80,9 @@ data class KppCalendarScreen(val projectId: Long) : Screen {
                     .padding(horizontal = 20.dp)
             ) {
                 CalendarGrid(
-                    shifts = shifts,
-                    currentDate = currentMonth,
-                    onMonthChange = { currentMonth = it }
+                    parsedShifts = parsedShiftsWithDates,
+                    currentDate = currentMonthDate,
+                    onMonthChange = { currentMonthDate = it }
                 )
 
                 Spacer(Modifier.height(24.dp))
@@ -92,23 +93,27 @@ data class KppCalendarScreen(val projectId: Long) : Screen {
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
 
-                val monthlyShifts = shifts.filter { shift ->
-                    val d = parseShiftDate(shift.date)
-                    d?.month == currentMonth.month && d.year == currentMonth.year
+                val monthlyShifts = remember(parsedShiftsWithDates, currentMonthDate) {
+                    parsedShiftsWithDates.filter { (_, date) ->
+                        date.month == currentMonthDate.month && date.year == currentMonthDate.year
+                    }.sortedBy { it.second }
                 }
 
                 if (monthlyShifts.isEmpty()) {
-                    Text(
-                        "Нет запланированных смен",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp)) {
+                        Text(
+                            "Нет запланированных смен",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 } else {
                     LazyColumn(
+                        modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         contentPadding = PaddingValues(bottom = 32.dp)
                     ) {
-                        items(monthlyShifts.sortedBy { parseShiftDate(it.date) }) { shift ->
+                        items(monthlyShifts) { (shift, _) ->
                             ShiftListItem(shift)
                         }
                     }
@@ -119,33 +124,37 @@ data class KppCalendarScreen(val projectId: Long) : Screen {
 
     @Composable
     private fun CalendarGrid(
-        shifts: List<Shift>,
+        parsedShifts: List<Pair<Shift, LocalDate>>,
         currentDate: LocalDate,
         onMonthChange: (LocalDate) -> Unit
     ) {
         val firstDayOfMonth = LocalDate(currentDate.year, currentDate.month, 1)
         val daysInMonth = getDaysInMonth(currentDate.month, currentDate.year)
-
-        // ИСПРАВЛЕНИЕ ЗДЕСЬ: используем isoDayNumber вместо value
         val firstDayOfWeek = firstDayOfMonth.dayOfWeek.isoDayNumber
 
+        // Оптимизация: предвычисляем дни со сменами для текущего месяца
+        val shiftDays = remember(parsedShifts, currentDate.month, currentDate.year) {
+            parsedShifts
+                .filter { (_, date) ->
+                    date.month == currentDate.month && date.year == currentDate.year
+                }
+                .map { (_, date) -> date.day }
+                .toSet()
+        }
+
         CineCard(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)) {
-            Column {
+            Column(modifier = Modifier.padding(8.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // УЛУЧШЕНИЕ: Красивое название месяца на русском
-                    val monthName = getRussianMonthName(currentDate.month)
-
                     Text(
-                        text = "$monthName ${currentDate.year}",
+                        text = "${getRussianMonthName(currentDate.month)} ${currentDate.year}",
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.titleMedium
                     )
                     Row {
-                        // ИСПРАВЛЕНИЕ ЗДЕСЬ: Безопасное использование DatePeriod для месяцев
                         IconButton(onClick = { onMonthChange(currentDate.minus(DatePeriod(months = 1))) }) {
                             Icon(Icons.Default.ChevronLeft, null)
                         }
@@ -182,10 +191,7 @@ data class KppCalendarScreen(val projectId: Long) : Screen {
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (day != null) {
-                                    val hasShift = shifts.any { shift ->
-                                        val d = parseShiftDate(shift.date)
-                                        d != null && d.dayOfMonth == day && d.month == currentDate.month && d.year == currentDate.year
-                                    }
+                                    val hasShift = day in shiftDays  // O(1) проверка
 
                                     if (hasShift) {
                                         Box(
@@ -211,7 +217,6 @@ data class KppCalendarScreen(val projectId: Long) : Screen {
                                 }
                             }
                         }
-                        // Заполнение пустых ячеек в конце месяца
                         if (weekDays.size < 7) {
                             repeat(7 - weekDays.size) { Spacer(modifier = Modifier.weight(1f)) }
                         }
@@ -224,19 +229,25 @@ data class KppCalendarScreen(val projectId: Long) : Screen {
     @Composable
     private fun ShiftListItem(shift: Shift) {
         CineCard(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.padding(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(text = "Смена №${shift.shiftNumber}", fontWeight = FontWeight.Bold)
                     Text(text = shift.date, style = MaterialTheme.typography.bodySmall)
                 }
-                Text(
-                    text = "Запланировано",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFFB4E6B2),
-                    modifier = Modifier
-                        .background(Color(0xFFB4E6B2).copy(alpha = 0.1f), CircleShape)
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                )
+                Surface(
+                    color = Color(0xFFB4E6B2).copy(alpha = 0.2f),
+                    shape = CircleShape
+                ) {
+                    Text(
+                        text = "Запланировано",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF2E7D32),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
             }
         }
     }
@@ -247,7 +258,7 @@ data class KppCalendarScreen(val projectId: Long) : Screen {
             if (parts.size == 3) {
                 LocalDate(parts[2].toInt(), parts[1].toInt(), parts[0].toInt())
             } else null
-        } catch (e: Exception) { null }
+        } catch (_: Exception) { null }
     }
 
     private fun getDaysInMonth(month: Month, year: Int): Int {
@@ -258,7 +269,6 @@ data class KppCalendarScreen(val projectId: Long) : Screen {
         }
     }
 
-    // Хелпер для красивого вывода месяцев
     private fun getRussianMonthName(month: Month): String {
         return when (month) {
             Month.JANUARY -> "Январь"
@@ -273,7 +283,6 @@ data class KppCalendarScreen(val projectId: Long) : Screen {
             Month.OCTOBER -> "Октябрь"
             Month.NOVEMBER -> "Ноябрь"
             Month.DECEMBER -> "Декабрь"
-            else -> month.name
         }
     }
 }

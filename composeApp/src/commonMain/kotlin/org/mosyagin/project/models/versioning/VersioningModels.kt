@@ -54,7 +54,7 @@ data class ScriptFile(
 data class SceneUserData(
     val id: Long,
     val projectId: Long,
-    val seriesNumber: String,
+    val seriesNumber: Long,
     val sceneNumber: String,
     val location: String,
     val isInterior: Boolean,

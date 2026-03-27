@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.StateFlow
 import org.mosyagin.project.repository.ScriptRepository
 import org.mosyagin.project.parser.update.UpdateResult
 
+@Suppress("EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING")
 expect class ScriptViewModel(repository: ScriptRepository) : ScreenModel {
     val repository: ScriptRepository
     val isLoading: StateFlow<Boolean>

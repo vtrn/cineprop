@@ -1,37 +1,49 @@
 package org.mosyagin.project.data.repository
 
+import app.cash.sqldelight.db.SqlDriver
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import org.koin.core.context.stopKoin
 import org.mosyagin.project.repository.SceneRepository
 import org.mosyagin.project.repository.SceneRepositoryImpl
 import org.mosyagin.project.DatabaseQueries
 import org.mosyagin.project.db.CinePropDatabase
 import org.mosyagin.project.db.createTestDriver
+import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class SceneRepositoryTest {
     private lateinit var repository: SceneRepository
     private lateinit var queries: DatabaseQueries
+    private lateinit var driver: SqlDriver
+    private var testProjectId: Long = 0
+    private var testScriptId: Long = 0
+    private var testUserDataId: Long = 0
 
     @BeforeTest
     fun setup() {
-        val driver = createTestDriver()
-        CinePropDatabase.Schema.create(driver)
+        driver = createTestDriver()
+        driver.execute(null, "PRAGMA foreign_keys=ON;", 0)
+        
+        try {
+            CinePropDatabase.Schema.create(driver)
+        } catch (e: Exception) {
+            // Схема уже может быть создана внутри createTestDriver() на некоторых платформах
+        }
+
         val database = CinePropDatabase(driver)
         queries = database.databaseQueries
         repository = SceneRepositoryImpl(queries)
-    }
 
-    @Test
-    fun testAddAndGetProp() = runTest {
-        // 1. Создаем проект, файл сценария и сцену
+        // Создаем базовую структуру для тестов
         queries.insertProject("Проект", "Реж")
-        val projectId = queries.lastInsertRowId().executeAsOne()
+        testProjectId = queries.lastInsertRowId().executeAsOne()
 
         queries.insertScriptFile(
-            projectId = projectId,
+            projectId = testProjectId,
             seriesNumber = 1L,
             title = "Сценарий",
             filePath = "path/to/file",
@@ -40,37 +52,49 @@ class SceneRepositoryTest {
             revisionColor = "White",
             uploadedBy = "User"
         )
-        val scriptFileId = queries.lastInsertRowId().executeAsOne()
-        
-        queries.insertSceneUserData(projectId, "1", "1", "ЛОКАЦИЯ", 1L, "ДЕНЬ", null, 0L)
-        val sceneUserDataId = queries.lastInsertRowId().executeAsOne()
+        testScriptId = queries.lastInsertRowId().executeAsOne()
 
-        queries.insertSceneVersion(scriptFileId, sceneUserDataId, "Текст сцены", "hash", 0)
+        queries.insertSceneUserData(
+            projectId = testProjectId,
+            seriesNumber = 1L,
+            sceneNumber = "1",
+            location = "ЛОКАЦИЯ",
+            isInterior = 1L,
+            timeOfDay = "ДЕНЬ",
+            notes = null,
+            needsReview = 0L
+        )
+        testUserDataId = queries.lastInsertRowId().executeAsOne()
+    }
 
-        // 2. Добавляем реквизит (привязывается к SceneUserData)
-        repository.addProp(sceneUserDataId, "Меч", "Найти", 0, 10)
+    @AfterTest
+    fun tearDown() {
+        driver.close()
+        stopKoin()
+    }
 
-        // 3. Проверяем
-        val props = repository.getPropsForScene(sceneUserDataId).first()
+    @Test
+    fun testAddAndGetProp() = runTest {
+        queries.insertSceneVersion(testScriptId, testUserDataId, "Текст сцены", "hash", 0)
+
+        repository.addProp(testUserDataId, "Меч", "Найти", 0, 10)
+
+        val props = repository.getPropsForScene(testUserDataId).first()
         assertEquals(1, props.size)
         assertEquals("Меч", props[0].name)
     }
 
     @Test
     fun testUpdatePropStatus() = runTest {
-        queries.insertProject("Проект", "Реж")
-        val projectId = queries.lastInsertRowId().executeAsOne()
-
-        queries.insertSceneUserData(projectId, "1", "1", "ЛОКАЦИЯ", 1L, "ДЕНЬ", null, 0L)
-        val sceneUserDataId = queries.lastInsertRowId().executeAsOne()
-
-        repository.addProp(sceneUserDataId, "Ваза", "Найти")
-        val props = repository.getPropsByProject(projectId).first()
+        repository.addProp(testUserDataId, "Ваза", "Найти")
+        val props = repository.getPropsByProject(testProjectId).first()
+        assertTrue(props.isNotEmpty(), "Props should be added")
         val propId = props[0].id
 
         repository.updatePropStatus(propId, "Готово")
 
-        val updatedProp = repository.getPropsByProject(projectId).first()[0]
-        assertEquals("Готово", updatedProp.status)
+        val updatedProps = repository.getPropsByProject(testProjectId).first()
+        assertTrue(updatedProps.isNotEmpty(), "Props should exist")
+        assertEquals("Готово", updatedProps[0].status)
     }
 }

@@ -14,6 +14,7 @@ import org.mosyagin.project.GetScenesByProject
 import org.mosyagin.project.GetLatestScenesForProject
 import org.mosyagin.project.GetSceneById
 import org.mosyagin.project.GetScenesByActor
+import org.mosyagin.project.Project
 import org.mosyagin.project.models.versioning.Prop
 import org.mosyagin.project.models.versioning.toDomain
 
@@ -21,7 +22,7 @@ data class PropWithScene(
     val id: Long,
     val name: String,
     val status: String,
-    val seriesNumber: String,
+    val seriesNumber: Long,
     val sceneNumber: String
 )
 
@@ -37,7 +38,7 @@ interface SceneRepository {
     fun getLocationsByActor(actorId: Long): Flow<List<String>>
     fun getPropsForScene(sceneUserDataId: Long): Flow<List<Prop>>
     fun getPropsByProject(projectId: Long): Flow<List<PropWithScene>>
-    suspend fun getSceneUserDataIdBySeriesAndNumber(projectId: Long, series: String, sceneNumber: String): Long?
+    suspend fun getSceneUserDataIdBySeriesAndNumber(projectId: Long, series: Long, sceneNumber: String): Long?
     suspend fun addProp(sceneUserDataId: Long, name: String, status: String = "Найти", startOffset: Long = 0, endOffset: Long = 0)
     suspend fun updatePropStatus(propId: Long, newStatus: String)
     suspend fun deleteProp(propId: Long)
@@ -45,7 +46,8 @@ interface SceneRepository {
     suspend fun confirmAllProps(sceneUserDataId: Long)
 }
 
-class SceneRepositoryImpl(private val queries: DatabaseQueries) : SceneRepository {
+class SceneRepositoryImpl(val queries: DatabaseQueries) : SceneRepository,
+    ProjectRepository {
     override fun getSceneById(sceneId: Long, scriptFileId: Long): Flow<GetSceneById?> =
         queries.getSceneById(sceneId, scriptFileId)
             .asFlow()
@@ -113,7 +115,7 @@ class SceneRepositoryImpl(private val queries: DatabaseQueries) : SceneRepositor
                 }
             }
 
-    override suspend fun getSceneUserDataIdBySeriesAndNumber(projectId: Long, series: String, sceneNumber: String): Long? {
+    override suspend fun getSceneUserDataIdBySeriesAndNumber(projectId: Long, series: Long, sceneNumber: String): Long? {
         return queries.getSceneUserDataBySeriesAndNumber(projectId, series, sceneNumber).executeAsOneOrNull()?.id
     }
 
@@ -147,5 +149,23 @@ class SceneRepositoryImpl(private val queries: DatabaseQueries) : SceneRepositor
                 queries.updatePropOrphanedStatus(0L, prop.id)
             }
         }
+    }
+
+    override fun getAllProjects(): Flow<List<Project>> =
+        queries.getAllProjects()
+            .asFlow()
+            .mapToList(Dispatchers.IO)
+
+    override fun getProjectById(id: Long): Flow<Project?> =
+        queries.getProjectById(id)
+            .asFlow()
+            .map { it.executeAsOneOrNull() }
+
+    override suspend fun addProject(name: String, director: String) {
+        queries.insertProject(name, director)
+    }
+
+    override suspend fun deleteProject(id: Long) {
+        queries.deleteProject(id)
     }
 }

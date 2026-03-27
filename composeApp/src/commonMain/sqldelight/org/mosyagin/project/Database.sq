@@ -67,7 +67,7 @@ SELECT * FROM ScriptFile WHERE id = ?;
 CREATE TABLE SceneUserData (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     projectId INTEGER NOT NULL,
-    seriesNumber TEXT NOT NULL,
+    seriesNumber INTEGER NOT NULL, -- Изменил с TEXT на INTEGER
     sceneNumber TEXT NOT NULL,
     location TEXT NOT NULL,
     isInterior INTEGER NOT NULL,
