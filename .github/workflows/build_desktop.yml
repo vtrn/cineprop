@@ -2,7 +2,7 @@ name: Desktop Build (Windows & macOS)
 
 on:
   push:
-    branches: [ main ] # Сборка будет запускаться при каждом пуше в main
+    branches: [ "**" ] # Сборка будет запускаться при каждом пуше в main
   workflow_dispatch: # Позволяет запустить сборку вручную кнопкой в GitHub
 
 jobs:
