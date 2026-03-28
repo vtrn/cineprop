@@ -140,7 +140,8 @@ dependencies {
 
 compose.desktop {
     application {
-        mainClass = "MainKt"
+        // ИСПРАВЛЕНО: Полное имя класса с учетом пакета
+        mainClass = "org.mosyagin.project.MainKt"
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Exe)
 
