@@ -9,3 +9,4 @@ plugins {
     alias(libs.plugins.kotlinMultiplatform) apply false
     id("app.cash.sqldelight") version "2.3.1" apply false
 }
+

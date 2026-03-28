@@ -68,7 +68,6 @@ kotlin {
             
             // Datetime
             implementation(libs.kotlinx.datetime)
-            //implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.7.1")
         }
         
         androidMain.dependencies {
@@ -141,20 +140,25 @@ dependencies {
 
 compose.desktop {
     application {
+        // ИСПРАВЛЕНО: Полное имя класса с учетом пакета
         mainClass = "org.mosyagin.project.MainKt"
-
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg)
+            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Exe)
+
             packageName = "CineApp"
             packageVersion = "1.0.0"
-            
-            // Добавляем необходимые модули JDK
-            modules("java.sql")
+            description = "CineApp Professional Production Tool"
 
             macOS {
                 bundleID = "org.mosyagin.cineapp"
+            }
+
+            windows {
                 packageName = "CineApp"
-                dockName = "CineApp"
+                shortcut = true
+                menu = true
+                upgradeUuid = "80f86641-3b7c-474c-b9b5-6f9a0c0f993d"
+                // iconFile.set(project.file("launcher_icons/icon.ico"))
             }
         }
     }
