@@ -68,7 +68,6 @@ kotlin {
             
             // Datetime
             implementation(libs.kotlinx.datetime)
-            //implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.7.1")
         }
         
         androidMain.dependencies {
@@ -143,25 +142,22 @@ compose.desktop {
     application {
         mainClass = "MainKt"
         nativeDistributions {
-            // ДОБАВЬ ЭТИ ФОРМАТЫ ЗДЕСЬ:
-            targetFormats(
-                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Dmg,
-                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi,
-                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe
-            )
+            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Exe)
 
             packageName = "CineApp"
             packageVersion = "1.0.0"
+            description = "CineApp Professional Production Tool"
 
             macOS {
                 bundleID = "org.mosyagin.cineapp"
             }
 
             windows {
-                // Настройки для Windows
-                shortcut = true // Создать ярлык на рабочем столе
-                menu = true     // Добавить в меню "Пуск"
-                upgradeUuid = "ваша-уникальная-строка-id" // Можно пока не ставить
+                packageName = "CineApp"
+                shortcut = true
+                menu = true
+                upgradeUuid = "80f86641-3b7c-474c-b9b5-6f9a0c0f993d"
+                // iconFile.set(project.file("launcher_icons/icon.ico"))
             }
         }
     }
