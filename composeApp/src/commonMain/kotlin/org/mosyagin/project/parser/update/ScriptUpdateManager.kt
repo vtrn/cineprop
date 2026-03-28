@@ -20,7 +20,7 @@ sealed class UpdateResult {
 }
 
 /**
- * Данные, необходимые для фиксации обновления в БД после подтверждения.
+ * Данные, необходимые для фиксации обновления в БД после подтверждения пользователем.
  */
 data class PreviewData(
     val projectId: Long,
@@ -31,13 +31,19 @@ data class PreviewData(
     val matches: List<SceneMatch>
 )
 
+/**
+ * ScriptUpdateManager — ядро системы версионирования SceneMatch.
+ * 
+ * Отвечает за сопоставление сцен между ревизиями сценария, сохранение пользовательских данных
+ * и анализ влияния правок на существующие метаданные (актеры, реквизит).
+ */
 class ScriptUpdateManager(
     private val queries: DatabaseQueries,
     private val parser: ScriptParser
 ) {
 
     /**
-     * Этап 1: Анализ PDF и подготовка данных. БД не меняется.
+     * Подготавливает обновление: анализирует новый текст и сопоставляет его с последней версией в БД.
      */
     suspend fun prepareUpdate(
         projectId: Long,
@@ -74,7 +80,7 @@ class ScriptUpdateManager(
     }
 
     /**
-     * Этап 2: Фиксация изменений в БД.
+     * Фиксирует изменения в базе данных.
      */
     suspend fun executeUpdate(data: PreviewData) = withContext(Dispatchers.Default) {
         queries.transaction {
@@ -104,8 +110,6 @@ class ScriptUpdateManager(
                         saveSceneVersion(scriptFileId, match.oldSceneUserDataId, match.scene, index.toLong())
                         queries.clearSceneActors(match.oldSceneUserDataId)
                         updateSceneActors(data.projectId, match.oldSceneUserDataId, match.scene.actors)
-                        
-                        // Обновляем статус сиротских реквизитов для Exact матчей
                         preserveUserData(match.oldSceneUserDataId, match.scene.content)
                     }
                     is SceneMatch.Fuzzy -> {
@@ -118,11 +122,7 @@ class ScriptUpdateManager(
                         saveSceneVersion(scriptFileId, match.oldSceneUserDataId, match.scene, index.toLong())
                         queries.clearSceneActors(match.oldSceneUserDataId)
                         updateSceneActors(data.projectId, match.oldSceneUserDataId, match.scene.actors)
-                        
-                        // Помечаем для проверки
                         queries.updateSceneUserDataReviewStatus(1L, match.oldSceneUserDataId)
-                        
-                        // Обновляем статус сиротских реквизитов для Fuzzy матчей
                         preserveUserData(match.oldSceneUserDataId, match.scene.content)
                     }
                     is SceneMatch.New -> {
@@ -150,12 +150,10 @@ class ScriptUpdateManager(
             val exactMatch = remainingOld.find { cleanNumber(it.sceneNumber) == cleanNewNum }
             
             if (exactMatch != null) {
-                // Если номер совпал точно - это та же сцена, даже если текст сильно изменился
                 if (QuickComparator.compareExact(exactMatch.content, newScene.content)) {
                     finalMatches.add(SceneMatch.Exact(exactMatch.id, newScene))
                 } else {
                     val score = SceneFuzzyComparator.compare(exactMatch.location, newScene.location, exactMatch.content, newScene.content)
-                    // Для того же номера порог очень низкий (0.2), так как это почти наверняка та же сцена
                     if (score >= 0.2) {
                         finalMatches.add(SceneMatch.Fuzzy(exactMatch.id, newScene, score))
                     } else {
@@ -167,10 +165,9 @@ class ScriptUpdateManager(
                 continue
             }
 
-            // Если номера не совпали, ищем похожую среди оставшихся
             val fuzzyMatch = remainingOld
                 .map { old -> old to SceneFuzzyComparator.compare(old.location, newScene.location, old.content, newScene.content) }
-                .filter { it.second >= 0.45 } // Порог для нечеткого поиска без совпадения номера
+                .filter { it.second >= 0.45 }
                 .maxByOrNull { it.second }
 
             if (fuzzyMatch != null) {
@@ -197,8 +194,6 @@ class ScriptUpdateManager(
         props.forEach { prop ->
             val cleanPropName = TextNormalizer.normalize(prop.name)
             val isFound = cleanContent.contains(cleanPropName)
-            
-            println("DEBUG: Проверка реквизита ${prop.name} в сцене. Найдено: $isFound")
             queries.updatePropOrphanedStatus(if (isFound) 0L else 1L, prop.id)
         }
     }
@@ -231,6 +226,6 @@ class ScriptUpdateManager(
     }
 
     private fun calculateSha256(input: String): String {
-        return ""
+        return "" // Заглушка, будет реализована позже
     }
 }
