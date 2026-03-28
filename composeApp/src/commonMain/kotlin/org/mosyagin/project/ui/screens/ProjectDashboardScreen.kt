@@ -23,7 +23,9 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import org.koin.compose.koinInject
 import org.mosyagin.project.repository.ProjectRepository
+import org.mosyagin.project.ui.components.AppLayoutType
 import org.mosyagin.project.ui.components.CineCard
+import org.mosyagin.project.ui.components.LocalAppLayoutType
 
 data class ProjectDashboardScreen(val projectId: Long) : Screen {
 
@@ -32,6 +34,7 @@ data class ProjectDashboardScreen(val projectId: Long) : Screen {
         val navigator = LocalNavigator.currentOrThrow
         val repository = koinInject<ProjectRepository>()
         val project by repository.getProjectById(projectId).collectAsState(initial = null)
+        val layoutType = LocalAppLayoutType.current
 
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background
@@ -49,12 +52,16 @@ data class ProjectDashboardScreen(val projectId: Long) : Screen {
                     // Header
                     item(span = { GridItemSpan(2) }) {
                         Column(modifier = Modifier.padding(top = 24.dp, bottom = 12.dp)) {
-                            IconButton(
-                                onClick = { navigator.pop() },
-                                modifier = Modifier.offset(x = (-12).dp)
-                            ) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                            // СКРЫВАЕМ СТРЕЛКУ НА ДЕСКТОПЕ
+                            if (layoutType == AppLayoutType.MOBILE) {
+                                IconButton(
+                                    onClick = { navigator.pop() },
+                                    modifier = Modifier.offset(x = (-12).dp)
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                                }
                             }
+                            
                             Text(
                                 text = currentProject.name,
                                 style = MaterialTheme.typography.headlineMedium.copy(
@@ -70,7 +77,6 @@ data class ProjectDashboardScreen(val projectId: Long) : Screen {
                         }
                     }
 
-                    // КНОПКА-КАЛЕНДАРЬ (вместо старых карточек статистики)
                     item(span = { GridItemSpan(2) }) {
                         CineCard(
                             onClick = { navigator.push(KppCalendarScreen(projectId)) },
@@ -125,7 +131,6 @@ data class ProjectDashboardScreen(val projectId: Long) : Screen {
                         )
                     }
 
-                    // Плитки разделов
                     item {
                         DashboardActionTile(
                             "Сценарий", 
@@ -174,11 +179,7 @@ data class ProjectDashboardScreen(val projectId: Long) : Screen {
     }
 
     @Composable
-    private fun DashboardActionTile(
-        title: String, 
-        icon: ImageVector, 
-        onClick: () -> Unit
-    ) {
+    private fun DashboardActionTile(title: String, icon: ImageVector, onClick: () -> Unit) {
         CineCard(
             onClick = onClick,
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)

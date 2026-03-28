@@ -1,9 +1,3 @@
-/**
- * Экран "Трекер смен".
- * 
- * Отображает список всех съемочных смен текущего проекта.
- * Смены попадают сюда после загрузки и парсинга CSV-файла КПП.
- */
 package org.mosyagin.project.ui.screens
 
 import androidx.compose.foundation.clickable
@@ -23,6 +17,8 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import org.koin.compose.koinInject
 import org.mosyagin.project.repository.ShiftRepository
+import org.mosyagin.project.ui.components.AppLayoutType
+import org.mosyagin.project.ui.components.LocalAppLayoutType
 
 data class TrackerScreen(val projectId: Long) : Screen {
 
@@ -31,8 +27,8 @@ data class TrackerScreen(val projectId: Long) : Screen {
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val repository = koinInject<ShiftRepository>()
+        val layoutType = LocalAppLayoutType.current
 
-        // Получаем список смен через Flow из репозитория
         val shifts by repository.getShiftsByProject(projectId).collectAsState(initial = emptyList())
 
         Scaffold(
@@ -40,8 +36,10 @@ data class TrackerScreen(val projectId: Long) : Screen {
                 TopAppBar(
                     title = { Text("Трекер смен") },
                     navigationIcon = {
-                        IconButton(onClick = { navigator.pop() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                        if (layoutType == AppLayoutType.MOBILE) {
+                            IconButton(onClick = { navigator.pop() }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                            }
                         }
                     }
                 )

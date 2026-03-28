@@ -21,8 +21,10 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import org.koin.compose.koinInject
 import org.mosyagin.project.GetLatestScenesForProject
 import org.mosyagin.project.repository.SceneRepository
+import org.mosyagin.project.ui.components.AppLayoutType
 import org.mosyagin.project.ui.components.CineCard
 import org.mosyagin.project.ui.components.CineTag
+import org.mosyagin.project.ui.components.LocalAppLayoutType
 
 enum class SceneFilter { ALL, MODIFIED, NEW }
 
@@ -33,15 +35,13 @@ data class SceneListScreen(val projectId: Long, val projectName: String) : Scree
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val sceneRepository = koinInject<SceneRepository>()
+        val layoutType = LocalAppLayoutType.current
 
-        // Состояния поиска и фильтрации
         var searchQuery by remember { mutableStateOf("") }
         var selectedFilter by remember { mutableStateOf(SceneFilter.ALL) }
 
-        // Получаем список актуальных сцен (последних версий каждой серии) для проекта
         val scenes by sceneRepository.getLatestScenesForProject(projectId).collectAsState(initial = emptyList())
 
-        // Логика фильтрации
         val filteredScenes = remember(scenes, searchQuery, selectedFilter) {
             scenes.filter { scene ->
                 val matchesSearch = scene.sceneNumber.contains(searchQuery, ignoreCase = true) || 
@@ -61,22 +61,18 @@ data class SceneListScreen(val projectId: Long, val projectName: String) : Scree
                 CenterAlignedTopAppBar(
                     title = { Text("Сцены: $projectName", style = MaterialTheme.typography.titleLarge) },
                     navigationIcon = {
-                        IconButton(onClick = { navigator.pop() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                        // СКРЫВАЕМ СТРЕЛКУ НА ДЕСКТОПЕ
+                        if (layoutType == AppLayoutType.MOBILE) {
+                            IconButton(onClick = { navigator.pop() }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                            }
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent,
-                        scrolledContainerColor = Color.Unspecified,
-                        navigationIconContentColor = Color.Unspecified,
-                        titleContentColor = Color.Unspecified,
-                        actionIconContentColor = Color.Unspecified
-                    )
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
                 )
             }
         ) { paddingValues ->
             Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-                // Поиск
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
@@ -94,7 +90,6 @@ data class SceneListScreen(val projectId: Long, val projectName: String) : Scree
                     )
                 )
 
-                // Фильтры (FilterChip)
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -111,10 +106,7 @@ data class SceneListScreen(val projectId: Long, val projectName: String) : Scree
                                         SceneFilter.NEW -> "Новые"
                                     }
                                 )
-                            },
-                            leadingIcon = if (selectedFilter == filter) {
-                                { Icon(Icons.Default.Check, null, modifier = Modifier.size(16.dp)) }
-                            } else null
+                            }
                         )
                     }
                 }
@@ -153,82 +145,34 @@ data class SceneListScreen(val projectId: Long, val projectName: String) : Scree
             }
         }
     }
-}
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SceneCardItem(
-    scene: GetLatestScenesForProject,
-    onClick: () -> Unit,
-    onDiffClick: () -> Unit
-) {
-    val isBrandNew = scene.versionCount == 1L
-
-    CineCard(
-        modifier = Modifier.fillMaxWidth(),
-        onClick = onClick
+    @Composable
+    private fun SceneCardItem(
+        scene: GetLatestScenesForProject,
+        onClick: () -> Unit,
+        onDiffClick: () -> Unit
     ) {
-        Column {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                // Номер сцены и индикатор изменений
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Сцена ${scene.seriesNumber}-${scene.sceneNumber}",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    
-                    // Показываем желтый треугольник только если сцена НЕ новая и требует проверки
-                    if (!isBrandNew && scene.needsReview == 1L) {
-                        Spacer(Modifier.width(8.dp))
-                        TooltipBox(
-                            positionProvider = TooltipDefaults.rememberTooltipPositionProvider(positioning = TooltipAnchorPosition.Above),
-                            tooltip = { PlainTooltip { Text("Изменена — требует проверки") } },
-                            state = rememberTooltipState()
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Warning,
-                                contentDescription = "Review needed",
-                                tint = Color(0xFFFFB300),
-                                modifier = Modifier
-                                    .size(18.dp)
-                                    .clickable { onDiffClick() }
-                            )
-                        }
-                    }
-                }
+        val isBrandNew = scene.versionCount == 1L
 
-                // Индикаторы: Реквизит и NEW
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (scene.hasOrphanedProps == true) {
-                        TooltipBox(
-                            positionProvider = TooltipDefaults.rememberTooltipPositionProvider(positioning = TooltipAnchorPosition.Above),
-                            tooltip = { PlainTooltip { Text("Есть осиротевший реквизит") } },
-                            state = rememberTooltipState()
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.Inventory2,
-                                    contentDescription = "Orphaned props",
-                                    tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Icon(
-                                    imageVector = Icons.Default.QuestionMark,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.surface,
-                                    modifier = Modifier.size(10.dp).align(Alignment.BottomEnd)
-                                )
-                            }
-                        }
+        CineCard(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onClick
+        ) {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "Сцена ${scene.seriesNumber}-${scene.sceneNumber}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
-                    
-                    // Зеленый бейдж NEW показывается только для абсолютно новых сцен
+
                     if (isBrandNew) {
                         CineTag(
                             text = "NEW",
@@ -237,26 +181,12 @@ private fun SceneCardItem(
                         )
                     }
                 }
-            }
-            
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = scene.location,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CineTag(
-                    text = if (scene.isInterior == 1L) "ИНТ" else "НАТ",
-                    containerColor = if (scene.isInterior == 1L) 
-                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) 
-                    else 
-                        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
-                )
-                CineTag(
-                    text = scene.timeOfDay.uppercase(),
-                    containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
+                
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = scene.location,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
                 )
             }
         }

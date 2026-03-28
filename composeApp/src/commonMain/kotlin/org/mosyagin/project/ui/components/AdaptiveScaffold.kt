@@ -4,31 +4,33 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.EventNote
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.EventNote
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 enum class AppLayoutType {
     MOBILE, DESKTOP
 }
 
-// Цвета для "Pro" темы
+val LocalAppLayoutType = staticCompositionLocalOf { AppLayoutType.MOBILE }
+
 val DeepBackgroundStart = Color(0xFF23272E)
 val DeepBackgroundEnd = Color(0xFF16181D)
 val SurfaceCard = Color(0xFF121418)
@@ -38,112 +40,192 @@ val BorderLight = Color.White.copy(alpha = 0.05f)
 private fun NavIcon(
     imageVector: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
-    isSelected: Boolean = false
+    isSelected: Boolean = false,
+    onClick: () -> Unit = {}
 ) {
-    // Цвет акцента (можно заменить на твой основной фиолетовый)
     val activeColor = Color(0xFFBB86FC)
     val inactiveColor = Color.White.copy(alpha = 0.4f)
 
-    Box(
+    Column(
         modifier = Modifier
-            .size(32.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .clickable { /* Навигация будет тут */ },
-        contentAlignment = Alignment.Center
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        Icon(
-            imageVector = imageVector,
-            contentDescription = label,
-            tint = if (isSelected) activeColor else inactiveColor,
-            modifier = Modifier.size(26.dp)
-        )
-
-        // Маленький индикатор активного раздела слева
-        if (isSelected) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .width(3.dp)
-                    .height(3.dp)
-                    .background(activeColor, RoundedCornerShape(2.dp))
+        Box(
+            modifier = Modifier.size(28.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = imageVector,
+                contentDescription = label,
+                tint = if (isSelected) activeColor else inactiveColor,
+                modifier = Modifier.size(24.dp)
             )
+
+            if (isSelected) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .offset(x = (-26).dp)
+                        .width(3.dp)
+                        .height(16.dp)
+                        .background(activeColor, RoundedCornerShape(2.dp))
+                )
+            }
         }
+        
+        Spacer(Modifier.height(4.dp))
+        
+        Text(
+            text = label,
+            color = if (isSelected) activeColor else inactiveColor,
+            fontSize = 10.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+            maxLines = 1
+        )
     }
 }
 
 @Composable
 fun AdaptiveScaffold(
+    isInProject: Boolean = false,
+    currentSection: String = "projects",
+    onBackToProjects: () -> Unit = {},
+    onSectionSelect: (String) -> Unit = {},
     content: @Composable (AppLayoutType) -> Unit
 ) {
     BoxWithConstraints {
         val isDesktop = maxWidth > 800.dp
         val layoutType = if (isDesktop) AppLayoutType.DESKTOP else AppLayoutType.MOBILE
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(DeepBackgroundStart, DeepBackgroundEnd)
+        CompositionLocalProvider(LocalAppLayoutType provides layoutType) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(DeepBackgroundStart, DeepBackgroundEnd)
+                        )
                     )
-                )
-        ) {
-            if (isDesktop) {
-                Row(modifier = Modifier.fillMaxSize()) {
-                    // 1. Узкий Сайдбар (Navigation Rail)
-                    Column(
-                        modifier = Modifier
-                            .width(48.dp)
-                            .fillMaxHeight()
-                            .padding(top = 56.dp, bottom = 24.dp), // 56.dp — чтобы не мешать кнопкам macOS
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        // ВЕРХНЯЯ ЧАСТЬ: Основной рабочий раздел
-                        NavIcon(
-                            imageVector = Icons.Default.Folder,
-                            label = "Проекты",
-                            isSelected = true
-                        )
+            ) {
+                if (isDesktop) {
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        Column(
+                            modifier = Modifier
+                                .width(84.dp)
+                                .fillMaxHeight()
+                                .padding(top = 40.dp, bottom = 24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            if (!isInProject) {
+                                NavIcon(
+                                    imageVector = Icons.Default.Folder,
+                                    label = "Проекты",
+                                    isSelected = currentSection == "projects",
+                                    onClick = { onSectionSelect("projects") }
+                                )
+                                Spacer(modifier = Modifier.weight(1f))
+                                NavIcon(
+                                    imageVector = Icons.Default.AccountCircle,
+                                    label = "Профиль",
+                                    isSelected = currentSection == "profile",
+                                    onClick = { onSectionSelect("profile") }
+                                )
+                                NavIcon(
+                                    imageVector = Icons.Default.Settings,
+                                    label = "Настройки",
+                                    isSelected = currentSection == "settings",
+                                    onClick = { onSectionSelect("settings") }
+                                )
+                            } else {
+                                // ЗАМЕНЕНО: Иконка папки для возврата к проектам
+                                NavIcon(
+                                    imageVector = Icons.Default.Folder,
+                                    label = "Проекты",
+                                    onClick = onBackToProjects
+                                )
 
-                        Spacer(modifier = Modifier.weight(1f)) // "Пружина" — толкает всё остальное вниз
+                                Spacer(Modifier.height(24.dp))
 
-                        // НИЖНЯЯ ЧАСТЬ: Аккаунт и Настройки
-                        NavIcon(
-                            imageVector = Icons.Default.AccountCircle,
-                            label = "Профиль"
-                        )
+                                NavIcon(
+                                    imageVector = Icons.Default.Dashboard,
+                                    label = "Обзор",
+                                    isSelected = currentSection == "dashboard",
+                                    onClick = { onSectionSelect("dashboard") }
+                                )
+                                NavIcon(
+                                    imageVector = Icons.Default.Description,
+                                    label = "Сценарий",
+                                    isSelected = currentSection == "script",
+                                    onClick = { onSectionSelect("script") }
+                                )
+                                NavIcon(
+                                    imageVector = Icons.AutoMirrored.Filled.FormatListBulleted,
+                                    label = "Сцены",
+                                    isSelected = currentSection == "scenes",
+                                    onClick = { onSectionSelect("scenes") }
+                                )
+                                NavIcon(
+                                    imageVector = Icons.Default.Event,
+                                    label = "КПП",
+                                    isSelected = currentSection == "schedule",
+                                    onClick = { onSectionSelect("schedule") }
+                                )
+                                NavIcon(
+                                    imageVector = Icons.Default.AddAPhoto,
+                                    label = "Трекер",
+                                    isSelected = currentSection == "tracker",
+                                    onClick = { onSectionSelect("tracker") }
+                                )
+                                NavIcon(
+                                    imageVector = Icons.Default.Inventory2,
+                                    label = "Реквизит",
+                                    isSelected = currentSection == "inventory",
+                                    onClick = { onSectionSelect("inventory") }
+                                )
+                                NavIcon(
+                                    imageVector = Icons.Default.AutoStories,
+                                    label = "Библия",
+                                    isSelected = currentSection == "bible",
+                                    onClick = { onSectionSelect("bible") }
+                                )
 
-                        Spacer(Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.weight(1f))
 
-                        NavIcon(
-                            imageVector = Icons.Default.Settings,
-                            label = "Настройки"
-                        )
+                                NavIcon(
+                                    imageVector = Icons.Default.Settings,
+                                    label = "Настройки",
+                                    isSelected = currentSection == "settings",
+                                    onClick = { onSectionSelect("settings") }
+                                )
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(start = 0.dp, end = 16.dp, top = 20.dp, bottom = 16.dp)
+                                .shadow(
+                                    elevation = 12.dp,
+                                    shape = RoundedCornerShape(16.dp),
+                                    clip = false,
+                                    ambientColor = Color.Black,
+                                    spotColor = Color.Black
+                                )
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(SurfaceCard)
+                                .border(0.5.dp, BorderLight, RoundedCornerShape(16.dp))
+                        ) {
+                            content(layoutType)
+                        }
                     }
-
-                    // 2. Основная рабочая область (Парящая карточка)
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(start = 0.dp, end = 16.dp, top = 24.dp, bottom = 16.dp)
-                            .shadow(
-                                elevation = 12.dp,
-                                shape = RoundedCornerShape(12.dp),
-                                clip = false,
-                                ambientColor = Color.Black,
-                                spotColor = Color.Black
-                            )
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(SurfaceCard)
-                            .border(0.5.dp, BorderLight, RoundedCornerShape(12.dp))
-                    ) {
+                } else {
+                    Box(modifier = Modifier.fillMaxSize()) {
                         content(layoutType)
                     }
-                }
-            } else {
-                // Мобильная версия (на весь экран)
-                Box(modifier = Modifier.fillMaxSize()) {
-                    content(layoutType)
                 }
             }
         }
