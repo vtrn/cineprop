@@ -29,15 +29,33 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: chmod +x gradlew
 
-      # Сборка для Windows
-      - name: Package Windows EXE
+      # Сборка для Windows (запустится только на windows-latest)
+      - name: Build Windows
         if: matrix.os == 'windows-latest'
-        run: ./gradlew :composeApp:packageExe
+        run: ./gradlew :composeApp:packageMsi :composeApp:packageExe --stacktrace
 
-      # Сборка для macOS
-      - name: Package macOS DMG
+      # Сборка для macOS (запустится только на macos-latest)
+      - name: Build macOS
         if: matrix.os == 'macos-latest'
-        run: ./gradlew :composeApp:packageDmg
+        run: ./gradlew :composeApp:packageDmg --stacktrace
+
+      # Загрузка Windows файлов
+      - name: Upload Windows
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: CineApp-Windows
+          path: |
+            composeApp/build/compose/binaries/main/msi/*.msi
+            composeApp/build/compose/binaries/main/exe/*.exe
+
+      # Загрузка macOS файлов
+      - name: Upload macOS
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: CineApp-macOS
+          path: composeApp/build/compose/binaries/main/dmg/*.dmg
 
       # Загрузка готовых файлов в GitHub Artifacts
       - name: Upload Artifacts

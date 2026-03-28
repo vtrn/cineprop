@@ -141,20 +141,27 @@ dependencies {
 
 compose.desktop {
     application {
-        mainClass = "org.mosyagin.project.MainKt"
-
+        mainClass = "MainKt"
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg)
+            // ДОБАВЬ ЭТИ ФОРМАТЫ ЗДЕСЬ:
+            targetFormats(
+                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Dmg,
+                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi,
+                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe
+            )
+
             packageName = "CineApp"
             packageVersion = "1.0.0"
-            
-            // Добавляем необходимые модули JDK
-            modules("java.sql")
 
             macOS {
                 bundleID = "org.mosyagin.cineapp"
-                packageName = "CineApp"
-                dockName = "CineApp"
+            }
+
+            windows {
+                // Настройки для Windows
+                shortcut = true // Создать ярлык на рабочем столе
+                menu = true     // Добавить в меню "Пуск"
+                upgradeUuid = "ваша-уникальная-строка-id" // Можно пока не ставить
             }
         }
     }
