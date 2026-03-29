@@ -52,7 +52,6 @@ data class ProjectDashboardScreen(val projectId: Long) : Screen {
                     // Header
                     item(span = { GridItemSpan(2) }) {
                         Column(modifier = Modifier.padding(top = 24.dp, bottom = 12.dp)) {
-                            // СКРЫВАЕМ СТРЕЛКУ НА ДЕСКТОПЕ
                             if (layoutType == AppLayoutType.MOBILE) {
                                 IconButton(
                                     onClick = { navigator.pop() },
@@ -142,7 +141,14 @@ data class ProjectDashboardScreen(val projectId: Long) : Screen {
                         DashboardActionTile(
                             "Сцены",
                             Icons.AutoMirrored.Filled.List,
-                            onClick = { navigator.push(SceneListScreen(currentProject.id, currentProject.name)) }
+                            onClick = { 
+                                // Task #48: Переход на Workspace для Desktop
+                                if (layoutType == AppLayoutType.DESKTOP) {
+                                    navigator.push(SceneWorkspaceScreen(projectId))
+                                } else {
+                                    navigator.push(SceneListScreen(currentProject.id, currentProject.name))
+                                }
+                            }
                         )
                     }
                     item {

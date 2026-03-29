@@ -26,8 +26,6 @@ import org.mosyagin.project.ui.components.CineCard
 import org.mosyagin.project.ui.components.CineTag
 import org.mosyagin.project.ui.components.LocalAppLayoutType
 
-enum class SceneFilter { ALL, MODIFIED, NEW }
-
 data class SceneListScreen(val projectId: Long, val projectName: String) : Screen {
 
     @OptIn(ExperimentalMaterial3Api::class)

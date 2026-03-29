@@ -50,6 +50,11 @@ val screenModelModule = module {
     factory { (projectId: Long, seriesNumber: Int) -> 
         ScriptVersionViewModel(get(), projectId, seriesNumber) 
     }
+
+    // Task #48: Workspace для Desktop
+    factory { (projectId: Long) -> 
+        SceneWorkspaceViewModel(projectId, get())
+    }
 }
 
 /**
