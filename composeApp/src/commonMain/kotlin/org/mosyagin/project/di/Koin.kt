@@ -53,7 +53,12 @@ val screenModelModule = module {
 
     // Task #48: Workspace для Desktop
     factory { (projectId: Long) -> 
-        SceneWorkspaceViewModel(projectId, get())
+        SceneWorkspaceViewModel(projectId, get()) 
+    }
+    
+    // Tracker Workspace для Desktop
+    factory { (projectId: Long) -> 
+        TrackerViewModel(projectId, get(), get())
     }
 }
 
