@@ -92,6 +92,8 @@ kotlin {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
             implementation("app.cash.sqldelight:sqlite-driver:${libs.versions.sqldelight.get()}")
+            // Добавляем PDFBox для Desktop
+            implementation("org.apache.pdfbox:pdfbox:2.0.30")
         }
         
         jvmTest.dependencies {
