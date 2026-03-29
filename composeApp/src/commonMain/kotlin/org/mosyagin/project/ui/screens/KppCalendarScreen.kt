@@ -25,7 +25,9 @@ import kotlinx.datetime.LocalDate
 import org.koin.compose.koinInject
 import org.mosyagin.project.Shift
 import org.mosyagin.project.repository.ShiftRepository
+import org.mosyagin.project.ui.components.AppLayoutType
 import org.mosyagin.project.ui.components.CineCard
+import org.mosyagin.project.ui.components.LocalAppLayoutType
 import kotlin.time.Clock
 
 data class KppCalendarScreen(val projectId: Long) : Screen {
@@ -35,6 +37,7 @@ data class KppCalendarScreen(val projectId: Long) : Screen {
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val shiftRepository = koinInject<ShiftRepository>()
+        val layoutType = LocalAppLayoutType.current
         val shifts by shiftRepository.getShiftsByProject(projectId).collectAsState(initial = emptyList())
 
         // 1. Инициализируем стейт первым числом текущего месяца.
@@ -59,8 +62,10 @@ data class KppCalendarScreen(val projectId: Long) : Screen {
                 CenterAlignedTopAppBar(
                     title = { Text("Календарь смен", style = MaterialTheme.typography.titleLarge) },
                     navigationIcon = {
-                        IconButton(onClick = { navigator.pop() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                        if (layoutType == AppLayoutType.MOBILE) {
+                            IconButton(onClick = { navigator.pop() }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                            }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(

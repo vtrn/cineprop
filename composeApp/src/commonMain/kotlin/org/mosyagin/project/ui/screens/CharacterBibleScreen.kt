@@ -34,6 +34,8 @@ import org.mosyagin.project.Actor
 import org.mosyagin.project.GetScenesByActor
 import org.mosyagin.project.repository.SceneRepository
 import org.mosyagin.project.repository.ScriptRepository
+import org.mosyagin.project.ui.components.AppLayoutType
+import org.mosyagin.project.ui.components.LocalAppLayoutType
 
 /**
  * Главный экран Библии персонажей.
@@ -46,6 +48,7 @@ data class CharacterBibleScreen(val projectId: Long) : Screen {
         val navigator = LocalNavigator.currentOrThrow
         val sceneRepository = koinInject<SceneRepository>()
         val scriptRepository = koinInject<ScriptRepository>()
+        val layoutType = LocalAppLayoutType.current
 
         val actors by sceneRepository.getActorsByProject(projectId).collectAsState(initial = emptyList())
         val scripts by scriptRepository.getScriptsForProject(projectId).collectAsState(initial = emptyList())
@@ -56,8 +59,10 @@ data class CharacterBibleScreen(val projectId: Long) : Screen {
                 TopAppBar(
                     title = { Text("Библия персонажей") },
                     navigationIcon = {
-                        IconButton(onClick = { navigator.pop() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                        if (layoutType == AppLayoutType.MOBILE) {
+                            IconButton(onClick = { navigator.pop() }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                            }
                         }
                     }
                 )

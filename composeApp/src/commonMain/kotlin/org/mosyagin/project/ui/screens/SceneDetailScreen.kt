@@ -61,6 +61,8 @@ import cafe.adriel.voyager.koin.koinScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import org.koin.core.parameter.parametersOf
+import org.mosyagin.project.ui.components.AppLayoutType
+import org.mosyagin.project.ui.components.LocalAppLayoutType
 
 data class SceneDetailScreen(
     val sceneUserDataId: Long,
@@ -75,6 +77,7 @@ data class SceneDetailScreen(
         val screenModel = koinScreenModel<SceneDetailScreenModel> {
             parametersOf(sceneUserDataId, scriptFileId ?: 0L) 
         }
+        val layoutType = LocalAppLayoutType.current
 
         val scene by screenModel.scene.collectAsState()
         val actors by screenModel.actors.collectAsState()
@@ -94,8 +97,10 @@ data class SceneDetailScreen(
                 TopAppBar(
                     title = { Text(scene?.let { "Сцена ${it.seriesNumber}-${it.sceneNumber}" } ?: "Загрузка...") },
                     navigationIcon = {
-                        IconButton(onClick = { navigator.pop() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                        if (layoutType == AppLayoutType.MOBILE) {
+                            IconButton(onClick = { navigator.pop() }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                            }
                         }
                     },
                     actions = {
@@ -274,11 +279,28 @@ data class SceneDetailScreen(
 
         if (showAddPropDialog) {
             AlertDialog(
-                onDismissRequest = { },
+                onDismissRequest = { 
+                    showAddPropDialog = false
+                    selectedWord = ""
+                },
                 title = { Text("Добавить реквизит?") },
-                text = { Text("Добавить \"$selectedWord\" в список?") },
+                text = { Text("Добавить \"$selectedWord\" в список реквизита для этой сцены?") },
                 confirmButton = {
-                    Button(onClick = { screenModel.addProp(selectedWord); }) { Text("Да") }
+                    Button(onClick = { 
+                        screenModel.addProp(selectedWord)
+                        showAddPropDialog = false
+                        selectedWord = ""
+                    }) { 
+                        Text("Да") 
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { 
+                        showAddPropDialog = false
+                        selectedWord = ""
+                    }) { 
+                        Text("Нет") 
+                    }
                 }
             )
         }

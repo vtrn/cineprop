@@ -24,7 +24,9 @@ import org.mosyagin.project.util.rememberFilePickerLauncher
 import kotlinx.coroutines.launch
 import org.mosyagin.project.parser.update.UpdateResult
 import org.mosyagin.project.repository.ScriptRepository
+import org.mosyagin.project.ui.components.AppLayoutType
 import org.mosyagin.project.ui.components.CineCard
+import org.mosyagin.project.ui.components.LocalAppLayoutType
 import org.mosyagin.project.ui.components.UpdateReportDialog
 
 data class ScriptListScreen(val projectId: Long) : Screen {
@@ -35,6 +37,7 @@ data class ScriptListScreen(val projectId: Long) : Screen {
         val navigator = LocalNavigator.currentOrThrow
         val repository = koinInject<ScriptRepository>()
         val screenModel = koinScreenModel<ScriptViewModel>()
+        val layoutType = LocalAppLayoutType.current
 
         val isLoading by screenModel.isLoading.collectAsState()
         val updateResult by screenModel.updateResult.collectAsState()
@@ -65,8 +68,10 @@ data class ScriptListScreen(val projectId: Long) : Screen {
                     TopAppBar(
                         title = { Text("Сценарии") },
                         navigationIcon = {
-                            IconButton(onClick = { navigator.pop() }) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                            if (layoutType == AppLayoutType.MOBILE) {
+                                IconButton(onClick = { navigator.pop() }) {
+                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                                }
                             }
                         }
                     )
