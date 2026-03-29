@@ -58,7 +58,12 @@ val screenModelModule = module {
     
     // Tracker Workspace для Desktop
     factory { (projectId: Long) -> 
-        TrackerViewModel(projectId, get(), get())
+        TrackerViewModel(projectId, get(), get()) 
+    }
+
+    // Prop Workspace для Desktop
+    factory { (projectId: Long) -> 
+        PropWorkspaceViewModel(projectId, get())
     }
 }
 

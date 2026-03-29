@@ -42,14 +42,9 @@ fun App() {
                                 activeProjectId = item.projectId
                                 currentSection = "script"
                             }
-                            is SceneListScreen -> {
+                            is SceneListScreen, is SceneWorkspaceScreen -> {
                                 isInProject = true
-                                activeProjectId = item.projectId
-                                currentSection = "scenes"
-                            }
-                            is SceneWorkspaceScreen -> {
-                                isInProject = true
-                                activeProjectId = item.projectId
+                                activeProjectId = if (item is SceneListScreen) item.projectId else (item as SceneWorkspaceScreen).projectId
                                 currentSection = "scenes"
                             }
                             is KppListScreen -> {
@@ -62,9 +57,9 @@ fun App() {
                                 activeProjectId = item.projectId
                                 currentSection = "tracker"
                             }
-                            is PropListScreen -> {
+                            is PropListScreen, is PropWorkspaceScreen -> {
                                 isInProject = true
-                                activeProjectId = item.projectId
+                                activeProjectId = if (item is PropListScreen) item.projectId else (item as PropWorkspaceScreen).projectId
                                 currentSection = "inventory"
                             }
                             is CharacterBibleScreen -> {
@@ -96,7 +91,6 @@ fun App() {
                                 "dashboard" -> navigator.replace(ProjectDashboardScreen(id))
                                 "script" -> navigator.replace(ScriptListScreen(id))
                                 "scenes" -> {
-                                    // Task #48: Выбираем экран в зависимости от платформы/размера
                                     if (lastLayoutType == AppLayoutType.DESKTOP) {
                                         navigator.replace(SceneWorkspaceScreen(id))
                                     } else {
@@ -105,12 +99,17 @@ fun App() {
                                 }
                                 "schedule" -> navigator.replace(KppListScreen(id))
                                 "tracker" -> navigator.replace(TrackerScreen(id))
-                                "inventory" -> navigator.replace(PropListScreen(id))
+                                "inventory" -> {
+                                    if (lastLayoutType == AppLayoutType.DESKTOP) {
+                                        navigator.replace(PropWorkspaceScreen(id))
+                                    } else {
+                                        navigator.replace(PropListScreen(id))
+                                    }
+                                }
                                 "bible" -> navigator.replace(CharacterBibleScreen(id))
                             }
                         }
                     ) { layoutType ->
-                        // Сохраняем тип лайаута для принятия решения о навигации
                         lastLayoutType = layoutType
                         SlideTransition(navigator)
                     }

@@ -142,7 +142,6 @@ data class ProjectDashboardScreen(val projectId: Long) : Screen {
                             "Сцены",
                             Icons.AutoMirrored.Filled.List,
                             onClick = { 
-                                // Task #48: Переход на Workspace для Desktop
                                 if (layoutType == AppLayoutType.DESKTOP) {
                                     navigator.push(SceneWorkspaceScreen(projectId))
                                 } else {
@@ -169,7 +168,13 @@ data class ProjectDashboardScreen(val projectId: Long) : Screen {
                         DashboardActionTile(
                             "Реквизит", 
                             Icons.Default.Inventory,
-                            onClick = { navigator.push(PropListScreen(projectId)) }
+                            onClick = { 
+                                if (layoutType == AppLayoutType.DESKTOP) {
+                                    navigator.push(PropWorkspaceScreen(projectId))
+                                } else {
+                                    navigator.push(PropListScreen(projectId))
+                                }
+                            }
                         )
                     }
                     item {
