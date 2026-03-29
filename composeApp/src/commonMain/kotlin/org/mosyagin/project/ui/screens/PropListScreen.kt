@@ -28,6 +28,8 @@ import org.koin.compose.koinInject
 import kotlinx.coroutines.launch
 import org.mosyagin.project.repository.PropWithScene
 import org.mosyagin.project.repository.SceneRepository
+import org.mosyagin.project.ui.components.AppLayoutType
+import org.mosyagin.project.ui.components.LocalAppLayoutType
 
 /**
  * Экран со списком реквизита.
@@ -40,6 +42,7 @@ data class PropListScreen(val projectId: Long) : Screen {
         val navigator = LocalNavigator.currentOrThrow
         val repository = koinInject<SceneRepository>()
         val scope = rememberCoroutineScope()
+        val layoutType = LocalAppLayoutType.current
 
         var searchQuery by remember { mutableStateOf("") }
 
@@ -54,8 +57,10 @@ data class PropListScreen(val projectId: Long) : Screen {
                 TopAppBar(
                     title = { Text("Реквизит") },
                     navigationIcon = {
-                        IconButton(onClick = { navigator.pop() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                        if (layoutType == AppLayoutType.MOBILE) {
+                            IconButton(onClick = { navigator.pop() }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                            }
                         }
                     }
                 )

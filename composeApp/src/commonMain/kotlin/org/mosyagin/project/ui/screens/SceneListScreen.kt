@@ -61,7 +61,6 @@ data class SceneListScreen(val projectId: Long, val projectName: String) : Scree
                 CenterAlignedTopAppBar(
                     title = { Text("Сцены: $projectName", style = MaterialTheme.typography.titleLarge) },
                     navigationIcon = {
-                        // СКРЫВАЕМ СТРЕЛКУ НА ДЕСКТОПЕ
                         if (layoutType == AppLayoutType.MOBILE) {
                             IconButton(onClick = { navigator.pop() }) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
