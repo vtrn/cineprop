@@ -37,9 +37,9 @@ fun App() {
                                 activeProjectId = item.projectId
                                 currentSection = "dashboard"
                             }
-                            is ScriptListScreen -> {
+                            is ScriptListScreen, is ScriptWorkspaceScreen -> {
                                 isInProject = true
-                                activeProjectId = item.projectId
+                                activeProjectId = if (item is ScriptListScreen) item.projectId else (item as ScriptWorkspaceScreen).projectId
                                 currentSection = "script"
                             }
                             is SceneListScreen, is SceneWorkspaceScreen -> {
@@ -47,9 +47,9 @@ fun App() {
                                 activeProjectId = if (item is SceneListScreen) item.projectId else (item as SceneWorkspaceScreen).projectId
                                 currentSection = "scenes"
                             }
-                            is KppListScreen -> {
+                            is KppListScreen, is KppWorkspaceScreen -> {
                                 isInProject = true
-                                activeProjectId = item.projectId
+                                activeProjectId = if (item is KppListScreen) item.projectId else (item as KppWorkspaceScreen).projectId
                                 currentSection = "schedule"
                             }
                             is TrackerScreen -> {
@@ -62,9 +62,9 @@ fun App() {
                                 activeProjectId = if (item is PropListScreen) item.projectId else (item as PropWorkspaceScreen).projectId
                                 currentSection = "inventory"
                             }
-                            is CharacterBibleScreen -> {
+                            is CharacterBibleScreen, is CharacterWorkspaceScreen -> {
                                 isInProject = true
-                                activeProjectId = item.projectId
+                                activeProjectId = if (item is CharacterBibleScreen) item.projectId else (item as CharacterWorkspaceScreen).projectId
                                 currentSection = "bible"
                             }
                             is ProjectListScreen -> {
@@ -89,7 +89,13 @@ fun App() {
 
                             when (section) {
                                 "dashboard" -> navigator.replace(ProjectDashboardScreen(id))
-                                "script" -> navigator.replace(ScriptListScreen(id))
+                                "script" -> {
+                                    if (lastLayoutType == AppLayoutType.DESKTOP) {
+                                        navigator.replace(ScriptWorkspaceScreen(id))
+                                    } else {
+                                        navigator.replace(ScriptListScreen(id))
+                                    }
+                                }
                                 "scenes" -> {
                                     if (lastLayoutType == AppLayoutType.DESKTOP) {
                                         navigator.replace(SceneWorkspaceScreen(id))
@@ -97,7 +103,13 @@ fun App() {
                                         navigator.replace(SceneListScreen(id, "Проект"))
                                     }
                                 }
-                                "schedule" -> navigator.replace(KppListScreen(id))
+                                "schedule" -> {
+                                    if (lastLayoutType == AppLayoutType.DESKTOP) {
+                                        navigator.replace(KppWorkspaceScreen(id))
+                                    } else {
+                                        navigator.replace(KppListScreen(id))
+                                    }
+                                }
                                 "tracker" -> navigator.replace(TrackerScreen(id))
                                 "inventory" -> {
                                     if (lastLayoutType == AppLayoutType.DESKTOP) {
@@ -106,7 +118,13 @@ fun App() {
                                         navigator.replace(PropListScreen(id))
                                     }
                                 }
-                                "bible" -> navigator.replace(CharacterBibleScreen(id))
+                                "bible" -> {
+                                    if (lastLayoutType == AppLayoutType.DESKTOP) {
+                                        navigator.replace(CharacterWorkspaceScreen(id))
+                                    } else {
+                                        navigator.replace(CharacterBibleScreen(id))
+                                    }
+                                }
                             }
                         }
                     ) { layoutType ->

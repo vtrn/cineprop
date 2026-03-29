@@ -4,6 +4,7 @@ import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import org.mosyagin.project.DatabaseQueries
 import org.mosyagin.project.ScriptFile
@@ -11,6 +12,7 @@ import org.mosyagin.project.parser.ScriptParser
 
 interface ScriptRepository {
     fun getScriptsForProject(projectId: Long): Flow<List<ScriptFile>>
+    fun getScriptFileById(id: Long): Flow<ScriptFile?>
     suspend fun saveParsedScript(
         projectId: Long, 
         seriesNumber: Int, 
@@ -31,6 +33,11 @@ class ScriptRepositoryImpl(
         queries.getScriptsForProject(projectId)
             .asFlow()
             .mapToList(Dispatchers.Default)
+
+    override fun getScriptFileById(id: Long): Flow<ScriptFile?> =
+        queries.getScriptFileById(id)
+            .asFlow()
+            .map { it.executeAsOneOrNull() }
 
     override suspend fun saveParsedScript(
         projectId: Long, 

@@ -65,6 +65,21 @@ val screenModelModule = module {
     factory { (projectId: Long) -> 
         PropWorkspaceViewModel(projectId, get())
     }
+
+    // Script Workspace для Desktop
+    factory { (projectId: Long) -> 
+        ScriptWorkspaceViewModel(projectId, get())
+    }
+
+    // Kpp Workspace для Desktop
+    factory { (projectId: Long) -> 
+        KppWorkspaceViewModel(projectId, get())
+    }
+
+    // Character Workspace для Desktop
+    factory { (projectId: Long) -> 
+        CharacterWorkspaceViewModel(projectId, get())
+    }
 }
 
 /**

@@ -134,7 +134,14 @@ data class ProjectDashboardScreen(val projectId: Long) : Screen {
                         DashboardActionTile(
                             "Сценарий", 
                             Icons.Default.Description,
-                            onClick = { navigator.push(ScriptListScreen(projectId)) }
+                            onClick = { 
+                                // Task #48: Workspace для Сценариев
+                                if (layoutType == AppLayoutType.DESKTOP) {
+                                    navigator.push(ScriptWorkspaceScreen(projectId))
+                                } else {
+                                    navigator.push(ScriptListScreen(projectId))
+                                }
+                            }
                         )
                     }
                     item {
