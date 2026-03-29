@@ -9,6 +9,7 @@ import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.transitions.SlideTransition
 import org.koin.compose.KoinContext
 import org.mosyagin.project.ui.components.AdaptiveScaffold
+import org.mosyagin.project.ui.components.AppLayoutType
 import org.mosyagin.project.ui.screens.*
 import org.mosyagin.project.ui.theme.CinePropTheme
 
@@ -23,15 +24,13 @@ fun App() {
                 var isInProject by remember { mutableStateOf(false) }
                 var currentSection by remember { mutableStateOf("projects") }
                 var activeProjectId by remember { mutableStateOf<Long?>(null) }
+                var lastLayoutType by remember { mutableStateOf(AppLayoutType.MOBILE) }
 
                 Navigator(ProjectListScreen()) { navigator ->
                     // Синхронизация состояния Сайдбара с текущим экраном
                     LaunchedEffect(navigator.lastItem) {
                         val item = navigator.lastItem
-                        val name = item::class.simpleName ?: ""
                         
-                        // Пытаемся достать projectId из экрана, если он там есть
-                        // (В Voyager можно использовать Reflection или просто проверять типы)
                         when (item) {
                             is ProjectDashboardScreen -> {
                                 isInProject = true
@@ -44,6 +43,11 @@ fun App() {
                                 currentSection = "script"
                             }
                             is SceneListScreen -> {
+                                isInProject = true
+                                activeProjectId = item.projectId
+                                currentSection = "scenes"
+                            }
+                            is SceneWorkspaceScreen -> {
                                 isInProject = true
                                 activeProjectId = item.projectId
                                 currentSection = "scenes"
@@ -91,7 +95,14 @@ fun App() {
                             when (section) {
                                 "dashboard" -> navigator.replace(ProjectDashboardScreen(id))
                                 "script" -> navigator.replace(ScriptListScreen(id))
-                                "scenes" -> navigator.replace(SceneListScreen(id, "Проект")) // Имя можно достать из БД если нужно
+                                "scenes" -> {
+                                    // Task #48: Выбираем экран в зависимости от платформы/размера
+                                    if (lastLayoutType == AppLayoutType.DESKTOP) {
+                                        navigator.replace(SceneWorkspaceScreen(id))
+                                    } else {
+                                        navigator.replace(SceneListScreen(id, "Проект"))
+                                    }
+                                }
                                 "schedule" -> navigator.replace(KppListScreen(id))
                                 "tracker" -> navigator.replace(TrackerScreen(id))
                                 "inventory" -> navigator.replace(PropListScreen(id))
@@ -99,6 +110,8 @@ fun App() {
                             }
                         }
                     ) { layoutType ->
+                        // Сохраняем тип лайаута для принятия решения о навигации
+                        lastLayoutType = layoutType
                         SlideTransition(navigator)
                     }
                 }
