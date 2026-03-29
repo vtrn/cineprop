@@ -21,21 +21,29 @@ data class PropImpact(
 )
 
 /**
- * Анализатор влияния правок сценария на список реквизита.
+ * PropImpactAnalyzer — специализированный инструмент для отслеживания реквизита при правках.
+ * 
+ * В кинопроизводстве важно знать, не "выпал" ли закрепленный за сценой предмет 
+ * (например, 'Золотые часы') при обновлении текста сценария. 
+ * Если упоминание предмета удалено, анализатор помечает его как 'orphaned'.
  */
 object PropImpactAnalyzer {
 
     /**
-     * Проводит анализ и возвращает отчет о том, как изменилось положение реквизита в сцене.
+     * Проводит сравнительный анализ и возвращает отчет о влиянии правок на реквизит.
+     * 
+     * @param diffReport Отчет о разнице между версиями текста.
+     * @param existingProps Список реквизита, уже закрепленного за сценой пользователем.
+     * @return Список [PropImpact] для каждого предмета.
      */
     fun analyze(diffReport: SceneDiffReport, existingProps: List<Prop>): List<PropImpact> {
-        // Собираем "новый мир" - текст, который остался или добавился
+        // "Новый мир" — это сумма того, что не изменилось и того, что было добавлено.
         val newWorldText = diffReport.diffs
             .filter { it.type == DiffType.UNCHANGED || it.type == DiffType.ADDED }
             .joinToString(" ") { it.block.text }
             .lowercase()
 
-        // Собираем "ушедший мир" - текст, который был удален
+        // "Ушедший мир" — это текст, который был полностью удален в новой ревизии.
         val oldGoneText = diffReport.diffs
             .filter { it.type == DiffType.DELETED }
             .joinToString(" ") { it.block.text }
@@ -43,32 +51,28 @@ object PropImpactAnalyzer {
 
         val results = mutableListOf<PropImpact>()
 
-        // Проверяем текущий реквизит
         existingProps.forEach { prop ->
             val nameLower = prop.name.lowercase()
             
             when {
-                // Если имя есть в новом тексте
+                // Реквизит сохранился в актуальном тексте
                 newWorldText.contains(nameLower) -> {
                     results.add(PropImpact(prop.name, PropImpactType.STILL_PRESENT))
                 }
-                // Если имени нет в новом, но оно было в удаленном куске
+                // Реквизит исчез из текста (потенциальное "сиротство")
                 oldGoneText.contains(nameLower) -> {
                     results.add(PropImpact(prop.name, PropImpactType.POTENTIALLY_ORPHANED))
                 }
             }
         }
 
-        // Бонус: поиск новых потенциальных упоминаний в добавленных блоках
-        // Здесь мы ищем упоминания предметов, которые уже есть в списке, 
-        // но которые могли быть добавлены в новые куски текста.
+        // Поиск новых упоминаний в добавленных блоках текста
         diffReport.diffs.forEachIndexed { index, diffBlock ->
             if (diffBlock.type == DiffType.ADDED) {
                 val blockTextLower = diffBlock.block.text.lowercase()
                 existingProps.forEach { prop ->
                     val nameLower = prop.name.lowercase()
                     if (blockTextLower.contains(nameLower)) {
-                        // Если этот предмет и так STILL_PRESENT, мы можем пометить блок, где он появился
                         results.add(PropImpact(prop.name, PropImpactType.NEW_MENTION, index))
                     }
                 }

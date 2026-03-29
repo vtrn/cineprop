@@ -9,13 +9,15 @@ data class DiffLine(
 )
 
 /**
- * Утилита для вычисления разницы между текстами.
- * Использует алгоритм Майерса (Myers Diff Algorithm).
+ * DiffUtils — утилита для вычисления разницы между текстами.
+ * Реализует алгоритм Майерса (Myers Diff Algorithm), обеспечивая кратчайший путь 
+ * преобразования одного текста в другой.
  */
 object DiffUtils {
 
     /**
      * Сравнивает два текста построчно.
+     * Используется для быстрого обзора изменений в больших блоках текста.
      */
     fun diff(oldText: String, newText: String): List<DiffLine> {
         return try {
@@ -28,8 +30,9 @@ object DiffUtils {
     }
 
     /**
-     * Сравнивает два текста пословно, игнорируя принудительные переносы строк.
-     * Использует гранулярность до знака препинания для лучшего выравнивания (alignment).
+     * Сравнивает два текста пословно.
+     * Реализует гранулярное сравнение, игнорируя лишние пробелы и переносы строк.
+     * Позволяет точно выделить изменения внутри предложений.
      */
     fun diffWords(oldText: String, newText: String): List<DiffLine> {
         val oldClean = oldText.replace("\n", " ").replace(Regex("\\s+"), " ").trim()
@@ -46,7 +49,8 @@ object DiffUtils {
     }
 
     /**
-     * Разбивает текст на слова, пробелы и знаки препинания как отдельные токены.
+     * Токенизация текста: разбивает строку на слова, пробелы и знаки препинания.
+     * Это необходимо для точного выравнивания (alignment) текста в Diff Viewer.
      */
     private fun tokenize(text: String): List<String> {
         if (text.isEmpty()) return emptyList()
@@ -75,6 +79,10 @@ object DiffUtils {
         return result
     }
 
+    /**
+     * Основная реализация алгоритма Майерса.
+     * Находит кратчайший путь в графе редактирования (SES - Shortest Edit Script).
+     */
     private fun calculateDiff(oldElements: List<String>, newElements: List<String>): List<DiffLine> {
         val n = oldElements.size
         val m = newElements.size
@@ -123,7 +131,6 @@ object DiffUtils {
             val kPlus = k + 1
             val kMinus = k - 1
             
-            // Определяем, откуда мы пришли: сверху (инсерт) или слева (делит)
             val goUp = k == -d || (k != d && prevV[kMinus + max] < prevV[kPlus + max])
             
             val prevK = if (goUp) kPlus else kMinus
