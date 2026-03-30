@@ -1,9 +1,11 @@
 package org.mosyagin.project.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -12,21 +14,31 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Popup
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.koin.koinScreenModel
+import kotlinx.coroutines.launch
 import org.koin.core.parameter.parametersOf
+import org.mosyagin.project.GetLatestScenesForProject
+import org.mosyagin.project.models.versioning.Prop
 import org.mosyagin.project.ui.components.ThreePaneLayout
 import org.mosyagin.project.ui.components.CineCard
 import org.mosyagin.project.ui.components.CineTag
-import org.mosyagin.project.ui.components.InteractiveScriptText
+import org.mosyagin.project.parser.ScriptParser
+import org.mosyagin.project.ui.components.AppLayoutType
+import org.mosyagin.project.ui.components.LocalAppLayoutType
 
 data class SceneWorkspaceScreen(val projectId: Long) : Screen {
 
     @Composable
     override fun Content() {
         val screenModel = koinScreenModel<SceneWorkspaceViewModel> { parametersOf(projectId) }
+        val layoutType = LocalAppLayoutType.current
+        val scope = rememberCoroutineScope()
+        val listState = rememberLazyListState()
         
         val scenes by screenModel.scenesList.collectAsState()
         val selectedId by screenModel.selectedSceneId.collectAsState()
@@ -37,61 +49,130 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
         val inspectorData by screenModel.selectedSceneInspector.collectAsState()
 
         var showAddPropDialog by remember { mutableStateOf(false) }
-        var selectedWord by remember { mutableStateOf("") }
+        var showSelectionPopup by remember { mutableStateOf(false) }
+        var selectedAnchor by remember { mutableStateOf("") }
+        var propNameInput by remember { mutableStateOf("") }
 
-        ThreePaneLayout(
-            masterPane = {
-                MasterPane(
-                    scenes = scenes,
-                    selectedId = selectedId,
-                    searchQuery = searchQuery,
-                    selectedFilter = selectedFilter,
-                    onSceneClick = { screenModel.onSceneSelected(it) },
-                    onSearchChange = { screenModel.onSearchQueryChange(it) },
-                    onFilterClick = { screenModel.onFilterSelected(it) }
-                )
-            },
-            detailPane = {
-                DetailPane(
-                    content = sceneDetails?.content,
-                    props = inspectorData?.props ?: emptyList(),
-                    onWordLongClick = { 
-                        selectedWord = it
-                        showAddPropDialog = true
+        Box(modifier = Modifier.fillMaxSize()) {
+            ThreePaneLayout(
+                masterPane = {
+                    MasterPane(
+                        scenes = scenes,
+                        selectedId = selectedId,
+                        searchQuery = searchQuery,
+                        selectedFilter = selectedFilter,
+                        onSceneClick = { screenModel.onSceneSelected(it) },
+                        onSearchChange = { screenModel.onSearchQueryChange(it) },
+                        onFilterClick = { screenModel.onFilterSelected(it) }
+                    )
+                },
+                detailPane = {
+                    DetailPane(
+                        content = sceneDetails?.content,
+                        props = inspectorData?.props ?: emptyList(),
+                        selectedPropId = null,
+                        onPropClick = { /* Логика выделения */ },
+                        onTextSelected = { text ->
+                            if (text.isNotBlank()) {
+                                selectedAnchor = text
+                                showSelectionPopup = true
+                            }
+                        },
+                        listState = listState
+                    )
+                },
+                inspectorPane = {
+                    InspectorPane(
+                        data = inspectorData,
+                        layoutType = layoutType,
+                        onDeleteProp = { screenModel.deleteProp(it) },
+                        onMarkupClick = {
+                            // Оставляем как запасной вариант (через буфер)
+                        },
+                        onPropSelected = { prop ->
+                            val content = sceneDetails?.content
+                            if (content != null) {
+                                val blocks = ScriptParser().parseBlocks(content)
+                                val index = blocks.indexOfFirst { it.text.lowercase().contains(prop.anchor.lowercase()) }
+                                if (index != -1) {
+                                    scope.launch { listState.animateScrollToItem(index) }
+                                }
+                            }
+                        }
+                    )
+                }
+            )
+
+            // Попап "Добавить реквизит?" при выделении текста
+            if (showSelectionPopup) {
+                Popup(
+                    alignment = Alignment.Center,
+                    onDismissRequest = { showSelectionPopup = false }
+                ) {
+                    Card(
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Добавить реквизит?", style = MaterialTheme.typography.titleMedium)
+                            Text("\"$selectedAnchor\"", style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                            Spacer(Modifier.height(12.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                TextButton(onClick = { showSelectionPopup = false }) {
+                                    Text("Нет")
+                                }
+                                Button(onClick = {
+                                    showSelectionPopup = false
+                                    propNameInput = selectedAnchor
+                                    showAddPropDialog = true
+                                }) {
+                                    Text("Да")
+                                }
+                            }
+                        }
                     }
-                )
-            },
-            inspectorPane = {
-                InspectorPane(
-                    data = inspectorData,
-                    onDeleteProp = { screenModel.deleteProp(it) }
-                )
+                }
             }
-        )
+        }
 
         if (showAddPropDialog) {
             AlertDialog(
                 onDismissRequest = { 
                     showAddPropDialog = false
-                    selectedWord = ""
+                    selectedAnchor = ""
                 },
-                title = { Text("Добавить реквизит?") },
-                text = { Text("Добавить \"$selectedWord\" в список реквизита для этой сцены?") },
+                title = { Text("Новый реквизит") },
+                text = {
+                    Column {
+                        Text("Текст из сценария (anchor):", style = MaterialTheme.typography.labelSmall)
+                        Text("\"$selectedAnchor\"", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(16.dp))
+                        OutlinedTextField(
+                            value = propNameInput,
+                            onValueChange = { propNameInput = it },
+                            label = { Text("Название предмета") },
+                            placeholder = { Text("Напр: Клетки") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
                 confirmButton = {
                     Button(onClick = { 
-                        screenModel.addProp(selectedWord, anchor = selectedWord)
+                        screenModel.addProp(propNameInput.ifBlank { selectedAnchor }, anchor = selectedAnchor)
                         showAddPropDialog = false
-                        selectedWord = ""
+                        selectedAnchor = ""
+                        propNameInput = ""
                     }) { 
-                        Text("Да") 
+                        Text("Сохранить") 
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { 
                         showAddPropDialog = false
-                        selectedWord = ""
+                        selectedAnchor = ""
                     }) { 
-                        Text("Нет") 
+                        Text("Отмена") 
                     }
                 }
             )
@@ -101,7 +182,7 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     private fun MasterPane(
-        scenes: List<org.mosyagin.project.GetLatestScenesForProject>,
+        scenes: List<GetLatestScenesForProject>,
         selectedId: Long?,
         searchQuery: String,
         selectedFilter: SceneFilter,
@@ -241,20 +322,24 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
     @Composable
     private fun DetailPane(
         content: String?,
-        props: List<org.mosyagin.project.models.versioning.Prop>,
-        onWordLongClick: (String) -> Unit
+        props: List<Prop>,
+        selectedPropId: Long?,
+        onPropClick: (Long) -> Unit,
+        onTextSelected: (String) -> Unit,
+        listState: androidx.compose.foundation.lazy.LazyListState
     ) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
+        Box(modifier = Modifier.fillMaxSize()) {
             if (content != null) {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    item {
-                        InteractiveScriptText(
-                            fullText = content,
-                            props = props,
-                            onWordLongClick = onWordLongClick
-                        )
-                    }
-                }
+                val blocks = remember(content) { ScriptParser().parseBlocks(content) }
+                InteractiveScriptViewer(
+                    blocks = blocks,
+                    props = props,
+                    selectedPropId = selectedPropId,
+                    onPropClick = onPropClick,
+                    onTextSelected = onTextSelected,
+                    modifier = Modifier.fillMaxSize(),
+                    listState = listState
+                )
             } else {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
@@ -270,14 +355,46 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
     @Composable
     private fun InspectorPane(
         data: SceneInspectorData?,
-        onDeleteProp: (Long) -> Unit
+        layoutType: AppLayoutType,
+        onDeleteProp: (Long) -> Unit,
+        onMarkupClick: () -> Unit,
+        onPropSelected: (Prop) -> Unit
     ) {
         Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
-            Text(
-                "Инспектор",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(bottom = 24.dp)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Инспектор",
+                    style = MaterialTheme.typography.titleLarge
+                )
+                
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (layoutType == AppLayoutType.DESKTOP) {
+                        IconButton(onClick = onMarkupClick) {
+                            Icon(
+                                Icons.Default.AddBox,
+                                contentDescription = "Разметить",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Surface(
+                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Text(
+                                "ЭТО ДЕСКТОП",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                    }
+                }
+            }
             
             if (data != null) {
                 Text("Персонажи", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
@@ -297,13 +414,15 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
                 data.props.forEach { prop ->
                     ListItem(
                         headlineContent = { Text(prop.name) },
+                        supportingContent = if (prop.anchor != prop.name) { { Text(prop.anchor) } } else null,
                         leadingContent = { Icon(Icons.Default.Inventory, null, modifier = Modifier.size(18.dp)) },
                         trailingContent = {
                             IconButton(onClick = { onDeleteProp(prop.id) }) {
                                 Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
                             }
                         },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        modifier = Modifier.clickable { onPropSelected(prop) }
                     )
                 }
             } else {

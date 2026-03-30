@@ -42,6 +42,10 @@ class FakeScriptRepository : ScriptRepository {
     override fun getScriptsForProject(projectId: Long): Flow<List<ScriptFile>> = 
         flowOf(scripts.value.filter { it.projectId == projectId })
 
+    override fun getScriptFileById(id: Long): Flow<ScriptFile?> {
+        TODO("Not yet implemented")
+    }
+
     override suspend fun saveParsedScript(
         projectId: Long,
         seriesNumber: Int,
