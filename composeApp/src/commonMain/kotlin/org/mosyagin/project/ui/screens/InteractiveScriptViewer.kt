@@ -1,7 +1,7 @@
 package org.mosyagin.project.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,12 +17,12 @@ import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.mosyagin.project.models.versioning.Prop
 import org.mosyagin.project.parser.BlockType
 import org.mosyagin.project.parser.ScriptBlock
+import org.mosyagin.project.ui.components.AppLayoutType
 import kotlin.math.max
 import kotlin.math.min
 
@@ -34,12 +34,16 @@ fun InteractiveScriptViewer(
     onPropClick: (Long) -> Unit,
     onTextSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
-    listState: LazyListState
+    listState: LazyListState,
+    layoutType: AppLayoutType = AppLayoutType.DESKTOP
 ) {
     LazyColumn(
         state = listState,
         modifier = modifier.fillMaxSize().background(Color(0xFF1A1A1A)),
-        contentPadding = PaddingValues(vertical = 40.dp, horizontal = 24.dp)
+        contentPadding = PaddingValues(
+            vertical = if (layoutType == AppLayoutType.MOBILE) 20.dp else 60.dp,
+            horizontal = if (layoutType == AppLayoutType.MOBILE) 16.dp else 40.dp
+        )
     ) {
         itemsIndexed(blocks) { _, block ->
             ScriptBlockItem(
@@ -47,7 +51,8 @@ fun InteractiveScriptViewer(
                 props = props,
                 selectedPropId = selectedPropId,
                 onPropClick = onPropClick,
-                onTextSelected = onTextSelected
+                onTextSelected = onTextSelected,
+                layoutType = layoutType
             )
         }
     }
@@ -59,86 +64,160 @@ fun ScriptBlockItem(
     props: List<Prop>,
     selectedPropId: Long?,
     onPropClick: (Long) -> Unit,
-    onTextSelected: (String) -> Unit
+    onTextSelected: (String) -> Unit,
+    layoutType: AppLayoutType
 ) {
+    val isMobile = layoutType == AppLayoutType.MOBILE
+
     val style = when (block.type) {
         BlockType.SLUGLINE -> MaterialTheme.typography.bodyLarge.copy(
-            fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, fontSize = 16.sp, color = Color.White
+            fontWeight = FontWeight.Bold, 
+            fontFamily = FontFamily.Monospace, 
+            fontSize = if (isMobile) 15.sp else 17.sp, 
+            color = Color.White
         )
         BlockType.CHARACTER -> MaterialTheme.typography.bodyMedium.copy(
-            fontFamily = FontFamily.Monospace, fontSize = 15.sp, textAlign = TextAlign.Center, color = Color.White.copy(alpha = 0.9f)
+            fontFamily = FontFamily.Monospace, 
+            fontSize = if (isMobile) 14.sp else 16.sp, 
+            textAlign = TextAlign.Center, 
+            fontWeight = FontWeight.Bold,
+            color = Color.White
         )
         BlockType.DIALOGUE -> MaterialTheme.typography.bodyMedium.copy(
-            fontFamily = FontFamily.Monospace, fontSize = 15.sp, color = Color.White.copy(alpha = 0.85f)
+            fontFamily = FontFamily.Monospace, 
+            fontSize = if (isMobile) 14.sp else 16.sp, 
+            textAlign = TextAlign.Start,
+            lineHeight = if (isMobile) 18.sp else 22.sp,
+            color = Color.White.copy(alpha = 0.9f)
+        )
+        BlockType.PARENTHETICAL -> MaterialTheme.typography.bodySmall.copy(
+            fontFamily = FontFamily.Monospace, 
+            fontSize = if (isMobile) 12.sp else 14.sp, 
+            textAlign = TextAlign.Start,
+            color = Color.White.copy(alpha = 0.75f)
         )
         else -> MaterialTheme.typography.bodyMedium.copy(
-            fontFamily = FontFamily.Monospace, fontSize = 15.sp, color = Color.White.copy(alpha = 0.8f)
+            fontFamily = FontFamily.Monospace, 
+            fontSize = if (isMobile) 14.sp else 16.sp, 
+            lineHeight = if (isMobile) 18.sp else 22.sp,
+            color = Color.White.copy(alpha = 0.85f)
         )
     }
 
     val padding = when (block.type) {
-        BlockType.CHARACTER -> Modifier.padding(start = 140.dp, end = 140.dp, top = 16.dp)
-        BlockType.DIALOGUE -> Modifier.padding(start = 100.dp, end = 100.dp, bottom = 12.dp)
-        else -> Modifier.padding(vertical = 6.dp)
+        BlockType.CHARACTER -> {
+            Modifier.padding(top = if (isMobile) 12.dp else 24.dp, bottom = 2.dp).fillMaxWidth()
+        }
+        BlockType.DIALOGUE -> {
+            val startPadding = if (isMobile) 40.dp else 180.dp
+            val endPadding = if (isMobile) 20.dp else 150.dp
+            Modifier.padding(start = startPadding, end = endPadding, bottom = if (isMobile) 8.dp else 12.dp)
+        }
+        BlockType.PARENTHETICAL -> {
+            val startPadding = if (isMobile) 55.dp else 220.dp
+            val endPadding = if (isMobile) 30.dp else 180.dp
+            Modifier.padding(start = startPadding, end = endPadding, bottom = 4.dp)
+        }
+        BlockType.SLUGLINE -> {
+            Modifier.padding(top = if (isMobile) 16.dp else 32.dp, bottom = if (isMobile) 8.dp else 16.dp)
+        }
+        else -> {
+            Modifier.padding(vertical = if (isMobile) 4.dp else 8.dp)
+        }
     }
 
-    // Состояние текущего выделения пальцем
     var selectionRange by remember { mutableStateOf<IntRange?>(null) }
-
-    val annotatedString = buildAnnotatedStringWithProps(
-        text = block.text,
-        props = props,
-        selectedPropId = selectedPropId,
-        selectionRange = selectionRange
-    )
-
+    var initialWordRange by remember { mutableStateOf<IntRange?>(null) }
     var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
 
+    // ОПТИМИЗАЦИЯ: Кэшируем базовую строку с пропсами
+    val baseAnnotatedString = remember(block.text, props, selectedPropId) {
+        val processedText = if (block.type == BlockType.CHARACTER) block.text.uppercase() else block.text
+        buildAnnotatedStringWithProps(
+            text = processedText,
+            props = props,
+            selectedPropId = selectedPropId,
+            selectionRange = null
+        )
+    }
+
+    // Накладываем выделение поверх кэшированной строки
+    val finalAnnotatedString = remember(baseAnnotatedString, selectionRange) {
+        if (selectionRange == null) {
+            baseAnnotatedString
+        } else {
+            buildAnnotatedString {
+                append(baseAnnotatedString)
+                addStyle(
+                    style = SpanStyle(background = Color(0xFF336699).copy(alpha = 0.5f)),
+                    start = selectionRange!!.first,
+                    end = selectionRange!!.last
+                )
+            }
+        }
+    }
+
     Text(
-        text = annotatedString,
+        text = finalAnnotatedString,
         style = style,
         onTextLayout = { layoutResult = it },
-        modifier = padding.fillMaxWidth().pointerInput(block.text) {
+        modifier = padding.then(
+            if (block.type != BlockType.CHARACTER) Modifier.fillMaxWidth() else Modifier
+        ).pointerInput(block.text) {
             detectTapGestures(
                 onTap = { offset ->
                     layoutResult?.let { result ->
                         val position = result.getOffsetForPosition(offset)
-                        annotatedString.getStringAnnotations("PROP", position, position)
+                        finalAnnotatedString.getStringAnnotations("PROP", position, position)
                             .firstOrNull()?.let { onPropClick(it.item.toLong()) }
                     }
                 }
             )
         }.pointerInput(block.text) {
-            detectDragGestures(
+            detectDragGesturesAfterLongPress(
                 onDragStart = { offset ->
-                    layoutResult?.let {
-                        val start = it.getOffsetForPosition(offset)
-                        selectionRange = start..start
+                    layoutResult?.let { layout ->
+                        val offsetPos = layout.getOffsetForPosition(offset)
+                        val wordBoundary = layout.getWordBoundary(offsetPos)
+                        val range = wordBoundary.start..wordBoundary.end
+                        initialWordRange = range
+                        selectionRange = range
                     }
                 },
                 onDrag = { change, _ ->
-                    layoutResult?.let {
-                        val current = it.getOffsetForPosition(change.position)
-                        val start = selectionRange?.first ?: current
-                        selectionRange = min(start, current)..max(start, current)
+                    change.consume()
+                    layoutResult?.let { layout ->
+                        val currentOffset = layout.getOffsetForPosition(change.position)
+                        val currentWord = layout.getWordBoundary(currentOffset)
+                        
+                        initialWordRange?.let { initial ->
+                            // Выделяем всё от начала первого слова до конца текущего слова под пальцем
+                            val newStart = min(initial.first, currentWord.start)
+                            val newEnd = max(initial.last, currentWord.end)
+                            selectionRange = newStart..newEnd
+                        }
                     }
                 },
                 onDragEnd = {
                     val range = selectionRange
                     if (range != null && range.first != range.last) {
-                        val selectedText = block.text.substring(range.first, range.last).trim()
+                        val selectedText = finalAnnotatedString.text.substring(range.first, range.last).trim()
                         if (selectedText.isNotEmpty()) {
                             onTextSelected(selectedText)
                         }
                     }
                     selectionRange = null
+                    initialWordRange = null
+                },
+                onDragCancel = {
+                    selectionRange = null
+                    initialWordRange = null
                 }
             )
         }
     )
 }
 
-@Composable
 fun buildAnnotatedStringWithProps(
     text: String,
     props: List<Prop>,
@@ -148,7 +227,6 @@ fun buildAnnotatedStringWithProps(
     return buildAnnotatedString {
         append(text)
 
-        // 1. Выделение пальцем (синий маркер)
         selectionRange?.let { range ->
             addStyle(
                 style = SpanStyle(background = Color(0xFF336699).copy(alpha = 0.5f)),
@@ -157,7 +235,6 @@ fun buildAnnotatedStringWithProps(
             )
         }
 
-        // 2. Реквизит (желтый маркер)
         props.forEach { prop ->
             val anchor = prop.anchor
             if (!anchor.isNullOrEmpty()) {

@@ -170,7 +170,8 @@ data class SceneDetailScreen(
                                     }
                                 },
                                 modifier = Modifier.fillMaxSize(),
-                                listState = listState
+                                listState = listState,
+                                layoutType = layoutType
                             )
                         }
                     }
@@ -199,7 +200,8 @@ data class SceneDetailScreen(
                                                 }
                                             },
                                             modifier = Modifier.fillMaxSize(),
-                                            listState = listState
+                                            listState = listState,
+                                            layoutType = layoutType
                                         )
                                     }
                                 }
