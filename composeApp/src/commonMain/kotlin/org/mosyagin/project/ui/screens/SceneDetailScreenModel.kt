@@ -24,11 +24,12 @@ class SceneDetailScreenModel(
     val props: StateFlow<List<Prop>> = repository.getPropsForScene(sceneUserDataId)
         .stateIn(screenModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun addProp(name: String, startOffset: Long = 0, endOffset: Long = 0) {
+    fun addProp(name: String, anchor: String, startOffset: Long = 0, endOffset: Long = 0) {
         screenModelScope.launch {
             repository.addProp(
                 sceneUserDataId = sceneUserDataId,
                 name = name,
+                anchor = anchor,
                 startOffset = startOffset,
                 endOffset = endOffset
             )

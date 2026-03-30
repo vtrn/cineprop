@@ -39,7 +39,7 @@ interface SceneRepository {
     fun getPropsForScene(sceneUserDataId: Long): Flow<List<Prop>>
     fun getPropsByProject(projectId: Long): Flow<List<PropWithScene>>
     suspend fun getSceneUserDataIdBySeriesAndNumber(projectId: Long, series: Long, sceneNumber: String): Long?
-    suspend fun addProp(sceneUserDataId: Long, name: String, status: String = "Найти", startOffset: Long = 0, endOffset: Long = 0)
+    suspend fun addProp(sceneUserDataId: Long, name: String, anchor: String, status: String = "Найти", startOffset: Long = 0, endOffset: Long = 0)
     suspend fun updatePropStatus(propId: Long, newStatus: String)
     suspend fun deleteProp(propId: Long)
     suspend fun updateSceneUserDataReviewStatus(needsReview: Long, id: Long)
@@ -119,10 +119,11 @@ class SceneRepositoryImpl(val queries: DatabaseQueries) : SceneRepository,
         return queries.getSceneUserDataBySeriesAndNumber(projectId, series, sceneNumber).executeAsOneOrNull()?.id
     }
 
-    override suspend fun addProp(sceneUserDataId: Long, name: String, status: String, startOffset: Long, endOffset: Long) {
+    override suspend fun addProp(sceneUserDataId: Long, name: String, anchor: String, status: String, startOffset: Long, endOffset: Long) {
         queries.insertProp(
             sceneUserDataId = sceneUserDataId,
             name = name,
+            anchor = anchor,
             status = status,
             startOffset = startOffset,
             endOffset = endOffset,

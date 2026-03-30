@@ -147,7 +147,7 @@ data class TrackerScreen(val projectId: Long) : Screen {
                 text = { Text("Добавить \"$selectedWord\" в список этой сцены?") },
                 confirmButton = {
                     Button(onClick = {
-                        screenModel.addProp(selectedWord)
+                        screenModel.addProp(selectedWord, selectedWord)
                         showAddPropDialog = false
                     }) { Text("Да") }
                 },

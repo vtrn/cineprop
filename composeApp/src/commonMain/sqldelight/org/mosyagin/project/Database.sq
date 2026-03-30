@@ -213,7 +213,8 @@ WHERE sa.sceneUserDataId = ?;
 CREATE TABLE Prop (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     sceneUserDataId INTEGER NOT NULL,
-    name TEXT NOT NULL,
+    name TEXT NOT NULL,         -- То, что ввел юзер (например, \"Клетки\")
+    anchor TEXT NOT NULL,       -- То, что было в тексте (\"клеток с домашними зверюшками\")
     status TEXT NOT NULL DEFAULT 'Найти',
     startOffset INTEGER NOT NULL,
     endOffset INTEGER NOT NULL,
@@ -222,7 +223,8 @@ CREATE TABLE Prop (
 );
 
 insertProp:
-INSERT INTO Prop(sceneUserDataId, name, status, startOffset, endOffset, orphaned) VALUES (?, ?, ?, ?, ?, ?);
+INSERT INTO Prop(sceneUserDataId, name, anchor, status, startOffset, endOffset, orphaned)
+VALUES (?, ?, ?, ?, ?, ?, ?);
 
 getPropsForScene:
 SELECT * FROM Prop WHERE sceneUserDataId = ? ORDER BY id DESC;

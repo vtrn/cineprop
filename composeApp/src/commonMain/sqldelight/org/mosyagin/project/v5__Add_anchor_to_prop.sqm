@@ -1,0 +1,4 @@
+-- Миграция v5: Добавление колонки anchor в таблицу Prop
+
+-- 1. Добавляем колонку с дефолтным значением (пустая строка), так как она NOT NULL
+ALTER TABLE Prop ADD COLUMN anchor TEXT NOT NULL DEFAULT '';

@@ -45,6 +45,7 @@ fun DbProp.toDomain(): Prop = Prop(
     id = id,
     sceneUserDataId = sceneUserDataId,
     name = name,
+    anchor = anchor,
     status = PropStatus.fromString(status),
     startOffset = startOffset,
     endOffset = endOffset,

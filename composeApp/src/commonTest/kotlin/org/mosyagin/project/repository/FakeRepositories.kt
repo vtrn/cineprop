@@ -107,7 +107,7 @@ class FakeSceneRepository : SceneRepository {
         return scenes.find { it.projectId == projectId && it.seriesNumber == series && it.sceneNumber == sceneNumber }?.id
     }
 
-    override suspend fun addProp(sceneUserDataId: Long, name: String, status: String, startOffset: Long, endOffset: Long) {}
+    override suspend fun addProp(sceneUserDataId: Long, name: String, anchor: String, status: String, startOffset: Long, endOffset: Long) {}
     override suspend fun updatePropStatus(propId: Long, newStatus: String) {}
     override suspend fun deleteProp(propId: Long) {}
     override suspend fun updateSceneUserDataReviewStatus(needsReview: Long, id: Long) {}

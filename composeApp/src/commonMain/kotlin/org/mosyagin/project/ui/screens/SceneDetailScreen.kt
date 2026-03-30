@@ -287,7 +287,7 @@ data class SceneDetailScreen(
                 text = { Text("Добавить \"$selectedWord\" в список реквизита для этой сцены?") },
                 confirmButton = {
                     Button(onClick = { 
-                        screenModel.addProp(selectedWord)
+                        screenModel.addProp(selectedWord, anchor = selectedWord)
                         showAddPropDialog = false
                         selectedWord = ""
                     }) { 
