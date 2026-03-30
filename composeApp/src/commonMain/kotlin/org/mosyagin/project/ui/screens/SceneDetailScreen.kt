@@ -1,6 +1,6 @@
 package org.mosyagin.project.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import cafe.adriel.voyager.core.screen.Screen
@@ -25,6 +26,8 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import kotlinx.coroutines.launch
 import org.koin.core.parameter.parametersOf
+import org.mosyagin.project.Actor
+import org.mosyagin.project.models.versioning.Prop
 import org.mosyagin.project.ui.components.AppLayoutType
 import org.mosyagin.project.ui.components.LocalAppLayoutType
 
@@ -34,7 +37,7 @@ data class SceneDetailScreen(
     val scriptFileId: Long?
 ) : Screen {
 
-    @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
@@ -57,7 +60,12 @@ data class SceneDetailScreen(
         var selectedAnchor by remember { mutableStateOf("") }
         var propNameInput by remember { mutableStateOf("") }
 
-        val hasOrphanedProps = props.any { it.isOrphaned }
+        // Состояние сворачивания инспектора для мобилок
+        val isCollapsed by remember {
+            derivedStateOf {
+                listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 50
+            }
+        }
 
         Box(modifier = Modifier.fillMaxSize()) {
             Scaffold(
@@ -72,35 +80,6 @@ data class SceneDetailScreen(
                             }
                         },
                         actions = {
-                            if (layoutType == AppLayoutType.DESKTOP) {
-                                IconButton(onClick = {
-                                    val text = clipboardManager.getText()?.text ?: ""
-                                    if (text.isNotBlank()) {
-                                        selectedAnchor = text
-                                        propNameInput = ""
-                                        showAddPropDialog = true
-                                    }
-                                }) {
-                                    Icon(
-                                        imageVector = Icons.Default.AddBox,
-                                        contentDescription = "Разметить реквизит",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-
-                                Surface(
-                                    color = MaterialTheme.colorScheme.tertiaryContainer,
-                                    shape = MaterialTheme.shapes.small,
-                                    modifier = Modifier.padding(end = 8.dp)
-                                ) {
-                                    Text(
-                                        "ЭТО ДЕСКТОП",
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = MaterialTheme.colorScheme.onTertiaryContainer
-                                    )
-                                }
-                            }
                             if (scene?.needsReview == 1L) {
                                 TextButton(
                                     onClick = { navigator.push(SceneDiffScreen(sceneUserDataId)) },
@@ -115,126 +94,144 @@ data class SceneDetailScreen(
                     )
                 }
             ) { paddingValues ->
-                Row(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-                    // Левая/Центральная панель: Текст сценария
+                if (layoutType == AppLayoutType.MOBILE) {
                     Column(
-                        modifier = Modifier.weight(0.7f).fillMaxHeight().padding(16.dp)
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(paddingValues)
                     ) {
-                        Card(
-                            modifier = Modifier.fillMaxSize(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                        // Динамический инспектор
+                        Surface(
+                            shadowElevation = if (isCollapsed) 4.dp else 0.dp,
+                            tonalElevation = if (isCollapsed) 2.dp else 0.dp,
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text("ТЕКСТ СЦЕНАРИЯ", style = MaterialTheme.typography.titleMedium)
-                                    if (layoutType == AppLayoutType.DESKTOP) {
-                                        Text("Выделите текст, чтобы разметить реквизит", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                                    }
+                            AnimatedContent(
+                                targetState = isCollapsed,
+                                transitionSpec = {
+                                    fadeIn() + expandVertically() togetherWith fadeOut() + shrinkVertically()
                                 }
-                                
-                                Box(modifier = Modifier.fillMaxSize()) {
-                                    InteractiveScriptViewer(
-                                        blocks = scriptBlocks,
+                            ) { collapsed ->
+                                if (collapsed) {
+                                    // СВЕРНУТЫЙ ВИД (одна строка)
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(Icons.Default.Info, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(
+                                            text = "${scene?.location ?: ""} • ${actors.size} акт. • ${props.size} рекв.",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        IconButton(onClick = { scope.launch { listState.animateScrollToItem(0) } }) {
+                                            Icon(Icons.Default.ExpandMore, null, modifier = Modifier.size(20.dp))
+                                        }
+                                    }
+                                } else {
+                                    // ПОЛНЫЙ ВИД
+                                    InspectorContent(
+                                        scene = scene,
+                                        actors = actors,
                                         props = props,
                                         selectedPropId = selectedPropId,
-                                        onPropClick = { id -> screenModel.setSelectedProp(id) },
-                                        onTextSelected = { text ->
-                                            if (text.isNotBlank()) {
-                                                selectedAnchor = text
-                                                showSelectionPopup = true
+                                        onPropClick = { prop ->
+                                            screenModel.setSelectedProp(prop.id)
+                                            val blockIndex = scriptBlocks.indexOfFirst { it.text.lowercase().contains(prop.anchor.lowercase()) }
+                                            if (blockIndex != -1) {
+                                                scope.launch { listState.animateScrollToItem(blockIndex) }
                                             }
                                         },
-                                        modifier = Modifier.fillMaxSize(),
-                                        listState = listState
+                                        onDeleteProp = { screenModel.deleteProp(it) },
+                                        modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState()).fillMaxHeight(0.4f)
                                     )
                                 }
                             }
                         }
-                    }
 
-                    // Правая панель: Инспектор (weight 0.3f)
-                    Column(
-                        modifier = Modifier.weight(0.3f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Text("ИНСПЕКТОР", style = MaterialTheme.typography.titleLarge)
-
-                        // Метаданные сцены
-                        scene?.let {
-                            Text(
-                                text = "${if (it.isInterior == 1L) "ИНТ." else "НАТ."} ${it.location} — ${it.timeOfDay}",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.primary
+                        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                        
+                        // Текст сценария занимает всё оставшееся место
+                        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                            InteractiveScriptViewer(
+                                blocks = scriptBlocks,
+                                props = props,
+                                selectedPropId = selectedPropId,
+                                onPropClick = { id -> screenModel.setSelectedProp(id) },
+                                onTextSelected = { text ->
+                                    if (text.isNotBlank()) {
+                                        selectedAnchor = text
+                                        showSelectionPopup = true
+                                    }
+                                },
+                                modifier = Modifier.fillMaxSize(),
+                                listState = listState
                             )
                         }
-
-                        // Персонажи
-                        Card(modifier = Modifier.fillMaxWidth()) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text("ПЕРСОНАЖИ", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                                Spacer(Modifier.height(8.dp))
-                                actors.forEach { actor ->
-                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
-                                        Icon(Icons.Default.Person, null, modifier = Modifier.size(16.dp))
-                                        Spacer(Modifier.width(8.dp))
-                                        Text(actor.name, style = MaterialTheme.typography.bodyMedium)
+                    }
+                } else {
+                    // ДЕСКТОПНАЯ ВЕРСИЯ (без изменений)
+                    Row(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+                        Column(
+                            modifier = Modifier.weight(0.7f).fillMaxHeight().padding(16.dp)
+                        ) {
+                            Card(
+                                modifier = Modifier.fillMaxSize(),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                            ) {
+                                Column {
+                                    Text("ТЕКСТ СЦЕНАРИЯ", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(16.dp))
+                                    Box(modifier = Modifier.fillMaxSize()) {
+                                        InteractiveScriptViewer(
+                                            blocks = scriptBlocks,
+                                            props = props,
+                                            selectedPropId = selectedPropId,
+                                            onPropClick = { id -> screenModel.setSelectedProp(id) },
+                                            onTextSelected = { text ->
+                                                if (text.isNotBlank()) {
+                                                    selectedAnchor = text
+                                                    showSelectionPopup = true
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxSize(),
+                                            listState = listState
+                                        )
                                     }
                                 }
                             }
                         }
 
-                        // Реквизит
-                        Text("РЕКВИЗИТ", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                        props.forEach { prop ->
-                            val isSelected = prop.id == selectedPropId
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { 
-                                        screenModel.setSelectedProp(prop.id)
-                                        // Скролл к блоку с этим реквизитом
-                                        val blockIndex = scriptBlocks.indexOfFirst { it.text.lowercase().contains(prop.anchor.lowercase()) }
-                                        if (blockIndex != -1) {
-                                            scope.launch { listState.animateScrollToItem(blockIndex) }
-                                        }
-                                    },
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                )
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            prop.name,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                        )
-                                        Text(prop.anchor, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                        Column(
+                            modifier = Modifier.weight(0.3f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            InspectorContent(
+                                scene = scene,
+                                actors = actors,
+                                props = props,
+                                selectedPropId = selectedPropId,
+                                onPropClick = { prop ->
+                                    screenModel.setSelectedProp(prop.id)
+                                    val blockIndex = scriptBlocks.indexOfFirst { it.text.lowercase().contains(prop.anchor.lowercase()) }
+                                    if (blockIndex != -1) {
+                                        scope.launch { listState.animateScrollToItem(blockIndex) }
                                     }
-                                    IconButton(onClick = { screenModel.deleteProp(prop.id) }) {
-                                        Icon(Icons.Default.Delete, null, modifier = Modifier.size(16.dp))
-                                    }
-                                }
-                            }
+                                },
+                                onDeleteProp = { screenModel.deleteProp(it) }
+                            )
                         }
                     }
                 }
             }
 
-            // Попап "Добавить реквизит?"
+            // Попапы
             if (showSelectionPopup) {
-                Popup(
-                    alignment = Alignment.Center,
-                    onDismissRequest = { showSelectionPopup = false }
-                ) {
+                Popup(alignment = Alignment.Center, onDismissRequest = { showSelectionPopup = false }) {
                     Card(
                         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -244,16 +241,12 @@ data class SceneDetailScreen(
                             Text("\"$selectedAnchor\"", style = MaterialTheme.typography.bodySmall, maxLines = 1)
                             Spacer(Modifier.height(12.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                TextButton(onClick = { showSelectionPopup = false }) {
-                                    Text("Нет")
-                                }
+                                TextButton(onClick = { showSelectionPopup = false }) { Text("Нет") }
                                 Button(onClick = {
                                     showSelectionPopup = false
                                     propNameInput = selectedAnchor
                                     showAddPropDialog = true
-                                }) {
-                                    Text("Да")
-                                }
+                                }) { Text("Да") }
                             }
                         }
                     }
@@ -294,6 +287,70 @@ data class SceneDetailScreen(
                     TextButton(onClick = { showAddPropDialog = false }) { Text("Отмена") }
                 }
             )
+        }
+    }
+
+    @Composable
+    private fun InspectorContent(
+        scene: org.mosyagin.project.GetSceneById?,
+        actors: List<Actor>,
+        props: List<Prop>,
+        selectedPropId: Long?,
+        onPropClick: (Prop) -> Unit,
+        onDeleteProp: (Long) -> Unit,
+        modifier: Modifier = Modifier
+    ) {
+        Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Text("ИНСПЕКТОР", style = MaterialTheme.typography.titleLarge)
+
+            scene?.let {
+                Text(
+                    text = "${if (it.isInterior == 1L) "ИНТ." else "НАТ."} ${it.location} — ${it.timeOfDay}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("ПЕРСОНАЖИ", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.height(8.dp))
+                    actors.forEach { actor ->
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
+                            Icon(Icons.Default.Person, null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(actor.name, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+            }
+
+            Text("РЕКВИЗИТ", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            props.forEach { prop ->
+                val isSelected = prop.id == selectedPropId
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onPropClick(prop) },
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(prop.name, style = MaterialTheme.typography.bodyMedium, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                            Text(prop.anchor, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                        }
+                        IconButton(onClick = { onDeleteProp(prop.id) }) {
+                            Icon(Icons.Default.Delete, null, modifier = Modifier.size(16.dp))
+                        }
+                    }
+                }
+            }
         }
     }
 }

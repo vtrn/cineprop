@@ -84,11 +84,7 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
                 inspectorPane = {
                     InspectorPane(
                         data = inspectorData,
-                        layoutType = layoutType,
                         onDeleteProp = { screenModel.deleteProp(it) },
-                        onMarkupClick = {
-                            // Оставляем как запасной вариант (через буфер)
-                        },
                         onPropSelected = { prop ->
                             val content = sceneDetails?.content
                             if (content != null) {
@@ -355,9 +351,7 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
     @Composable
     private fun InspectorPane(
         data: SceneInspectorData?,
-        layoutType: AppLayoutType,
         onDeleteProp: (Long) -> Unit,
-        onMarkupClick: () -> Unit,
         onPropSelected: (Prop) -> Unit
     ) {
         Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
@@ -370,30 +364,6 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
                     "Инспектор",
                     style = MaterialTheme.typography.titleLarge
                 )
-                
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (layoutType == AppLayoutType.DESKTOP) {
-                        IconButton(onClick = onMarkupClick) {
-                            Icon(
-                                Icons.Default.AddBox,
-                                contentDescription = "Разметить",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        Surface(
-                            color = MaterialTheme.colorScheme.tertiaryContainer,
-                            shape = MaterialTheme.shapes.small
-                        ) {
-                            Text(
-                                "ЭТО ДЕСКТОП",
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer
-                            )
-                        }
-                    }
-                }
             }
             
             if (data != null) {
