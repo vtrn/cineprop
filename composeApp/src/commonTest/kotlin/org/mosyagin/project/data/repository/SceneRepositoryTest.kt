@@ -77,16 +77,17 @@ class SceneRepositoryTest {
     fun testAddAndGetProp() = runTest {
         queries.insertSceneVersion(testScriptId, testUserDataId, "Текст сцены", "hash", 0)
 
-        repository.addProp(testUserDataId, "Меч", "Найти", 0, 10)
+        repository.addProp(testUserDataId, "Меч", "в руках меч", "Найти", 0, 10)
 
         val props = repository.getPropsForScene(testUserDataId).first()
         assertEquals(1, props.size)
         assertEquals("Меч", props[0].name)
+        assertEquals("в руках меч", props[0].anchor)
     }
 
     @Test
     fun testUpdatePropStatus() = runTest {
-        repository.addProp(testUserDataId, "Ваза", "Найти")
+        repository.addProp(testUserDataId, "Ваза", "красивая ваза")
         val props = repository.getPropsByProject(testProjectId).first()
         assertTrue(props.isNotEmpty(), "Props should be added")
         val propId = props[0].id

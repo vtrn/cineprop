@@ -42,6 +42,10 @@ class FakeScriptRepository : ScriptRepository {
     override fun getScriptsForProject(projectId: Long): Flow<List<ScriptFile>> = 
         flowOf(scripts.value.filter { it.projectId == projectId })
 
+    override fun getScriptFileById(id: Long): Flow<ScriptFile?> {
+        return flowOf(scripts.value.find { it.id == id })
+    }
+
     override suspend fun saveParsedScript(
         projectId: Long,
         seriesNumber: Int,
@@ -107,7 +111,7 @@ class FakeSceneRepository : SceneRepository {
         return scenes.find { it.projectId == projectId && it.seriesNumber == series && it.sceneNumber == sceneNumber }?.id
     }
 
-    override suspend fun addProp(sceneUserDataId: Long, name: String, status: String, startOffset: Long, endOffset: Long) {}
+    override suspend fun addProp(sceneUserDataId: Long, name: String, anchor: String, status: String, startOffset: Long, endOffset: Long) {}
     override suspend fun updatePropStatus(propId: Long, newStatus: String) {}
     override suspend fun deleteProp(propId: Long) {}
     override suspend fun updateSceneUserDataReviewStatus(needsReview: Long, id: Long) {}

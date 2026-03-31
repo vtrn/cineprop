@@ -83,12 +83,13 @@ class SceneWorkspaceViewModel(
     }
 
     // Добавление реквизита (аналогично мобильной версии)
-    fun addProp(name: String) {
+    fun addProp(name: String, anchor: String) {
         val sceneId = _selectedSceneId.value ?: return
         screenModelScope.launch {
             sceneRepository.addProp(
                 sceneUserDataId = sceneId,
-                name = name
+                name = name,
+                anchor = anchor
             )
         }
     }

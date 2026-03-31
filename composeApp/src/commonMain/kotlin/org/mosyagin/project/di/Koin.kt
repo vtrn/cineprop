@@ -39,7 +39,7 @@ val databaseModule = module {
 val screenModelModule = module {
     factory { ProjectListScreenModel(get()) }
     factory { (sceneUserDataId: Long, scriptFileId: Long) -> 
-        SceneDetailScreenModel(get(), sceneUserDataId, scriptFileId) 
+        SceneDetailScreenModel(get(), get(), sceneUserDataId, scriptFileId)
     }
     factory { (sceneUserDataId: Long) -> 
         SceneDiffScreenModel(sceneUserDataId, get(), get())

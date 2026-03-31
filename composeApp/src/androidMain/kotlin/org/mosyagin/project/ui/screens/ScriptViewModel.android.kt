@@ -5,21 +5,18 @@ package org.mosyagin.project.ui.screens
 
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
-import com.tom_roush.pdfbox.pdmodel.PDDocument
-import com.tom_roush.pdfbox.text.PDFTextStripper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import org.mosyagin.project.db.appContext
 import org.mosyagin.project.repository.ScriptRepository
 import org.mosyagin.project.parser.update.ScriptUpdateManager
 import org.mosyagin.project.parser.update.UpdateResult
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import androidx.core.net.toUri
+import org.mosyagin.project.util.extractTextFromPdf
 
 @Suppress("EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING")
 actual class ScriptViewModel actual constructor(actual val repository: ScriptRepository) : ScreenModel, KoinComponent {
@@ -38,15 +35,8 @@ actual class ScriptViewModel actual constructor(actual val repository: ScriptRep
 
         withContext(Dispatchers.IO) {
             try {
-                val uri = uriString.toUri()
-                val inputStream = appContext.contentResolver.openInputStream(uri)
-                val document = PDDocument.load(inputStream)
-                
-                val stripper = PDFTextStripper()
-                stripper.sortByPosition = true // Важно: сортируем текст по позиции на странице
-
-                val fullText = stripper.getText(document)
-                document.close()
+                // ИСПОЛЬЗУЕМ НАШ КАСТОМНЫЙ ПАРСЕР С ОТСТУПАМИ
+                val fullText = extractTextFromPdf(uriString)
 
                 if (fullText.trim().isEmpty()) {
                     _updateResult.value = UpdateResult.Error("PDF файл пуст или не содержит текстового слоя")

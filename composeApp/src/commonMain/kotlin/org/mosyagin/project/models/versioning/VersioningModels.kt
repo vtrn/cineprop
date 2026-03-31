@@ -76,6 +76,7 @@ data class Prop(
     val id: Long,
     val sceneUserDataId: Long,
     val name: String,
+    val anchor: String, // Добавили поле
     val status: PropStatus,
     val startOffset: Long,
     val endOffset: Long,

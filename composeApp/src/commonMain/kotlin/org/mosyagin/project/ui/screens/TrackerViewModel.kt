@@ -72,10 +72,10 @@ class TrackerViewModel(
         _selectedSceneId.value = sceneUserDataId
     }
 
-    fun addProp(name: String) {
+    fun addProp(name: String, anchor: String) {
         val sceneId = _selectedSceneId.value ?: return
         screenModelScope.launch {
-            sceneRepository.addProp(sceneUserDataId = sceneId, name = name)
+            sceneRepository.addProp(sceneUserDataId = sceneId, name = name, anchor = anchor)
         }
     }
 
