@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -20,6 +21,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.koin.koinScreenModel
+import cafe.adriel.voyager.navigator.LocalNavigator
+import cafe.adriel.voyager.navigator.currentOrThrow
 import kotlinx.coroutines.launch
 import org.koin.core.parameter.parametersOf
 import org.mosyagin.project.GetLatestScenesForProject
@@ -36,6 +39,7 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
     @Composable
     override fun Content() {
         val screenModel = koinScreenModel<SceneWorkspaceViewModel> { parametersOf(projectId) }
+        val navigator = LocalNavigator.currentOrThrow
         val layoutType = LocalAppLayoutType.current
         val scope = rememberCoroutineScope()
         val listState = rememberLazyListState()
@@ -94,17 +98,15 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
                                     scope.launch { listState.animateScrollToItem(index) }
                                 }
                             }
-                        }
+                        },
+                        onShowDiff = { id -> navigator.push(SceneDiffScreen(id)) }
                     )
                 }
             )
 
-            // Попап "Добавить реквизит?" при выделении текста
+            // Попап "Добавить реквизит?"
             if (showSelectionPopup) {
-                Popup(
-                    alignment = Alignment.Center,
-                    onDismissRequest = { showSelectionPopup = false }
-                ) {
+                Popup(alignment = Alignment.Center, onDismissRequest = { showSelectionPopup = false }) {
                     Card(
                         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -114,16 +116,12 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
                             Text("\"$selectedAnchor\"", style = MaterialTheme.typography.bodySmall, maxLines = 1)
                             Spacer(Modifier.height(12.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                TextButton(onClick = { showSelectionPopup = false }) {
-                                    Text("Нет")
-                                }
+                                TextButton(onClick = { showSelectionPopup = false }) { Text("Нет") }
                                 Button(onClick = {
                                     showSelectionPopup = false
                                     propNameInput = selectedAnchor
                                     showAddPropDialog = true
-                                }) {
-                                    Text("Да")
-                                }
+                                }) { Text("Да") }
                             }
                         }
                     }
@@ -133,10 +131,7 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
 
         if (showAddPropDialog) {
             AlertDialog(
-                onDismissRequest = { 
-                    showAddPropDialog = false
-                    selectedAnchor = ""
-                },
+                onDismissRequest = { showAddPropDialog = false },
                 title = { Text("Новый реквизит") },
                 text = {
                     Column {
@@ -159,17 +154,10 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
                         showAddPropDialog = false
                         selectedAnchor = ""
                         propNameInput = ""
-                    }) { 
-                        Text("Сохранить") 
-                    }
+                    }) { Text("Сохранить") }
                 },
                 dismissButton = {
-                    TextButton(onClick = { 
-                        showAddPropDialog = false
-                        selectedAnchor = ""
-                    }) { 
-                        Text("Отмена") 
-                    }
+                    TextButton(onClick = { showAddPropDialog = false }) { Text("Отмена") }
                 }
             )
         }
@@ -187,67 +175,29 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
         onFilterClick: (SceneFilter) -> Unit
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Text(
-                "Сцены",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(16.dp)
-            )
+            Text("Сцены", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(16.dp))
 
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = onSearchChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 placeholder = { Text("Поиск сцены или локации...") },
                 leadingIcon = { Icon(Icons.Default.Search, null) },
-                trailingIcon = if (searchQuery.isNotEmpty()) {
-                    { IconButton(onClick = { onSearchChange("") }) { Icon(Icons.Default.Close, null) } }
-                } else null,
                 shape = CircleShape,
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                )
+                singleLine = true
             )
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SceneFilter.entries.forEach { filter ->
                     FilterChip(
                         selected = selectedFilter == filter,
                         onClick = { onFilterClick(filter) },
-                        label = {
-                            Text(
-                                when (filter) {
-                                    SceneFilter.ALL -> "Все"
-                                    SceneFilter.MODIFIED -> "Измененные"
-                                    SceneFilter.NEW -> "Новые"
-                                }
-                            )
-                        }
+                        label = { Text(when (filter) { SceneFilter.ALL -> "Все"; SceneFilter.MODIFIED -> "Измененные"; SceneFilter.NEW -> "Новые" }) }
                     )
                 }
             }
 
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (scenes.isEmpty()) {
-                    item {
-                        Box(Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("Ничего не найдено", color = MaterialTheme.colorScheme.outline)
-                        }
-                    }
-                }
-
+            LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(scenes) { scene ->
                     val isSelected = scene.id == selectedId
                     val isBrandNew = scene.versionCount == 1L
@@ -255,58 +205,21 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
 
                     CineCard(
                         onClick = { onSceneClick(scene.id) },
-                        containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer 
-                                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                        containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Default.Movie,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Movie, null, modifier = Modifier.size(18.dp), tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        "Сцена ${scene.seriesNumber}-${scene.sceneNumber}",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                    
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Сцена ${scene.seriesNumber}-${scene.sceneNumber}", style = MaterialTheme.typography.labelMedium, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                                     Row {
-                                        if (isBrandNew) {
-                                            CineTag(
-                                                text = "NEW",
-                                                containerColor = Color(0xFFE8F5E9),
-                                                contentColor = Color(0xFF2E7D32)
-                                            )
-                                        }
-                                        if (needsReview) {
-                                            Spacer(Modifier.width(4.dp))
-                                            CineTag(
-                                                text = "UPD",
-                                                containerColor = Color(0xFFFFF3E0),
-                                                contentColor = Color(0xFFE65100)
-                                            )
-                                        }
+                                        if (isBrandNew) CineTag(text = "NEW", containerColor = Color(0xFFE8F5E9), contentColor = Color(0xFF2E7D32))
+                                        if (needsReview) { Spacer(Modifier.width(4.dp)); CineTag(text = "UPD", containerColor = Color(0xFFFFF3E0), contentColor = Color(0xFFE65100)) }
                                     }
                                 }
-                                Text(
-                                    scene.location,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    maxLines = 1,
-                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer 
-                                            else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Text(scene.location, style = MaterialTheme.typography.bodySmall, maxLines = 1)
                             }
                         }
                     }
@@ -316,65 +229,40 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
     }
 
     @Composable
-    private fun DetailPane(
-        content: String?,
-        props: List<Prop>,
-        selectedPropId: Long?,
-        onPropClick: (Long) -> Unit,
-        onTextSelected: (String) -> Unit,
-        listState: androidx.compose.foundation.lazy.LazyListState
-    ) {
+    private fun DetailPane(content: String?, props: List<Prop>, selectedPropId: Long?, onPropClick: (Long) -> Unit, onTextSelected: (String) -> Unit, listState: androidx.compose.foundation.lazy.LazyListState) {
         Box(modifier = Modifier.fillMaxSize()) {
             if (content != null) {
-                val blocks = remember(content) { ScriptParser().parseBlocks(content) }
-                InteractiveScriptViewer(
-                    blocks = blocks,
-                    props = props,
-                    selectedPropId = selectedPropId,
-                    onPropClick = onPropClick,
-                    onTextSelected = onTextSelected,
-                    modifier = Modifier.fillMaxSize(),
-                    listState = listState
-                )
+                InteractiveScriptViewer(blocks = ScriptParser().parseBlocks(content), props = props, selectedPropId = selectedPropId, onPropClick = onPropClick, onTextSelected = onTextSelected, modifier = Modifier.fillMaxSize(), listState = listState)
             } else {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        "Выберите сцену в левой панели",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                    )
-                }
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Выберите сцену в левой панели", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) }
             }
         }
     }
 
     @Composable
-    private fun InspectorPane(
-        data: SceneInspectorData?,
-        onDeleteProp: (Long) -> Unit,
-        onPropSelected: (Prop) -> Unit
-    ) {
+    private fun InspectorPane(data: SceneInspectorData?, onDeleteProp: (Long) -> Unit, onPropSelected: (Prop) -> Unit, onShowDiff: (Long) -> Unit) {
         Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "Инспектор",
-                    style = MaterialTheme.typography.titleLarge
-                )
-            }
+            Text("Инспектор", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(bottom = 24.dp))
             
             if (data != null) {
+                // КНОПКА DIFF
+                if (data.needsReview) {
+                    Button(
+                        onClick = { onShowDiff(data.sceneId) },
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9800)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Difference, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Показать изменения", fontWeight = FontWeight.Bold)
+                    }
+                }
+
                 Text("Персонажи", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.height(8.dp))
                 data.actors.forEach { actor ->
-                    ListItem(
-                        headlineContent = { Text(actor.name) },
-                        leadingContent = { Icon(Icons.Default.Person, null, modifier = Modifier.size(18.dp)) },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-                    )
+                    ListItem(headlineContent = { Text(actor.name) }, leadingContent = { Icon(Icons.Default.Person, null, modifier = Modifier.size(18.dp)) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent))
                 }
                 
                 Spacer(Modifier.height(32.dp))
@@ -384,23 +272,14 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
                 data.props.forEach { prop ->
                     ListItem(
                         headlineContent = { Text(prop.name) },
-                        supportingContent = if (prop.anchor != prop.name) { { Text(prop.anchor) } } else null,
                         leadingContent = { Icon(Icons.Default.Inventory, null, modifier = Modifier.size(18.dp)) },
-                        trailingContent = {
-                            IconButton(onClick = { onDeleteProp(prop.id) }) {
-                                Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
-                            }
-                        },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clickable { onPropSelected(prop) }
+                        trailingContent = { IconButton(onClick = { onDeleteProp(prop.id) }) { Icon(Icons.Default.Delete, null, modifier = Modifier.size(18.dp)) } },
+                        modifier = Modifier.clickable { onPropSelected(prop) },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                     )
                 }
             } else {
-                Text(
-                    "Нет данных для инспектора",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                )
+                Text("Выберите сцену", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
             }
         }
     }

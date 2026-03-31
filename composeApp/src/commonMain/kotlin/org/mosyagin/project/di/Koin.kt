@@ -42,7 +42,7 @@ val screenModelModule = module {
         SceneDetailScreenModel(get(), get(), sceneUserDataId, scriptFileId)
     }
     factory { (sceneUserDataId: Long) -> 
-        SceneDiffScreenModel(sceneUserDataId, get(), get())
+        SceneDiffViewModel(sceneUserDataId = sceneUserDataId, repository = get(), parser = get())
     }
     factory { ScriptViewModel(get()) }
     
