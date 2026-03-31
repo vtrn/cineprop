@@ -82,6 +82,12 @@ class ScriptParser {
         val blocks = mutableListOf<ScriptBlock>()
         val lines = content.lines()
         
+        // 1. Вычисляем "базовый левый край" сцены (динамически)
+        val nonEmpties = lines.filter { it.trim().isNotEmpty() && !it.trim().matches(pageNumberRegex) }
+        val baseIndent = nonEmpties.map { it.takeWhile { c -> c == ' ' }.length }.minOrNull() ?: 0
+        
+        println("DEBUG_PARSER: --- Scene Start (Base Indent: $baseIndent) ---")
+
         var inDialogueMode = false
 
         for (i in lines.indices) {
@@ -97,31 +103,34 @@ class ScriptParser {
             val indent = originalLine.takeWhile { it == ' ' }.length
             
             val type = when {
-                indent < 10 && sceneTypeRegex.containsMatchIn(trimmed) -> {
+                // Заголовок сцены: всегда прижат к базовой линии
+                indent <= baseIndent + 4 && sceneTypeRegex.containsMatchIn(trimmed) -> {
                     inDialogueMode = false
                     BlockType.SLUGLINE
                 }
-                indent > 15 && isCharacterName(trimmed) -> {
+                // Имя персонажа: большой отступ относительно базы + КАПС
+                indent >= baseIndent + 14 && isCharacterName(trimmed) -> {
                     inDialogueMode = true
                     BlockType.CHARACTER
                 }
-                indent > 8 && trimmed.startsWith("(") && trimmed.endsWith(")") -> {
+                // Ремарка: средний отступ + скобки
+                indent >= baseIndent + 8 && trimmed.startsWith("(") && trimmed.endsWith(")") -> {
                     inDialogueMode = true
                     BlockType.PARENTHETICAL
                 }
-                inDialogueMode && indent > 6 -> {
+                // ДИАЛОГ: если мы в режиме диалога И отступ больше базовой линии (Action)
+                inDialogueMode && indent >= baseIndent + 6 -> {
                     BlockType.DIALOGUE
                 }
-                indent > 25 && (trimmed.endsWith(":") || trimmed.contains("СКЛЕЙКА") || trimmed.contains("ЗТМ")) -> {
-                    inDialogueMode = false
-                    BlockType.TRANSITION
-                }
+                // Всё, что на базовой линии или близко к ней - это ACTION
                 else -> {
                     inDialogueMode = false
                     BlockType.ACTION
                 }
             }
             
+            println("DEBUG_PARSER: [indent=$indent, base=$baseIndent, type=$type] text='$trimmed'")
+
             if (blocks.isNotEmpty() && blocks.last().type == type && (type == BlockType.DIALOGUE || type == BlockType.ACTION)) {
                 val lastBlock = blocks.last()
                 blocks[blocks.size - 1] = ScriptBlock(type, lastBlock.text + "\n" + trimmed)
@@ -129,6 +138,7 @@ class ScriptParser {
                 blocks.add(ScriptBlock(type, trimmed))
             }
         }
+        println("DEBUG_PARSER: --- Scene End ---")
         return blocks
     }
 
