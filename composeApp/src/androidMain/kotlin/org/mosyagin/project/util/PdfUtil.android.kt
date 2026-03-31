@@ -9,19 +9,15 @@ import java.io.IOException
 
 actual fun extractTextFromPdf(uriString: String): String {
     return try {
-        println("PDF_DEBUG: Starting extraction from $uriString")
         val uri = Uri.parse(uriString)
         val inputStream = appContext.contentResolver.openInputStream(uri) ?: return ""
         
         PDDocument.load(inputStream).use { document ->
             val stripper = ScriptPdfStripper()
             stripper.sortByPosition = true
-            val text = stripper.getText(document)
-            println("PDF_DEBUG: Extraction finished. Text length: ${text.length}")
-            text
+            stripper.getText(document)
         }
     } catch (e: Exception) {
-        println("PDF_DEBUG: Error during extraction: ${e.message}")
         e.printStackTrace()
         ""
     }
@@ -49,8 +45,6 @@ private class ScriptPdfStripper : PDFTextStripper() {
                 val indent = " ".repeat(spaceCount)
                 output.write(indent)
             }
-            // Выводим в лог информацию о начале строки, координате X и посчитанном отступе
-            println("PDF_DEBUG: Line start at X=${"%.2f".format(x)}, indent spaces=$spaceCount, text sample='${text?.take(20)?.replace("\n", " ")}...'")
             isStartOfLine = false
         }
 

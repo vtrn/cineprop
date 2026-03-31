@@ -83,8 +83,6 @@ class ScriptParser {
         val lines = content.lines()
         
         var inDialogueMode = false
-        
-        println("--- START PARSING BLOCKS ---") // ДЛЯ ПРОВЕРКИ
 
         for (i in lines.indices) {
             val originalLine = lines[i]
@@ -98,9 +96,6 @@ class ScriptParser {
 
             val indent = originalLine.takeWhile { it == ' ' }.length
             
-            // ВЫВОДИМ В КОНСОЛЬ КАЖДУЮ СТРОКУ И ЕЁ ОТСТУП
-            println("DEBUG: [indent=$indent] text='$trimmed'")
-
             val type = when {
                 indent < 10 && sceneTypeRegex.containsMatchIn(trimmed) -> {
                     inDialogueMode = false
@@ -134,7 +129,6 @@ class ScriptParser {
                 blocks.add(ScriptBlock(type, trimmed))
             }
         }
-        println("--- END PARSING BLOCKS ---")
         return blocks
     }
 
