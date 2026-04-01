@@ -1,202 +1,183 @@
 package org.mosyagin.project.parser
 
+/**
+ * ScriptParser — высокоточный парсер сценариев.
+ * Реализует рекомендации по группировке строк и контекстному анализу.
+ */
 class ScriptParser {
 
-    private val sceneTypeRegex = Regex("""\b(ИНТ|НАТ|INT|EXT|инт|нат|int|ext)\b""")
-    private val pageNumberRegex = Regex("""^\d+$""")
+    private val sceneTypeRegex = Regex("""\b(ИНТ|НАТ|INT|EXT|ИНТ\.|НАТ\.|INT\.|EXT\.)\b""", RegexOption.IGNORE_CASE)
+    private val pageNumberRegex = Regex("""^\s*(?:Page\s+)?\d+\s*$""", RegexOption.IGNORE_CASE)
+    private val gluedCharacterRegex = Regex("""^([A-ZА-ЯЁ]{2,}[A-ZА-ЯЁ\s\d\.\-]{0,40})([a-zа-яё].*)$""")
+    private val sceneNumberWithSuffixRegex = Regex("""^[\d\.\-a-zа-яёA-ZА-ЯЁ]+$""")
 
     fun parse(text: String, seriesNumber: Int): List<ParsedScene> {
-        val scenes = mutableListOf<ParsedScene>()
-        val cleanedText = text.replace("\r\n", "\n").replace("\r", "\n")
-        
-        val lines = cleanedText.lines()
-        
-        var currentSceneContent = StringBuilder()
-        var currentHeader: HeaderInfo? = null
+        if (text.isBlank()) return emptyList()
+        return runCatching {
+            val scenes = mutableListOf<ParsedScene>()
+            val lines = text.replace("\r\n", "\n").replace("\r", "\n").lines()
+            var currentSceneContent = StringBuilder()
+            var currentHeader: HeaderInfo? = null
 
-        for (i in lines.indices) {
-            val line = lines[i]
-            val trimmed = line.trim()
-            
-            if (trimmed.isEmpty() && currentHeader == null) continue
-            if (trimmed.matches(pageNumberRegex)) continue
+            for (i in lines.indices) {
+                val line = lines[i]
+                val trimmed = line.trim()
+                if (trimmed.isEmpty() && currentHeader == null) continue
+                if (trimmed.matches(pageNumberRegex)) continue
 
-            val typeMatch = sceneTypeRegex.find(trimmed)
-            
-            if (typeMatch != null && isLikelyHeader(trimmed, typeMatch)) {
-                currentHeader?.let { 
-                    scenes.add(createParsedScene(it, currentSceneContent.toString(), seriesNumber)) 
-                }
-                
-                val rawNum = trimmed.substring(0, typeMatch.range.first).trim().removeSuffix(".")
-                var sceneNum = rawNum
-                if (sceneNum.isEmpty() && i > 0) {
-                    val prevLine = lines[i-1].trim()
-                    if (prevLine.length in 1..8 && prevLine.all { it.isDigit() || it.isLetter() || it == '-' || it == '.' }) {
-                        sceneNum = prevLine.removeSuffix(".")
-                    }
-                }
-                
-                val cleanedSceneNum = sanitizeSceneNumber(sceneNum, seriesNumber)
-                val finalSceneNum = if (cleanedSceneNum.isEmpty()) (scenes.size + 1).toString() else cleanedSceneNum
-                val afterType = trimmed.substring(typeMatch.range.last + 1).trim().removePrefix(".")
-                val (location, time) = parseLocationAndTime(afterType)
-                
-                currentHeader = HeaderInfo(
-                    number = finalSceneNum,
-                    type = typeMatch.value.uppercase(),
-                    location = location,
-                    time = time
-                )
-                currentSceneContent = StringBuilder(line).append("\n")
-            } else {
-                if (currentHeader != null) {
+                val typeMatch = sceneTypeRegex.find(trimmed)
+                if (typeMatch != null && isLikelyHeader(trimmed)) {
+                    currentHeader?.let { scenes.add(createParsedScene(it, currentSceneContent.toString(), seriesNumber)) }
+                    currentHeader = parseSceneHeader(trimmed, typeMatch, i, lines, scenes.size, seriesNumber)
+                    currentSceneContent = StringBuilder(line).append("\n")
+                } else if (currentHeader != null) {
                     currentSceneContent.append(line).append("\n")
                 }
             }
-        }
-        
-        currentHeader?.let { 
-            scenes.add(createParsedScene(it, currentSceneContent.toString(), seriesNumber)) 
-        }
-        
-        return scenes
+            currentHeader?.let { scenes.add(createParsedScene(it, currentSceneContent.toString(), seriesNumber)) }
+            scenes
+        }.getOrElse { emptyList() }
     }
 
-    private fun sanitizeSceneNumber(rawNum: String, currentSeries: Int): String {
-        val seriesPrefixes = listOf("$currentSeries-", "$currentSeries.")
-        var result = rawNum.trim()
-        for (prefix in seriesPrefixes) {
-            if (result.startsWith(prefix)) result = result.substring(prefix.length).trim()
-        }
-        if (result.contains("-") || result.contains(".")) {
-             val parts = result.split(Regex("[-.]"))
-             if (parts.firstOrNull() == currentSeries.toString()) {
-                 return parts.drop(1).joinToString("-")
-             }
-        }
-        return result
-    }
-
+    /**
+     * Реализует рекомендации по группировке строк до следующего CHARACTER
+     * и снижению чувствительности семантического анализа.
+     */
     fun parseBlocks(content: String): List<ScriptBlock> {
-        val blocks = mutableListOf<ScriptBlock>()
-        val lines = content.lines()
-        
-        // 1. Вычисляем "базовый левый край" сцены (динамически)
-        val nonEmpties = lines.filter { it.trim().isNotEmpty() && !it.trim().matches(pageNumberRegex) }
-        val baseIndent = nonEmpties.map { it.takeWhile { c -> c == ' ' }.length }.minOrNull() ?: 0
-        
-        println("DEBUG_PARSER: --- Scene Start (Base Indent: $baseIndent) ---")
+        val resultBlocks = mutableListOf<ScriptBlock>()
+        val rawLines = content.lines().filter { it.isNotBlank() }
+        if (rawLines.isEmpty()) return emptyList()
+
+        // 1. Нормализация (табы и спец-пробелы) перед любой обработкой
+        val normalizedLines = rawLines.map { line ->
+            line.replace("\u00A0", " ").replace("\t", "    ")
+        }
+
+        // 2. Динамическая калибровка по очищенным строкам
+        val indents = normalizedLines.map { line -> 
+            line.replace("[B]", "").takeWhile { it == ' ' }.length 
+        }
+        val minIndent = indents.minOrNull() ?: 0
+        val maxIndent = indents.maxOrNull() ?: 0
+        val midPoint = (minIndent + maxIndent) / 2
+
+        println("DEBUG_PARSER: --- Scene Calibration: Min=$minIndent, Max=$maxIndent, Mid=$midPoint ---")
 
         var inDialogueMode = false
 
-        for (i in lines.indices) {
-            val originalLine = lines[i]
-            val trimmed = originalLine.trim()
+        for (line in normalizedLines) {
+            val isBold = line.startsWith("[B]")
+            val cleanLine = line.replace("[B]", "")
+            val trimmed = cleanLine.trim()
             
-            if (trimmed.isEmpty()) {
-                inDialogueMode = false
-                continue
-            }
-            if (trimmed.matches(pageNumberRegex)) continue
+            val linesToProcess = if (!inDialogueMode) restoreGluedText(trimmed) else listOf(trimmed)
+            
+            for (idx in linesToProcess.indices) {
+                val subLine = linesToProcess[idx]
+                val indent = if (subLine == trimmed) cleanLine.takeWhile { it == ' ' }.length else midPoint
+                
+                // Fallback для десктопа: если indent 0, но мы в режиме диалога, притворяемся, что отступ есть.
+                val effectiveIndent = if (indent == 0 && inDialogueMode) minIndent + 6 else indent
 
-            val indent = originalLine.takeWhile { it == ' ' }.length
-            
-            val type = when {
-                // Заголовок сцены: всегда прижат к базовой линии
-                indent <= baseIndent + 4 && sceneTypeRegex.containsMatchIn(trimmed) -> {
-                    inDialogueMode = false
-                    BlockType.SLUGLINE
+                val type = when {
+                    // 1. Заголовок сцены
+                    (isBold && sceneTypeRegex.containsMatchIn(subLine)) || (indent <= minIndent + 2 && sceneTypeRegex.containsMatchIn(subLine)) -> {
+                        inDialogueMode = false
+                        BlockType.SLUGLINE
+                    }
+                    
+                    // 2. Имя персонажа (новое начало диалога)
+                    // Увеличиваем лимит длины до 60 и добавляем лояльность к (indent == 0) для десктопа
+                    isAllCaps(subLine) && (indent >= midPoint + 2 || isBold || (indent == 0 && subLine.length in 2..60 && !subLine.endsWith(":"))) && subLine.length in 2..60 -> {
+                        inDialogueMode = true
+                        BlockType.CHARACTER
+                    }
+                    
+                    // 3. Ремарка
+                    subLine.startsWith("(") && subLine.endsWith(")") -> {
+                        inDialogueMode = true
+                        BlockType.PARENTHETICAL
+                    }
+                    
+                    // 4. Диалоговый режим (упрощенное условие по твоему плану)
+                    inDialogueMode && effectiveIndent >= minIndent + 6 -> {
+                        BlockType.DIALOGUE
+                    }
+                    
+                    // 5. Переходы
+                    isAllCaps(subLine) && (subLine.endsWith(":") || subLine.contains("СКЛЕЙКА")) -> {
+                        inDialogueMode = false
+                        BlockType.TRANSITION
+                    }
+                    
+                    // 6. Всё остальное — это ACTION
+                    else -> {
+                        inDialogueMode = false
+                        BlockType.ACTION
+                    }
                 }
-                // Имя персонажа: большой отступ относительно базы + КАПС
-                indent >= baseIndent + 14 && isCharacterName(trimmed) -> {
-                    inDialogueMode = true
-                    BlockType.CHARACTER
-                }
-                // Ремарка: средний отступ + скобки
-                indent >= baseIndent + 8 && trimmed.startsWith("(") && trimmed.endsWith(")") -> {
-                    inDialogueMode = true
-                    BlockType.PARENTHETICAL
-                }
-                // ДИАЛОГ: если мы в режиме диалога И отступ больше базовой линии (Action)
-                inDialogueMode && indent >= baseIndent + 6 -> {
-                    BlockType.DIALOGUE
-                }
-                // Всё, что на базовой линии или близко к ней - это ACTION
-                else -> {
-                    inDialogueMode = false
-                    BlockType.ACTION
-                }
-            }
-            
-            println("DEBUG_PARSER: [indent=$indent, base=$baseIndent, type=$type] text='$trimmed'")
 
-            if (blocks.isNotEmpty() && blocks.last().type == type && (type == BlockType.DIALOGUE || type == BlockType.ACTION)) {
-                val lastBlock = blocks.last()
-                blocks[blocks.size - 1] = ScriptBlock(type, lastBlock.text + "\n" + trimmed)
-            } else {
-                blocks.add(ScriptBlock(type, trimmed))
+                // ЛОГ КАТЕГОРИЗАЦИИ ДЛЯ ДЕБАГА
+                println("DEBUG_PARSER: [Category: ${type.name.padEnd(13)}] | Indent: ${indent.toString().padEnd(2)} | Text: '${subLine.take(50)}...'")
+
+                // Склеиваем блоки
+                if (resultBlocks.isNotEmpty() && resultBlocks.last().type == type && (type == BlockType.DIALOGUE || type == BlockType.ACTION)) {
+                    val last = resultBlocks.last()
+                    resultBlocks[resultBlocks.size - 1] = ScriptBlock(type, last.text + "\n" + subLine)
+                } else {
+                    resultBlocks.add(ScriptBlock(type, subLine))
+                }
             }
         }
-        println("DEBUG_PARSER: --- Scene End ---")
-        return blocks
+        return resultBlocks
     }
 
-    private fun isCharacterName(text: String): Boolean {
-        if (text.length < 2 || text.length > 50) return false
-        return text.all { 
-            it.isUpperCase() || it.isDigit() || it.isWhitespace() || 
-            it == '.' || it == ':' || it == '(' || it == ')' || it == '-' || it == '#' || it == '\''
+    private fun isAllCaps(text: String): Boolean {
+        if (text.isEmpty() || text.startsWith("...")) return false
+        // Добавлен символ '/' для корректного определения имен типа "З/К"
+        return text.all { it.isUpperCase() || it.isDigit() || it.isWhitespace() || it in ".:()-'#&/" }
+    }
+
+    private fun restoreGluedText(text: String): List<String> {
+        if (text.isEmpty() || !text[0].isLetter()) return listOf(text)
+        val match = gluedCharacterRegex.find(text)
+        return if (match != null && !sceneTypeRegex.containsMatchIn(text)) {
+            listOf(match.groupValues[1].trim(), match.groupValues[2].trim())
+        } else listOf(text)
+    }
+
+    private fun isLikelyHeader(line: String): Boolean = line.length <= 150 && !line.startsWith("(")
+
+    private fun parseSceneHeader(line: String, match: MatchResult, idx: Int, all: List<String>, count: Int, series: Int): HeaderInfo {
+        var sceneNumber = line.substring(0, match.range.first).trim().removeSuffix(".")
+        if (sceneNumber.isEmpty() && idx > 0) {
+            val prev = all[idx-1].trim()
+            if (prev.length in 1..10 && sceneNumberWithSuffixRegex.matches(prev)) sceneNumber = prev
         }
+        val (loc, time) = parseLocationAndTime(line.substring(match.range.last + 1).trim())
+        return HeaderInfo(if (sceneNumber.isNotEmpty()) sanitizeSceneNumber(sceneNumber, series) else (count + 1).toString(), match.value.uppercase().replace(".", ""), loc, time)
     }
 
-    private data class HeaderInfo(val number: String, val type: String, val location: String, val time: String)
-
-    private fun isLikelyHeader(line: String, match: MatchResult): Boolean {
-        if (line.isEmpty() || line.length > 150) return false
-        val after = line.substring(match.range.last + 1).trim().removePrefix(".")
-        if (after.isEmpty()) return false
-        return true
+    private fun sanitizeSceneNumber(raw: String, series: Int): String {
+        val prefix = "$series-"; val dotPrefix = "$series."
+        var res = raw.trim()
+        if (res.startsWith(prefix)) res = res.substring(prefix.length)
+        if (res.startsWith(dotPrefix)) res = res.substring(dotPrefix.length)
+        return res.trim()
     }
 
     private fun parseLocationAndTime(text: String): Pair<String, String> {
-        val timeRegex = Regex("""\b(ДЕНЬ|НОЧЬ|УТРО|ВЕЧЕР|DAY|NIGHT|день|ночь|утро|вечер|day|night)\b""", RegexOption.IGNORE_CASE)
-        val timeMatch = timeRegex.find(text)
-        
-        return if (timeMatch != null) {
-            val location = text.substring(0, timeMatch.range.first).trim().removeSuffix(".").trim('-', ' ', '.')
-            location to timeMatch.value.uppercase()
-        } else {
-            text.trim().removeSuffix(".").trim('-', ' ', '.') to "НЕ УКАЗАНО"
-        }
+        val timeRegex = Regex("""\b(ДЕНЬ|НОЧЬ|УТРО|ВЕЧЕР|DAY|NIGHT)\b""", RegexOption.IGNORE_CASE)
+        val m = timeRegex.find(text)
+        return if (m != null) text.substring(0, m.range.first).trim('-', ' ', '.') to m.value.uppercase() 
+               else text.trim('-', ' ', '.') to "НЕ УКАЗАНО"
     }
 
-    private fun createParsedScene(header: HeaderInfo, content: String, seriesNum: Int): ParsedScene {
-        return ParsedScene(
-            seriesNumber = seriesNum.toString(),
-            sceneNumber = header.number,
-            type = header.type,
-            location = header.location,
-            time = header.time,
-            content = content, 
-            actors = extractActors(content)
-        )
-    }
+    private fun createParsedScene(header: HeaderInfo, content: String, series: Int) = ParsedScene(series.toString(), header.number, header.type, header.location, header.time, content, extractActors(content))
 
-    private fun extractActors(text: String): List<String> {
-        val lines = text.lines().map { it.trim() }.filter { it.isNotEmpty() }
-        if (lines.isEmpty()) return emptyList()
-        val actors = mutableSetOf<String>()
-        val possibleActorLines = lines.drop(1).take(30)
-        for (line in possibleActorLines) {
-            val cleanLine = line.replace(Regex("""\(.*?\)"""), "").trim()
-            if (cleanLine.length in 2..30 && 
-                cleanLine.all { it.isUpperCase() || it.isWhitespace() || it == '.' } &&
-                !cleanLine.contains(Regex("ИНТ|НАТ|INT|EXT|СЦЕНА|СЕРИЯ"))
-            ) {
-                actors.add(cleanLine)
-            }
-        }
-        return actors.toList()
-    }
+    private fun extractActors(text: String): List<String> = text.lines().map { it.trim() }.filter { it.isNotEmpty() }
+        .filter { isAllCaps(it) && it.length in 2..60 && !sceneTypeRegex.containsMatchIn(it) }
+        .map { it.replace(Regex("""\(.*?\)"""), "").trim() }.distinct()
+
+    private data class HeaderInfo(val number: String, val type: String, val location: String, val time: String)
 }

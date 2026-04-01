@@ -226,11 +226,12 @@ data class SceneDiffScreen(val sceneUserDataId: Long) : Screen {
         
         Text(
             text = if (isHeader) buildAnnotatedString { append(text.text.uppercase()) } else text,
-            textAlign = TextAlign.Center,
+            // ИСПРАВЛЕНИЕ: Центрируем ТОЛЬКО заголовки и имена. Действия и диалоги - по левому краю.
+            textAlign = if (isHeader) TextAlign.Center else TextAlign.Start,
             style = MaterialTheme.typography.bodySmall.copy(
                 fontFamily = FontFamily.Monospace,
-                lineHeight = 22.sp, // Увеличил интервал для крупного шрифта
-                fontSize = 16.sp,   // Увеличил шрифт до 16
+                lineHeight = 22.sp,
+                fontSize = 16.sp,
                 color = if (isOld) Color.White.copy(alpha = 0.6f) else Color.White
             ),
             modifier = Modifier
