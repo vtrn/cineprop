@@ -113,9 +113,16 @@ class FakeSceneRepository : SceneRepository {
 
     override suspend fun addProp(sceneUserDataId: Long, name: String, anchor: String, status: String, startOffset: Long, endOffset: Long) {}
     override suspend fun updatePropStatus(propId: Long, newStatus: String) {}
+    override suspend fun updatePropOrphanedStatus(propId: Long, isOrphaned: Boolean) {
+        TODO("Not yet implemented")
+    }
+
     override suspend fun deleteProp(propId: Long) {}
     override suspend fun updateSceneUserDataReviewStatus(needsReview: Long, id: Long) {}
     override suspend fun confirmAllProps(sceneUserDataId: Long) {}
+    override suspend fun markPropAsOrphaned(sceneUserDataId: Long, propName: String) {
+        TODO("Not yet implemented")
+    }
 }
 
 class FakeShiftRepository : ShiftRepository {

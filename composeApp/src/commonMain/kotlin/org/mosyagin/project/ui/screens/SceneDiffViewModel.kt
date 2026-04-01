@@ -48,6 +48,10 @@ class SceneDiffViewModel(
 
                 val report = MyersDiffEngine.compare(oldBlocks, currentBlocks)
                 val sbsRows = transformToSideBySide(report.diffs)
+                
+                // Анализ влияния изменений на реквизит
+                val existingProps = repository.getPropsForScene(sceneUserDataId).first()
+                val impacts = PropImpactAnalyzer.analyze(report, existingProps)
 
                 val sceneTitle = repository.getSceneUserDataById(sceneUserDataId).firstOrNull()?.let { 
                     "${it.seriesNumber}-${it.sceneNumber}"
@@ -57,7 +61,8 @@ class SceneDiffViewModel(
                     rows = sbsRows,
                     sceneNumber = sceneTitle,
                     addedCount = report.addedCount,
-                    deletedCount = report.deletedCount
+                    deletedCount = report.deletedCount,
+                    propImpacts = impacts
                 )
             }
             .launchIn(screenModelScope)
@@ -132,7 +137,8 @@ class SceneDiffViewModel(
             val rows: List<SideBySideDiffRow>, 
             val sceneNumber: String,
             val addedCount: Int,
-            val deletedCount: Int
+            val deletedCount: Int,
+            val propImpacts: List<PropImpact> = emptyList()
         ) : DiffState()
         data class Error(val message: String) : DiffState()
     }

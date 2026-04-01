@@ -70,11 +70,23 @@ class ScriptParser {
             val cleanLine = line.replace("[B]", "")
             val trimmed = cleanLine.trim()
             
-            val linesToProcess = if (!inDialogueMode) restoreGluedText(trimmed) else listOf(trimmed)
+            // Восстановление склеек и разделение Имя (Ремарка)
+            val initialLines = if (!inDialogueMode) restoreGluedText(trimmed) else listOf(trimmed)
+            val linesToProcess = initialLines.flatMap { l ->
+                val bracketIdx = l.indexOf('(')
+                if (bracketIdx > 0 && !sceneTypeRegex.containsMatchIn(l)) {
+                    val namePart = l.substring(0, bracketIdx).trim()
+                    val parenPart = l.substring(bracketIdx).trim()
+                    if (isAllCaps(namePart) && namePart.length in 2..60) {
+                        listOf(namePart, parenPart)
+                    } else listOf(l)
+                } else listOf(l)
+            }
             
             for (idx in linesToProcess.indices) {
                 val subLine = linesToProcess[idx]
-                val indent = if (subLine == trimmed) cleanLine.takeWhile { it == ' ' }.length else midPoint
+                val realLineIndent = cleanLine.takeWhile { it == ' ' }.length
+                val indent = if (subLine == trimmed || linesToProcess.size > 1) realLineIndent else midPoint
                 
                 // Fallback для десктопа: если indent 0, но мы в режиме диалога, притворяемся, что отступ есть.
                 val effectiveIndent = if (indent == 0 && inDialogueMode) minIndent + 6 else indent
@@ -87,19 +99,20 @@ class ScriptParser {
                     }
                     
                     // 2. Имя персонажа (новое начало диалога)
-                    // Увеличиваем лимит длины до 60 и добавляем лояльность к (indent == 0) для десктопа
-                    isAllCaps(subLine) && (indent >= midPoint + 2 || isBold || (indent == 0 && subLine.length in 2..60 && !subLine.endsWith(":"))) && subLine.length in 2..60 -> {
+                    isAllCaps(subLine) && subLine.first().isLetter() && subLine.last().isLetter() &&
+                    (indent >= midPoint || isBold || (indent == 0 && subLine.length in 2..60)) && 
+                    subLine.length in 2..60 && !subLine.endsWith(":") -> {
                         inDialogueMode = true
                         BlockType.CHARACTER
                     }
                     
                     // 3. Ремарка
-                    subLine.startsWith("(") && subLine.endsWith(")") -> {
+                    (subLine.startsWith("(") || subLine.endsWith(")")) && inDialogueMode -> {
                         inDialogueMode = true
                         BlockType.PARENTHETICAL
                     }
                     
-                    // 4. Диалоговый режим (упрощенное условие по твоему плану)
+                    // 4. Диалоговый режим
                     inDialogueMode && effectiveIndent >= minIndent + 6 -> {
                         BlockType.DIALOGUE
                     }
@@ -120,10 +133,10 @@ class ScriptParser {
                 // ЛОГ КАТЕГОРИЗАЦИИ ДЛЯ ДЕБАГА
                 println("DEBUG_PARSER: [Category: ${type.name.padEnd(13)}] | Indent: ${indent.toString().padEnd(2)} | Text: '${subLine.take(50)}...'")
 
-                // Склеиваем блоки
-                if (resultBlocks.isNotEmpty() && resultBlocks.last().type == type && (type == BlockType.DIALOGUE || type == BlockType.ACTION)) {
-                    val last = resultBlocks.last()
-                    resultBlocks[resultBlocks.size - 1] = ScriptBlock(type, last.text + "\n" + subLine)
+                // Склеиваем блоки (Action, Dialogue, Parenthetical)
+                val lastBlock = resultBlocks.lastOrNull()
+                if (lastBlock != null && lastBlock.type == type && (type == BlockType.DIALOGUE || type == BlockType.ACTION || type == BlockType.PARENTHETICAL)) {
+                    resultBlocks[resultBlocks.size - 1] = ScriptBlock(type, lastBlock.text + "\n" + subLine)
                 } else {
                     resultBlocks.add(ScriptBlock(type, subLine))
                 }
@@ -134,8 +147,8 @@ class ScriptParser {
 
     private fun isAllCaps(text: String): Boolean {
         if (text.isEmpty() || text.startsWith("...")) return false
-        // Добавлен символ '/' для корректного определения имен типа "З/К"
-        return text.all { it.isUpperCase() || it.isDigit() || it.isWhitespace() || it in ".:()-'#&/" }
+        if (text.contains('(') || text.contains(')')) return false
+        return text.all { it.isUpperCase() || it.isDigit() || it.isWhitespace() || it in ".:-'#&/" }
     }
 
     private fun restoreGluedText(text: String): List<String> {

@@ -1,14 +1,18 @@
 package org.mosyagin.project.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,6 +38,8 @@ import org.koin.core.parameter.parametersOf
 import org.mosyagin.project.parser.BlockType
 import org.mosyagin.project.parser.update.DiffType
 import org.mosyagin.project.parser.update.DiffUtils
+import org.mosyagin.project.parser.update.PropImpact
+import org.mosyagin.project.parser.update.PropImpactType
 import org.mosyagin.project.ui.components.AppLayoutType
 import org.mosyagin.project.ui.components.LocalAppLayoutType
 
@@ -99,9 +105,9 @@ data class SceneDiffScreen(val sceneUserDataId: Long) : Screen {
                 }
                 is SceneDiffViewModel.DiffState.Success -> {
                     if (layoutType == AppLayoutType.MOBILE) {
-                        MobileUnifiedDiff(s.rows, padding)
+                        MobileUnifiedDiff(s.rows, s.propImpacts, padding)
                     } else {
-                        DesktopSideBySideDiff(s.rows, padding)
+                        DesktopSideBySideDiff(s.rows, s.propImpacts, padding)
                     }
                 }
             }
@@ -109,11 +115,50 @@ data class SceneDiffScreen(val sceneUserDataId: Long) : Screen {
     }
 
     @Composable
-    private fun DesktopSideBySideDiff(rows: List<SideBySideDiffRow>, padding: PaddingValues) {
+    private fun DesktopSideBySideDiff(rows: List<SideBySideDiffRow>, impacts: List<PropImpact>, padding: PaddingValues) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding).background(Color(0xFF121212)),
             contentPadding = PaddingValues(bottom = 100.dp)
         ) {
+            // СЕКЦИЯ СИРОТСКОГО РЕКВИЗИТА (ДЕСКТОП)
+            val orphaned = impacts.filter { it.type == PropImpactType.POTENTIALLY_ORPHANED }
+            if (orphaned.isNotEmpty()) {
+                item {
+                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 60.dp, vertical = 24.dp)) {
+                        Text(
+                            "СИРОТСКИЙ РЕКВИЗИТ (упоминание удалено из новой версии сценария):",
+                            color = Color(0xFFE57373),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            orphaned.forEach { impact ->
+                                Surface(
+                                    color = Color(0xFFC62828).copy(alpha = 0.2f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = BorderStroke(1.dp, Color(0xFFE57373).copy(alpha = 0.4f))
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                    ) {
+                                        Icon(Icons.Default.LinkOff, null, tint = Color(0xFFE57373), modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(impact.propName, color = Color(0xFFE57373), style = MaterialTheme.typography.bodyMedium)
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(24.dp))
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                    }
+                }
+            }
+
             items(rows) { row ->
                 SideBySideRow(row)
             }
@@ -180,17 +225,51 @@ data class SceneDiffScreen(val sceneUserDataId: Long) : Screen {
     }
 
     @Composable
-    private fun MobileUnifiedDiff(rows: List<SideBySideDiffRow>, padding: PaddingValues) {
+    private fun MobileUnifiedDiff(rows: List<SideBySideDiffRow>, impacts: List<PropImpact>, padding: PaddingValues) {
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding).background(Color(0xFF121212)), contentPadding = PaddingValues(bottom = 100.dp)) {
+            
+            // СЕКЦИЯ СИРОТСКОГО РЕКВИЗИТА
+            val orphaned = impacts.filter { it.type == PropImpactType.POTENTIALLY_ORPHANED }
+            if (orphaned.isNotEmpty()) {
+                item {
+                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                        Text(
+                            "СИРОТСКИЙ РЕКВИЗИТ (упоминание удалено):", 
+                            color = Color(0xFFE57373), 
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                            orphaned.forEach { impact ->
+                                Surface(
+                                    color = Color(0xFFC62828).copy(alpha = 0.2f),
+                                    shape = RoundedCornerShape(6.dp),
+                                    border = BorderStroke(1.dp, Color(0xFFE57373).copy(alpha = 0.4f)),
+                                    modifier = Modifier.padding(end = 8.dp)
+                                ) {
+                                    Text(
+                                        impact.propName,
+                                        color = Color(0xFFE57373),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(16.dp))
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                    }
+                }
+            }
+
             items(rows) { row ->
                 val type = row.newBlock?.type ?: row.oldBlock?.type ?: BlockType.ACTION
                 
-                // Если текст изменился, объединяем старое и новое в один блок
                 if (row.oldBlock?.text != row.newBlock?.text) {
                     val annotatedText = renderMobileWordDiff(row.oldBlock?.text ?: "", row.newBlock?.text ?: "")
                     MobileDiffItem(annotatedText, type, DiffType.UNCHANGED)
                 } else {
-                    // Текст не изменился - просто выводим
                     MobileDiffItem(buildAnnotatedString { append(row.newBlock?.text ?: "") }, type, DiffType.UNCHANGED)
                 }
             }
@@ -224,10 +303,6 @@ data class SceneDiffScreen(val sceneUserDataId: Long) : Screen {
         }
     }
 
-    /**
-     * Специальный рендерер для мобильной версии:
-     * Показывает удаленные слова перечеркнутыми (красными), а новые ярко-зелеными в одной строке.
-     */
     private fun renderMobileWordDiff(oldText: String, newText: String): AnnotatedString {
         val diffs = DiffUtils.diffWords(oldText, newText)
         return buildAnnotatedString {
@@ -301,9 +376,6 @@ data class SceneDiffScreen(val sceneUserDataId: Long) : Screen {
     }
 }
 
-/**
- * Переводит текст в верхний регистр, сохраняя все SpanStyles (цвета, перечеркивания).
- */
 private fun AnnotatedString.toUpperCasePreservingStyles(): AnnotatedString {
     return buildAnnotatedString {
         append(text.uppercase())

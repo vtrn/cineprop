@@ -23,7 +23,8 @@ data class PropWithScene(
     val name: String,
     val status: String,
     val seriesNumber: Long,
-    val sceneNumber: String
+    val sceneNumber: String,
+    val isOrphaned: Boolean = false
 )
 
 interface SceneRepository {
@@ -41,9 +42,11 @@ interface SceneRepository {
     suspend fun getSceneUserDataIdBySeriesAndNumber(projectId: Long, series: Long, sceneNumber: String): Long?
     suspend fun addProp(sceneUserDataId: Long, name: String, anchor: String, status: String = "Найти", startOffset: Long = 0, endOffset: Long = 0)
     suspend fun updatePropStatus(propId: Long, newStatus: String)
+    suspend fun updatePropOrphanedStatus(propId: Long, isOrphaned: Boolean)
     suspend fun deleteProp(propId: Long)
     suspend fun updateSceneUserDataReviewStatus(needsReview: Long, id: Long)
     suspend fun confirmAllProps(sceneUserDataId: Long)
+    suspend fun markPropAsOrphaned(sceneUserDataId: Long, propName: String)
 }
 
 class SceneRepositoryImpl(val queries: DatabaseQueries) : SceneRepository,
@@ -110,7 +113,8 @@ class SceneRepositoryImpl(val queries: DatabaseQueries) : SceneRepository,
                         name = prop.name,
                         status = prop.status,
                         seriesNumber = prop.seriesNumber,
-                        sceneNumber = prop.sceneNumber
+                        sceneNumber = prop.sceneNumber,
+                        isOrphaned = prop.orphaned == 1L
                     )
                 }
             }
@@ -135,6 +139,10 @@ class SceneRepositoryImpl(val queries: DatabaseQueries) : SceneRepository,
         queries.updatePropStatus(newStatus, propId)
     }
 
+    override suspend fun updatePropOrphanedStatus(propId: Long, isOrphaned: Boolean) {
+        queries.updatePropOrphanedStatus(if (isOrphaned) 1L else 0L, propId)
+    }
+
     override suspend fun deleteProp(propId: Long) {
         queries.deleteProp(propId)
     }
@@ -149,6 +157,13 @@ class SceneRepositoryImpl(val queries: DatabaseQueries) : SceneRepository,
             props.forEach { prop ->
                 queries.updatePropOrphanedStatus(0L, prop.id)
             }
+        }
+    }
+
+    override suspend fun markPropAsOrphaned(sceneUserDataId: Long, propName: String) {
+        val props = queries.getPropsForScene(sceneUserDataId).executeAsList()
+        props.find { it.name.equals(propName, ignoreCase = true) }?.let {
+            queries.updatePropOrphanedStatus(1L, it.id)
         }
     }
 
