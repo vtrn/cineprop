@@ -56,9 +56,15 @@ class TrackerViewModel(
         else {
             combine(
                 sceneRepository.getPropsForScene(id),
-                sceneRepository.getActorsForScene(id)
-            ) { props, actors ->
-                SceneInspectorData(props, actors)
+                sceneRepository.getActorsForScene(id),
+                sceneRepository.getSceneUserDataById(id)
+            ) { props, actors, userData ->
+                SceneInspectorData(
+                    sceneId = id,
+                    props = props, 
+                    actors = actors,
+                    needsReview = userData?.needsReview == 1L
+                )
             }
         }
     }.stateIn(screenModelScope, SharingStarted.WhileSubscribed(5000), null)

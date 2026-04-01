@@ -60,7 +60,6 @@ data class SceneDetailScreen(
         var selectedAnchor by remember { mutableStateOf("") }
         var propNameInput by remember { mutableStateOf("") }
 
-        // Состояние сворачивания инспектора для мобилок
         val isCollapsed by remember {
             derivedStateOf {
                 listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 50
@@ -100,7 +99,6 @@ data class SceneDetailScreen(
                             .fillMaxSize()
                             .padding(paddingValues)
                     ) {
-                        // Динамический инспектор
                         Surface(
                             shadowElevation = if (isCollapsed) 4.dp else 0.dp,
                             tonalElevation = if (isCollapsed) 2.dp else 0.dp,
@@ -113,7 +111,6 @@ data class SceneDetailScreen(
                                 }
                             ) { collapsed ->
                                 if (collapsed) {
-                                    // СВЕРНУТЫЙ ВИД (одна строка)
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -134,7 +131,6 @@ data class SceneDetailScreen(
                                         }
                                     }
                                 } else {
-                                    // ПОЛНЫЙ ВИД
                                     InspectorContent(
                                         scene = scene,
                                         actors = actors,
@@ -156,7 +152,6 @@ data class SceneDetailScreen(
 
                         HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                         
-                        // Текст сценария занимает всё оставшееся место
                         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                             InteractiveScriptViewer(
                                 blocks = scriptBlocks,
@@ -176,7 +171,6 @@ data class SceneDetailScreen(
                         }
                     }
                 } else {
-                    // ДЕСКТОПНАЯ ВЕРСИЯ (без изменений)
                     Row(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
                         Column(
                             modifier = Modifier.weight(0.7f).fillMaxHeight().padding(16.dp)
@@ -231,7 +225,6 @@ data class SceneDetailScreen(
                 }
             }
 
-            // Попапы
             if (showSelectionPopup) {
                 Popup(alignment = Alignment.Center, onDismissRequest = { showSelectionPopup = false }) {
                     Card(
@@ -330,6 +323,8 @@ data class SceneDetailScreen(
             Text("РЕКВИЗИТ", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             props.forEach { prop ->
                 val isSelected = prop.id == selectedPropId
+                val isOrphaned = prop.isOrphaned
+                
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -343,9 +338,24 @@ data class SceneDetailScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(prop.name, style = MaterialTheme.typography.bodyMedium, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
-                            Text(prop.anchor, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                        Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                            if (isOrphaned) {
+                                Icon(
+                                    imageVector = Icons.Default.LinkOff,
+                                    contentDescription = "Сиротский",
+                                    tint = Color(0xFFE57373),
+                                    modifier = Modifier.size(18.dp).padding(end = 8.dp)
+                                )
+                            }
+                            Column {
+                                Text(
+                                    text = prop.name, 
+                                    style = MaterialTheme.typography.bodyMedium, 
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isOrphaned) Color(0xFFE57373) else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(prop.anchor, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                            }
                         }
                         IconButton(onClick = { onDeleteProp(prop.id) }) {
                             Icon(Icons.Default.Delete, null, modifier = Modifier.size(16.dp))
