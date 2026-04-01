@@ -149,7 +149,7 @@ class ScriptParser {
     private fun isLikelyHeader(line: String): Boolean = line.length <= 150 && !line.startsWith("(")
 
     private fun parseSceneHeader(line: String, match: MatchResult, idx: Int, all: List<String>, count: Int, series: Int): HeaderInfo {
-        var sceneNumber = line.substring(0, match.range.first).trim().removeSuffix(".")
+        var sceneNumber = line.substring(0, match.range.first).replace("[B]", "").trim().removeSuffix(".")
         if (sceneNumber.isEmpty() && idx > 0) {
             val prev = all[idx-1].trim()
             if (prev.length in 1..10 && sceneNumberWithSuffixRegex.matches(prev)) sceneNumber = prev

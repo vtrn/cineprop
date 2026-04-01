@@ -181,41 +181,77 @@ data class SceneDiffScreen(val sceneUserDataId: Long) : Screen {
 
     @Composable
     private fun MobileUnifiedDiff(rows: List<SideBySideDiffRow>, padding: PaddingValues) {
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(bottom = 100.dp)) {
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding).background(Color(0xFF121212)), contentPadding = PaddingValues(bottom = 100.dp)) {
             items(rows) { row ->
+                val type = row.newBlock?.type ?: row.oldBlock?.type ?: BlockType.ACTION
+                
+                // Если текст изменился, объединяем старое и новое в один блок
                 if (row.oldBlock?.text != row.newBlock?.text) {
-                    if (row.oldBlock != null) MobileDiffItem(row.oldBlock.text, row.oldBlock.type, DiffType.DELETED)
-                    if (row.newBlock != null) MobileDiffItem(row.newBlock.text, row.newBlock.type, DiffType.ADDED)
+                    val annotatedText = renderMobileWordDiff(row.oldBlock?.text ?: "", row.newBlock?.text ?: "")
+                    MobileDiffItem(annotatedText, type, DiffType.UNCHANGED)
                 } else {
-                    MobileDiffItem(row.newBlock?.text ?: "", row.newBlock?.type ?: BlockType.ACTION, DiffType.UNCHANGED)
+                    // Текст не изменился - просто выводим
+                    MobileDiffItem(buildAnnotatedString { append(row.newBlock?.text ?: "") }, type, DiffType.UNCHANGED)
                 }
             }
         }
     }
 
     @Composable
-    private fun MobileDiffItem(text: String, type: BlockType, diffType: DiffType) {
+    private fun MobileDiffItem(text: AnnotatedString, type: BlockType, diffType: DiffType) {
         val bgColor = when(diffType) {
             DiffType.ADDED -> Color(0xFF1B5E20).copy(alpha = 0.1f)
             DiffType.DELETED -> Color(0xFFB71C1C).copy(alpha = 0.1f)
             else -> Color.Transparent
         }
-        val textColor = when(diffType) {
-            DiffType.ADDED -> Color(0xFF81C784)
-            DiffType.DELETED -> Color(0xFFE57373)
-            else -> MaterialTheme.colorScheme.onSurface
-        }
+        
+        val isHeader = type == BlockType.SLUGLINE || type == BlockType.CHARACTER
+        val isDialogue = type == BlockType.DIALOGUE || type == BlockType.PARENTHETICAL
 
-        Box(Modifier.fillMaxWidth().background(bgColor).padding(vertical = 4.dp, horizontal = 12.dp)) {
+        Box(Modifier.fillMaxWidth().background(bgColor).padding(vertical = 8.dp, horizontal = 16.dp)) {
             Text(
-                text = if (type == BlockType.SLUGLINE || type == BlockType.CHARACTER) text.uppercase() else text,
+                text = if (isHeader) text.toUpperCasePreservingStyles() else text,
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
-                    color = textColor,
-                    textDecoration = if (diffType == DiffType.DELETED) TextDecoration.LineThrough else null
+                    fontSize = 14.sp,
+                    lineHeight = 18.sp,
+                    color = Color.White.copy(alpha = 0.9f)
                 ),
-                modifier = Modifier.padding(start = if (type == BlockType.CHARACTER) 40.dp else if (type == BlockType.DIALOGUE) 20.dp else 0.dp)
+                modifier = Modifier.padding(
+                    start = if (type == BlockType.CHARACTER) 40.dp else if (isDialogue) 20.dp else 0.dp
+                )
             )
+        }
+    }
+
+    /**
+     * Специальный рендерер для мобильной версии:
+     * Показывает удаленные слова перечеркнутыми (красными), а новые ярко-зелеными в одной строке.
+     */
+    private fun renderMobileWordDiff(oldText: String, newText: String): AnnotatedString {
+        val diffs = DiffUtils.diffWords(oldText, newText)
+        return buildAnnotatedString {
+            diffs.forEach { diff ->
+                when (diff.type) {
+                    DiffType.ADDED -> {
+                        withStyle(SpanStyle(
+                            color = Color(0xFF81C784), 
+                            background = Color(0xFF2E7D32).copy(alpha = 0.3f),
+                            fontWeight = FontWeight.Bold
+                        )) { append(diff.text) }
+                    }
+                    DiffType.DELETED -> {
+                        withStyle(SpanStyle(
+                            color = Color(0xFFE57373), 
+                            background = Color(0xFFC62828).copy(alpha = 0.3f),
+                            textDecoration = TextDecoration.LineThrough
+                        )) { append(diff.text) }
+                    }
+                    DiffType.UNCHANGED -> {
+                        append(diff.text)
+                    }
+                }
+            }
         }
     }
 
@@ -225,8 +261,7 @@ data class SceneDiffScreen(val sceneUserDataId: Long) : Screen {
         val isDialogue = type == BlockType.DIALOGUE || type == BlockType.PARENTHETICAL
         
         Text(
-            text = if (isHeader) buildAnnotatedString { append(text.text.uppercase()) } else text,
-            // ИСПРАВЛЕНИЕ: Центрируем ТОЛЬКО заголовки и имена. Действия и диалоги - по левому краю.
+            text = if (isHeader) text.toUpperCasePreservingStyles() else text,
             textAlign = if (isHeader) TextAlign.Center else TextAlign.Start,
             style = MaterialTheme.typography.bodySmall.copy(
                 fontFamily = FontFamily.Monospace,
@@ -263,5 +298,15 @@ data class SceneDiffScreen(val sceneUserDataId: Long) : Screen {
                 }
             }
         }
+    }
+}
+
+/**
+ * Переводит текст в верхний регистр, сохраняя все SpanStyles (цвета, перечеркивания).
+ */
+private fun AnnotatedString.toUpperCasePreservingStyles(): AnnotatedString {
+    return buildAnnotatedString {
+        append(text.uppercase())
+        spanStyles.forEach { addStyle(it.item, it.start, it.end) }
     }
 }
