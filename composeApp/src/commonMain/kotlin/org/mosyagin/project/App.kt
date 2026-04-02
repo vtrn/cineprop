@@ -1,5 +1,6 @@
 package org.mosyagin.project
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -8,6 +9,8 @@ import androidx.compose.ui.Modifier
 import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.transitions.SlideTransition
 import org.koin.compose.KoinContext
+import org.koin.compose.koinInject
+import org.mosyagin.project.repository.SettingsRepository
 import org.mosyagin.project.ui.components.AdaptiveScaffold
 import org.mosyagin.project.ui.components.AppLayoutType
 import org.mosyagin.project.ui.screens.*
@@ -15,8 +18,17 @@ import org.mosyagin.project.ui.theme.CinePropTheme
 
 @Composable
 fun App() {
-    CinePropTheme {
-        KoinContext {
+    KoinContext {
+        val settingsRepository: SettingsRepository = koinInject()
+        val themeMode by settingsRepository.getThemeMode().collectAsState("system")
+        
+        val isDarkTheme = when (themeMode) {
+            "light" -> false
+            "dark" -> true
+            else -> isSystemInDarkTheme()
+        }
+
+        CinePropTheme(darkTheme = isDarkTheme) {
             Surface(
                 modifier = Modifier.fillMaxSize(),
                 color = MaterialTheme.colorScheme.background
@@ -27,11 +39,13 @@ fun App() {
                 var lastLayoutType by remember { mutableStateOf(AppLayoutType.MOBILE) }
 
                 Navigator(ProjectListScreen()) { navigator ->
-                    // Синхронизация состояния Сайдбара с текущим экраном
                     LaunchedEffect(navigator.lastItem) {
                         val item = navigator.lastItem
                         
                         when (item) {
+                            is SettingsScreen -> {
+                                currentSection = "settings"
+                            }
                             is ProjectDashboardScreen -> {
                                 isInProject = true
                                 activeProjectId = item.projectId
@@ -82,43 +96,42 @@ fun App() {
                             navigator.popUntilRoot()
                         },
                         onSectionSelect = { section ->
-                            val id = activeProjectId ?: return@AdaptiveScaffold
-                            
-                            // Предотвращаем повторное открытие того же экрана
                             if (currentSection == section) return@AdaptiveScaffold
 
                             when (section) {
-                                "dashboard" -> navigator.replace(ProjectDashboardScreen(id))
-                                "script" -> {
+                                "projects" -> navigator.popUntilRoot()
+                                "settings" -> navigator.push(SettingsScreen())
+                                "dashboard" -> activeProjectId?.let { navigator.replace(ProjectDashboardScreen(it)) }
+                                "script" -> activeProjectId?.let { id ->
                                     if (lastLayoutType == AppLayoutType.DESKTOP) {
                                         navigator.replace(ScriptWorkspaceScreen(id))
                                     } else {
                                         navigator.replace(ScriptListScreen(id))
                                     }
                                 }
-                                "scenes" -> {
+                                "scenes" -> activeProjectId?.let { id ->
                                     if (lastLayoutType == AppLayoutType.DESKTOP) {
                                         navigator.replace(SceneWorkspaceScreen(id))
                                     } else {
                                         navigator.replace(SceneListScreen(id, "Проект"))
                                     }
                                 }
-                                "schedule" -> {
+                                "schedule" -> activeProjectId?.let { id ->
                                     if (lastLayoutType == AppLayoutType.DESKTOP) {
                                         navigator.replace(KppWorkspaceScreen(id))
                                     } else {
                                         navigator.replace(KppListScreen(id))
                                     }
                                 }
-                                "tracker" -> navigator.replace(TrackerScreen(id))
-                                "inventory" -> {
+                                "tracker" -> activeProjectId?.let { navigator.replace(TrackerScreen(it)) }
+                                "inventory" -> activeProjectId?.let { id ->
                                     if (lastLayoutType == AppLayoutType.DESKTOP) {
                                         navigator.replace(PropWorkspaceScreen(id))
                                     } else {
                                         navigator.replace(PropListScreen(id))
                                     }
                                 }
-                                "bible" -> {
+                                "bible" -> activeProjectId?.let { id ->
                                     if (lastLayoutType == AppLayoutType.DESKTOP) {
                                         navigator.replace(CharacterWorkspaceScreen(id))
                                     } else {

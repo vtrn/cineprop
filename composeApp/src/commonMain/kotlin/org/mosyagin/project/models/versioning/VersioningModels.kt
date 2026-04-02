@@ -42,7 +42,7 @@ enum class PropStatus(val displayName: String) {
 data class ScriptFile(
     val id: Long,
     val projectId: Long,
-    val seriesNumber: Long, // Добавлено
+    val seriesNumber: Long,
     val title: String,
     val filePath: String,
     val createdAt: Long,
@@ -76,8 +76,15 @@ data class Prop(
     val id: Long,
     val sceneUserDataId: Long,
     val name: String,
-    val anchor: String, // Добавили поле
+    val anchor: String,
     val status: PropStatus,
+    val category: String = "Прочее",
+    val propType: String = "Обстановочный",
+    val note: String? = null,
+    val photoPath: String? = null,
+    val isCrossCutting: Boolean = false,
+    val quantity: Int = 1,
+    val actorId: Long? = null,
     val startOffset: Long,
     val endOffset: Long,
     val isOrphaned: Boolean

@@ -1,0 +1,8 @@
+/**
+ * Миграция v7: Добавление таблицы настроек.
+ */
+
+CREATE TABLE AppSettings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);

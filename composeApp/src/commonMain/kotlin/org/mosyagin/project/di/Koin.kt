@@ -1,5 +1,6 @@
 package org.mosyagin.project.di
 
+import kotlinx.coroutines.NonCancellable.get
 import org.koin.core.context.startKoin
 import org.koin.dsl.KoinAppDeclaration
 import org.koin.dsl.module
@@ -11,6 +12,7 @@ import org.mosyagin.project.parser.ScriptParser
 import org.mosyagin.project.parser.update.ScriptUpdateManager
 import org.mosyagin.project.repository.*
 import org.mosyagin.project.ui.screens.*
+import kotlin.coroutines.EmptyCoroutineContext.get
 
 /**
  * Инициализация Koin.
@@ -66,6 +68,11 @@ val screenModelModule = module {
         PropWorkspaceViewModel(projectId, get())
     }
 
+    // Asset Manager для Desktop
+    factory { (projectId: Long) -> 
+        PropAssetManagerViewModel(get(), projectId)
+    }
+
     // Script Workspace для Desktop
     factory { (projectId: Long) -> 
         ScriptWorkspaceViewModel(projectId, get())
@@ -80,6 +87,9 @@ val screenModelModule = module {
     factory { (projectId: Long) -> 
         CharacterWorkspaceViewModel(projectId, get())
     }
+    
+    // Settings
+    factory { SettingsViewModel(get()) }
 }
 
 /**
@@ -95,4 +105,7 @@ val appModule = module {
     single<ScriptRepository> { ScriptRepositoryImpl(get(), get()) }
     single<KppRepository> { KppRepositoryImpl(get()) }
     single<ShiftRepository> { ShiftRepositoryImpl(get()) }
+    
+    // Явно указываем интерфейс для SettingsRepository
+    single<SettingsRepository> { SettingsRepositoryImpl(get()) }
 }

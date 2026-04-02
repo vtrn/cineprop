@@ -16,12 +16,20 @@ import org.mosyagin.project.GetSceneById
 import org.mosyagin.project.GetScenesByActor
 import org.mosyagin.project.Project
 import org.mosyagin.project.models.versioning.Prop
-import org.mosyagin.project.models.versioning.toDomain
+import org.mosyagin.project.models.versioning.PropStatus
 
 data class PropWithScene(
     val id: Long,
     val name: String,
+    val anchor: String,
     val status: String,
+    val category: String,
+    val propType: String,
+    val note: String?,
+    val photoPath: String?,
+    val isCrossCutting: Boolean,
+    val quantity: Int,
+    val actorId: Long?,
     val seriesNumber: Long,
     val sceneNumber: String,
     val isOrphaned: Boolean = false
@@ -47,6 +55,15 @@ interface SceneRepository {
     suspend fun updateSceneUserDataReviewStatus(needsReview: Long, id: Long)
     suspend fun confirmAllProps(sceneUserDataId: Long)
     suspend fun markPropAsOrphaned(sceneUserDataId: Long, propName: String)
+    
+    // Новые методы для Asset Manager
+    suspend fun updatePropCategory(propId: Long, category: String)
+    suspend fun updatePropNote(propId: Long, note: String?)
+    suspend fun updatePropQuantity(propId: Long, quantity: Int)
+    suspend fun updatePropCrossCutting(propId: Long, isCrossCutting: Boolean)
+    suspend fun updatePropActor(propId: Long, actorId: Long?)
+    suspend fun updatePropType(propId: Long, propType: String)
+    suspend fun bulkUpdatePropStatus(propIds: List<Long>, status: String)
 }
 
 class SceneRepositoryImpl(val queries: DatabaseQueries) : SceneRepository,
@@ -100,7 +117,27 @@ class SceneRepositoryImpl(val queries: DatabaseQueries) : SceneRepository,
         queries.getPropsForScene(sceneUserDataId)
             .asFlow()
             .mapToList(Dispatchers.IO)
-            .map { list -> list.map { it.toDomain() } }
+            .map { list -> 
+                list.map { p ->
+                    Prop(
+                        id = p.id,
+                        sceneUserDataId = p.sceneUserDataId,
+                        name = p.name,
+                        anchor = p.anchor,
+                        status = PropStatus.fromString(p.status),
+                        category = p.category,
+                        propType = p.propType,
+                        note = p.note,
+                        photoPath = p.photoPath,
+                        isCrossCutting = p.isCrossCutting == 1L,
+                        quantity = p.quantity.toInt(),
+                        actorId = p.actorId,
+                        startOffset = p.startOffset,
+                        endOffset = p.endOffset,
+                        isOrphaned = p.orphaned == 1L
+                    )
+                } 
+            }
 
     override fun getPropsByProject(projectId: Long): Flow<List<PropWithScene>> =
         queries.getPropsByProject(projectId)
@@ -111,7 +148,15 @@ class SceneRepositoryImpl(val queries: DatabaseQueries) : SceneRepository,
                     PropWithScene(
                         id = prop.id,
                         name = prop.name,
+                        anchor = prop.anchor,
                         status = prop.status,
+                        category = prop.category,
+                        propType = prop.propType,
+                        note = prop.note,
+                        photoPath = prop.photoPath,
+                        isCrossCutting = prop.isCrossCutting == 1L,
+                        quantity = prop.quantity.toInt(),
+                        actorId = prop.actorId,
                         seriesNumber = prop.seriesNumber,
                         sceneNumber = prop.sceneNumber,
                         isOrphaned = prop.orphaned == 1L
@@ -129,6 +174,13 @@ class SceneRepositoryImpl(val queries: DatabaseQueries) : SceneRepository,
             name = name,
             anchor = anchor,
             status = status,
+            category = "Прочее",
+            propType = "Обстановочный",
+            note = null,
+            photoPath = null,
+            isCrossCutting = 0,
+            quantity = 1,
+            actorId = null,
             startOffset = startOffset,
             endOffset = endOffset,
             orphaned = 0
@@ -164,6 +216,38 @@ class SceneRepositoryImpl(val queries: DatabaseQueries) : SceneRepository,
         val props = queries.getPropsForScene(sceneUserDataId).executeAsList()
         props.find { it.name.equals(propName, ignoreCase = true) }?.let {
             queries.updatePropOrphanedStatus(1L, it.id)
+        }
+    }
+
+    override suspend fun updatePropCategory(propId: Long, category: String) {
+        queries.updatePropCategory(category, propId)
+    }
+
+    override suspend fun updatePropNote(propId: Long, note: String?) {
+        queries.updatePropNote(note, propId)
+    }
+
+    override suspend fun updatePropQuantity(propId: Long, quantity: Int) {
+        queries.updatePropQuantity(quantity.toLong(), propId)
+    }
+
+    override suspend fun updatePropCrossCutting(propId: Long, isCrossCutting: Boolean) {
+        queries.updatePropCrossCutting(if (isCrossCutting) 1L else 0L, propId)
+    }
+
+    override suspend fun updatePropActor(propId: Long, actorId: Long?) {
+        queries.updatePropActor(actorId, propId)
+    }
+
+    override suspend fun updatePropType(propId: Long, propType: String) {
+        queries.updatePropType(propType, propId)
+    }
+
+    override suspend fun bulkUpdatePropStatus(propIds: List<Long>, status: String) {
+        queries.transaction {
+            propIds.forEach { id ->
+                queries.updatePropStatus(status, id)
+            }
         }
     }
 

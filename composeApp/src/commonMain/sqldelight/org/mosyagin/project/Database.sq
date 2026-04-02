@@ -213,18 +213,26 @@ WHERE sa.sceneUserDataId = ?;
 CREATE TABLE Prop (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     sceneUserDataId INTEGER NOT NULL,
-    name TEXT NOT NULL,         -- То, что ввел юзер (например, \"Клетки\")
-    anchor TEXT NOT NULL,       -- То, что было в тексте (\"клеток с домашними зверюшками\")
+    name TEXT NOT NULL,         -- То, что ввел юзер (например, "Клетки")
+    anchor TEXT NOT NULL,       -- То, что было в тексте ("клеток с домашними зверюшками")
     status TEXT NOT NULL DEFAULT 'Найти',
+    category TEXT NOT NULL DEFAULT 'Прочее',
+    propType TEXT NOT NULL DEFAULT 'Обстановочный',
+    note TEXT,
+    photoPath TEXT,
+    isCrossCutting INTEGER NOT NULL DEFAULT 0,
+    quantity INTEGER NOT NULL DEFAULT 1,
+    actorId INTEGER,
     startOffset INTEGER NOT NULL,
     endOffset INTEGER NOT NULL,
     orphaned INTEGER NOT NULL DEFAULT 0,
-    FOREIGN KEY(sceneUserDataId) REFERENCES SceneUserData(id) ON DELETE CASCADE
+    FOREIGN KEY(sceneUserDataId) REFERENCES SceneUserData(id) ON DELETE CASCADE,
+    FOREIGN KEY(actorId) REFERENCES Actor(id) ON DELETE SET NULL
 );
 
 insertProp:
-INSERT INTO Prop(sceneUserDataId, name, anchor, status, startOffset, endOffset, orphaned)
-VALUES (?, ?, ?, ?, ?, ?, ?);
+INSERT INTO Prop(sceneUserDataId, name, anchor, status, category, propType, note, photoPath, isCrossCutting, quantity, actorId, startOffset, endOffset, orphaned)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 getPropsForScene:
 SELECT * FROM Prop WHERE sceneUserDataId = ? ORDER BY id DESC;
@@ -244,6 +252,27 @@ UPDATE Prop SET status = ? WHERE id = ?;
 
 updatePropOrphanedStatus:
 UPDATE Prop SET orphaned = ? WHERE id = ?;
+
+updatePropCategory:
+UPDATE Prop SET category = ? WHERE id = ?;
+
+updatePropNote:
+UPDATE Prop SET note = ? WHERE id = ?;
+
+updatePropQuantity:
+UPDATE Prop SET quantity = ? WHERE id = ?;
+
+updatePropPhoto:
+UPDATE Prop SET photoPath = ? WHERE id = ?;
+
+updatePropCrossCutting:
+UPDATE Prop SET isCrossCutting = ? WHERE id = ?;
+
+updatePropActor:
+UPDATE Prop SET actorId = ? WHERE id = ?;
+
+updatePropType:
+UPDATE Prop SET propType = ? WHERE id = ?;
 
 
 -- ТАБЛИЦА ФАЙЛОВ КПП
@@ -312,6 +341,18 @@ LEFT JOIN SceneVersion v ON v.id = (
 )
 WHERE ss.shiftId = ?
 ORDER BY ss.position ASC;
+
+-- ТАБЛИЦА НАСТРОЕК
+CREATE TABLE AppSettings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+getSetting:
+SELECT value FROM AppSettings WHERE key = ?;
+
+upsertSetting:
+INSERT OR REPLACE INTO AppSettings (key, value) VALUES (?, ?);
 
 lastInsertRowId:
 SELECT last_insert_rowid();
