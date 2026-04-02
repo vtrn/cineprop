@@ -1,50 +1,59 @@
 package org.mosyagin.project.ui.components
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 
 /**
  * Базовая карточка в стиле CineProp.
- * Использует закругленные углы и приглушенный фон.
+ * ИСПРАВЛЕНО: Теперь использует Box вместо Card для идеального скругления эффектов наведения.
  */
 @Composable
 fun CineCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    isSelected: Boolean = false,
     containerColor: Color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
     content: @Composable ColumnScope.() -> Unit
 ) {
-    if (onClick != null) {
-        Card(
-            onClick = onClick,
-            modifier = modifier,
-            shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = containerColor),
-            content = {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    content = content
-                )
-            }
-        )
+    val shape = MaterialTheme.shapes.large
+    
+    val finalContainerColor = if (isSelected) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
     } else {
-        Card(
-            modifier = modifier,
-            shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = containerColor),
-            content = {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    content = content
-                )
-            }
+        containerColor
+    }
+    
+    val border = if (isSelected) {
+        BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
+    } else null
+
+    // Используем Box вместо Card для полного контроля над эффектами
+    Box(
+        modifier = modifier
+            .clip(shape) // 1. Обрезаем ВСЁ по форме овала
+            .background(finalContainerColor) // 2. Рисуем фон
+            .then(if (border != null) Modifier.border(border, shape) else Modifier) // 3. Рисуем рамку
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(onClick = onClick) // 4. Клик и Hover будут строго ВНУТРИ овала
+                } else Modifier
+            )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            content = content
         )
     }
 }
@@ -101,7 +110,7 @@ fun CineTag(
 }
 
 /**
- * Информационная плашка с иконкой (как "Total Items" на скринах).
+ * Информационная плашка с иконкой.
  */
 @Composable
 fun CineInfoBadge(

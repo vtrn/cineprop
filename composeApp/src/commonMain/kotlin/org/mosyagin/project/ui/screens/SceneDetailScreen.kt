@@ -160,7 +160,7 @@ data class SceneDetailScreen(
                                 onPropClick = { id -> screenModel.setSelectedProp(id) },
                                 onTextSelected = { text ->
                                     if (text.isNotBlank()) {
-                                        selectedAnchor = text
+                                        selectedAnchor = text.trim()
                                         showSelectionPopup = true
                                     }
                                 },
@@ -189,7 +189,7 @@ data class SceneDetailScreen(
                                             onPropClick = { id -> screenModel.setSelectedProp(id) },
                                             onTextSelected = { text ->
                                                 if (text.isNotBlank()) {
-                                                    selectedAnchor = text
+                                                    selectedAnchor = text.trim()
                                                     showSelectionPopup = true
                                                 }
                                             },
@@ -233,13 +233,14 @@ data class SceneDetailScreen(
                     ) {
                         Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("Добавить реквизит?", style = MaterialTheme.typography.titleMedium)
-                            Text("\"$selectedAnchor\"", style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                            Text("\"${selectedAnchor.take(30)}${if(selectedAnchor.length > 30) "..." else ""}\"", style = MaterialTheme.typography.bodySmall, maxLines = 1)
                             Spacer(Modifier.height(12.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 TextButton(onClick = { showSelectionPopup = false }) { Text("Нет") }
                                 Button(onClick = {
                                     showSelectionPopup = false
-                                    propNameInput = selectedAnchor
+                                    // ОЧИЩАЕМ ввод, чтобы не подмешивался длинный текст из якоря
+                                    propNameInput = "" 
                                     showAddPropDialog = true
                                 }) { Text("Да") }
                             }
@@ -255,14 +256,14 @@ data class SceneDetailScreen(
                 title = { Text("Новый реквизит") },
                 text = {
                     Column {
-                        Text("Текст в сценарии:", style = MaterialTheme.typography.labelSmall)
-                        Text("\"$selectedAnchor\"", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                        Text("Текст из сценария (anchor):", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                        Text("\"$selectedAnchor\"", style = MaterialTheme.typography.bodyMedium)
                         Spacer(Modifier.height(16.dp))
                         OutlinedTextField(
                             value = propNameInput,
                             onValueChange = { propNameInput = it },
                             label = { Text("Название предмета") },
-                            placeholder = { Text("Напр: Клетки") },
+                            placeholder = { Text("Напр: Продукты") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -271,11 +272,12 @@ data class SceneDetailScreen(
                 confirmButton = {
                     Button(
                         onClick = { 
-                            screenModel.addProp(propNameInput.ifBlank { selectedAnchor }, anchor = selectedAnchor)
+                            // Теперь четко: если ввел свое - берем свое. Если нет - берем якорь.
+                            val finalName = propNameInput.trim().ifBlank { selectedAnchor }
+                            screenModel.addProp(finalName, anchor = selectedAnchor)
                             showAddPropDialog = false
                             propNameInput = ""
-                        },
-                        enabled = propNameInput.isNotBlank() || selectedAnchor.isNotBlank()
+                        }
                     ) { Text("Сохранить") }
                 },
                 dismissButton = {
@@ -354,7 +356,8 @@ data class SceneDetailScreen(
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                     color = if (isOrphaned) Color(0xFFE57373) else MaterialTheme.colorScheme.onSurface
                                 )
-                                Text(prop.anchor, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                                // В инспекторе якорь оставляем как подсказку, но в карточке PropWorkspace мы его уже убрали
+                                Text(prop.anchor, style = MaterialTheme.typography.labelSmall, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
                         IconButton(onClick = { onDeleteProp(prop.id) }) {

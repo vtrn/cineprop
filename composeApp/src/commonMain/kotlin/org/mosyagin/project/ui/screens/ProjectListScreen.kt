@@ -1,42 +1,15 @@
 package org.mosyagin.project.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CloudQueue
-import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -81,7 +54,6 @@ class ProjectListScreen : Screen {
             ) {
                 Spacer(Modifier.height(24.dp))
                 
-                // Заголовок в стиле макета
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -101,7 +73,8 @@ class ProjectListScreen : Screen {
                             )
                         )
                     }
-                    // Имитация аватарки
+                    
+                    // Оставляем только аватарку, так как настройки теперь в сайдбаре
                     Surface(
                         modifier = Modifier.size(44.dp),
                         shape = CircleShape,
@@ -117,7 +90,6 @@ class ProjectListScreen : Screen {
 
                 Spacer(Modifier.height(24.dp))
 
-                // Поисковая строка как на макете
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
@@ -204,11 +176,10 @@ class ProjectListScreen : Screen {
                         )
                     }
                     Spacer(Modifier.weight(1f))
-                    // Имитация "Match Score" или статуса
                     Text(
                         text = "Active",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFFB4E6B2), // Тот самый зеленый
+                        color = Color(0xFFB4E6B2),
                         modifier = Modifier
                             .background(Color(0xFFB4E6B2).copy(alpha = 0.1f), CircleShape)
                             .padding(horizontal = 8.dp, vertical = 4.dp)

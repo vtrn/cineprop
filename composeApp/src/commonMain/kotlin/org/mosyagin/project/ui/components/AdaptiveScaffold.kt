@@ -31,11 +31,6 @@ enum class AppLayoutType {
 
 val LocalAppLayoutType = staticCompositionLocalOf { AppLayoutType.MOBILE }
 
-val DeepBackgroundStart = Color(0xFF23272E)
-val DeepBackgroundEnd = Color(0xFF16181D)
-val SurfaceCard = Color(0xFF121418)
-val BorderLight = Color.White.copy(alpha = 0.05f)
-
 @Composable
 private fun NavIcon(
     imageVector: androidx.compose.ui.graphics.vector.ImageVector,
@@ -43,8 +38,8 @@ private fun NavIcon(
     isSelected: Boolean = false,
     onClick: () -> Unit = {}
 ) {
-    val activeColor = Color(0xFFBB86FC)
-    val inactiveColor = Color.White.copy(alpha = 0.4f)
+    val activeColor = MaterialTheme.colorScheme.primary
+    val inactiveColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
 
     Column(
         modifier = Modifier
@@ -105,11 +100,7 @@ fun AdaptiveScaffold(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(DeepBackgroundStart, DeepBackgroundEnd)
-                        )
-                    )
+                    .background(MaterialTheme.colorScheme.surface) // Фон всей подложки
             ) {
                 if (isDesktop) {
                     Row(modifier = Modifier.fillMaxSize()) {
@@ -141,7 +132,6 @@ fun AdaptiveScaffold(
                                     onClick = { onSectionSelect("settings") }
                                 )
                             } else {
-                                // ЗАМЕНЕНО: Иконка папки для возврата к проектам
                                 NavIcon(
                                     imageVector = Icons.Default.Folder,
                                     label = "Проекты",
@@ -209,15 +199,13 @@ fun AdaptiveScaffold(
                                 .fillMaxSize()
                                 .padding(start = 0.dp, end = 16.dp, top = 20.dp, bottom = 16.dp)
                                 .shadow(
-                                    elevation = 12.dp,
+                                    elevation = 8.dp,
                                     shape = RoundedCornerShape(16.dp),
-                                    clip = false,
-                                    ambientColor = Color.Black,
-                                    spotColor = Color.Black
+                                    clip = false
                                 )
                                 .clip(RoundedCornerShape(16.dp))
-                                .background(SurfaceCard)
-                                .border(0.5.dp, BorderLight, RoundedCornerShape(16.dp))
+                                .background(MaterialTheme.colorScheme.background) // Основной цвет контента
+                                .border(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
                         ) {
                             content(layoutType)
                         }
