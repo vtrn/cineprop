@@ -18,7 +18,6 @@ class PropWorkspaceViewModel(
 ) : ScreenModel {
 
     companion object {
-        // Все дефолтные категории строго в нижнем регистре
         val DEFAULT_CATEGORIES = listOf(
             "персонажный",
             "транспорт",
@@ -52,24 +51,22 @@ class PropWorkspaceViewModel(
     private val _expandedCategories = MutableStateFlow<Set<String>>(setOf("Все"))
     val expandedCategories: StateFlow<Set<String>> = _expandedCategories.asStateFlow()
 
-    // Основной поток данных из репозитория
     private val allProps = sceneRepository.getPropsByProject(projectId)
         .stateIn(screenModelScope, SharingStarted.Eagerly, emptyList())
 
-    // Список категорий для фильтрации (приводим к нижнему регистру для уникальности)
     val categories: StateFlow<List<String>> = allProps.map { list ->
         val fromDb = list.map { it.category.lowercase() }.distinct()
         (DEFAULT_CATEGORIES + fromDb).distinct().sorted()
     }.stateIn(screenModelScope, SharingStarted.WhileSubscribed(5000), DEFAULT_CATEGORIES)
 
-    // Отфильтрованный и отсортированный список для таблицы (DetailPane)
     val filteredProps: StateFlow<List<PropWithScene>> = combine(
         allProps, _searchQuery, _selectedCategoryFilter, _sortColumn, _isSortAscending
     ) { props, query, category, sortCol, ascending ->
         val filtered = props.filter { prop ->
             val matchesQuery = prop.name.contains(query, ignoreCase = true) || 
-                             prop.sceneNumber.contains(query, ignoreCase = true)
-            // Сравнение категорий тоже через lowercase
+                             prop.sceneNumber.contains(query, ignoreCase = true) ||
+                             prop.anchor.contains(query, ignoreCase = true)
+            
             val matchesCategory = category == null || prop.category.lowercase() == category.lowercase()
             matchesQuery && matchesCategory
         }
@@ -85,17 +82,14 @@ class PropWorkspaceViewModel(
         if (ascending) sorted else sorted.reversed()
     }.stateIn(screenModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Группировка для MasterPane (схлопываем разный регистр)
     val propsByCategory: StateFlow<Map<String, List<PropWithScene>>> = allProps.map { props ->
         val grouped = props.groupBy { it.category.lowercase() }
         val result = mutableMapOf<String, List<PropWithScene>>()
         
-        // Сначала добавляем дефолтные категории
         DEFAULT_CATEGORIES.forEach { cat ->
             result[cat] = grouped[cat] ?: emptyList()
         }
         
-        // Добавляем остальные категории из БД, если они есть
         grouped.forEach { (cat, list) ->
             if (!result.containsKey(cat)) {
                 result[cat] = list
@@ -131,7 +125,6 @@ class PropWorkspaceViewModel(
         _expandedCategories.value = if (current.contains(catLower)) current - catLower else current + catLower
     }
 
-    // Selection logic
     fun togglePropSelection(propId: Long) {
         _selectedPropIds.update { current ->
             if (current.contains(propId)) current - propId else current + propId
@@ -144,6 +137,28 @@ class PropWorkspaceViewModel(
 
     fun clearSelection() {
         _selectedPropIds.value = emptySet()
+    }
+
+    // Удаление реквизита
+    fun deleteProp(propId: Long) {
+        screenModelScope.launch {
+            sceneRepository.deleteProp(propId)
+            if (_selectedPropId.value == propId) {
+                _selectedPropId.value = null
+            }
+            _selectedPropIds.update { it - propId }
+        }
+    }
+
+    fun deleteSelectedProps() {
+        val ids = _selectedPropIds.value.toList()
+        screenModelScope.launch {
+            ids.forEach { sceneRepository.deleteProp(it) }
+            clearSelection()
+            if (ids.contains(_selectedPropId.value)) {
+                _selectedPropId.value = null
+            }
+        }
     }
 
     // Update operations

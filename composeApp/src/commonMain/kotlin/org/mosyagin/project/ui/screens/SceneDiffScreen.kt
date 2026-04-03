@@ -67,12 +67,12 @@ data class SceneDiffScreen(val sceneUserDataId: Long) : Screen {
                         if (state is SceneDiffViewModel.DiffState.Success) {
                             val s = state as SceneDiffViewModel.DiffState.Success
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 16.dp)) {
-                                Surface(color = Color(0xFF2E7D32).copy(alpha = 0.2f), shape = RoundedCornerShape(4.dp)) {
-                                    Text("+${s.addedCount}", color = Color(0xFF81C784), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                Surface(color = Color(0xFF2E7D32).copy(alpha = 0.15f), shape = RoundedCornerShape(4.dp)) {
+                                    Text("+${s.addedCount}", color = Color(0xFF4CAF50), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                                 }
                                 Spacer(Modifier.width(8.dp))
-                                Surface(color = Color(0xFFC62828).copy(alpha = 0.2f), shape = RoundedCornerShape(4.dp)) {
-                                    Text("-${s.deletedCount}", color = Color(0xFFE57373), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                Surface(color = Color(0xFFC62828).copy(alpha = 0.15f), shape = RoundedCornerShape(4.dp)) {
+                                    Text("-${s.deletedCount}", color = Color(0xFFE53935), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                                 }
                             }
                         }
@@ -117,44 +117,40 @@ data class SceneDiffScreen(val sceneUserDataId: Long) : Screen {
     @Composable
     private fun DesktopSideBySideDiff(rows: List<SideBySideDiffRow>, impacts: List<PropImpact>, padding: PaddingValues) {
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).background(Color(0xFF121212)),
+            modifier = Modifier.fillMaxSize().padding(padding).background(MaterialTheme.colorScheme.background),
             contentPadding = PaddingValues(bottom = 100.dp)
         ) {
-            // СЕКЦИЯ СИРОТСКОГО РЕКВИЗИТА (ДЕСКТОП)
             val orphaned = impacts.filter { it.type == PropImpactType.POTENTIALLY_ORPHANED }
             if (orphaned.isNotEmpty()) {
                 item {
                     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 60.dp, vertical = 24.dp)) {
                         Text(
                             "СИРОТСКИЙ РЕКВИЗИТ (упоминание удалено из новой версии сценария):",
-                            color = Color(0xFFE57373),
+                            color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(Modifier.height(12.dp))
-                        FlowRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             orphaned.forEach { impact ->
                                 Surface(
-                                    color = Color(0xFFC62828).copy(alpha = 0.2f),
+                                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.1f),
                                     shape = RoundedCornerShape(8.dp),
-                                    border = BorderStroke(1.dp, Color(0xFFE57373).copy(alpha = 0.4f))
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.3f))
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                                     ) {
-                                        Icon(Icons.Default.LinkOff, null, tint = Color(0xFFE57373), modifier = Modifier.size(16.dp))
+                                        Icon(Icons.Default.LinkOff, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
                                         Spacer(Modifier.width(8.dp))
-                                        Text(impact.propName, color = Color(0xFFE57373), style = MaterialTheme.typography.bodyMedium)
+                                        Text(impact.propName, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
                                     }
                                 }
                             }
                         }
                         Spacer(Modifier.height(24.dp))
-                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
                     }
                 }
             }
@@ -170,20 +166,20 @@ data class SceneDiffScreen(val sceneUserDataId: Long) : Screen {
         val colorScheme = MaterialTheme.colorScheme
         val isDark = colorScheme.surface.luminance() < 0.5f
         
-        val addedBg = if (isDark) Color(0xFF1B5E20).copy(alpha = 0.2f) else Color(0xFFE8F5E9)
-        val deletedBg = if (isDark) Color(0xFFB71C1C).copy(alpha = 0.2f) else Color(0xFFFBE9E7)
+        val addedBg = if (isDark) Color(0xFF1B5E20).copy(alpha = 0.2f) else Color(0xFFE8F5E9).copy(alpha = 0.6f)
+        val deletedBg = if (isDark) Color(0xFFB71C1C).copy(alpha = 0.2f) else Color(0xFFFBE9E7).copy(alpha = 0.6f)
 
         val connectorColor = when (row.type) {
-            DiffType.ADDED -> Color(0xFF2E7D32).copy(alpha = 0.4f)
-            DiffType.DELETED -> Color(0xFFC62828).copy(alpha = 0.4f)
-            else -> if (row.oldBlock?.text != row.newBlock?.text) Color(0xFF1976D2).copy(alpha = 0.4f) else Color.Transparent
+            DiffType.ADDED -> Color(0xFF2E7D32).copy(alpha = 0.3f)
+            DiffType.DELETED -> Color(0xFFC62828).copy(alpha = 0.3f)
+            else -> if (row.oldBlock?.text != row.newBlock?.text) Color(0xFF1976D2).copy(alpha = 0.3f) else Color.Transparent
         }
 
         Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
             Box(Modifier.weight(1f).fillMaxHeight().background(if (row.type == DiffType.DELETED || (row.type == DiffType.UNCHANGED && row.oldBlock?.text != row.newBlock?.text)) deletedBg else Color.Transparent)) {
                 if (row.oldBlock != null) {
                     val annotatedText = if (row.oldBlock.text != row.newBlock?.text) {
-                        renderWordDiff(row.oldBlock.text, row.newBlock?.text ?: "", isOld = true)
+                        renderWordDiff(row.oldBlock.text, row.newBlock?.text ?: "", isOld = true, isDark = isDark)
                     } else {
                         buildAnnotatedString { append(row.oldBlock.text) }
                     }
@@ -191,7 +187,7 @@ data class SceneDiffScreen(val sceneUserDataId: Long) : Screen {
                 }
             }
 
-            Box(Modifier.width(40.dp).fillMaxHeight().background(Color(0xFF1A1A1A))) {
+            Box(Modifier.width(40.dp).fillMaxHeight().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
                 if (connectorColor != Color.Transparent) {
                     Canvas(modifier = Modifier.fillMaxSize()) {
                         val path = Path().apply {
@@ -214,7 +210,7 @@ data class SceneDiffScreen(val sceneUserDataId: Long) : Screen {
             Box(Modifier.weight(1f).fillMaxHeight().background(if (row.type == DiffType.ADDED || (row.type == DiffType.UNCHANGED && row.oldBlock?.text != row.newBlock?.text)) addedBg else Color.Transparent)) {
                 if (row.newBlock != null) {
                     val annotatedText = if (row.oldBlock?.text != row.newBlock.text) {
-                        renderWordDiff(row.oldBlock?.text ?: "", row.newBlock.text, isOld = false)
+                        renderWordDiff(row.oldBlock?.text ?: "", row.newBlock.text, isOld = false, isDark = isDark)
                     } else {
                         buildAnnotatedString { append(row.newBlock.text) }
                     }
@@ -226,16 +222,14 @@ data class SceneDiffScreen(val sceneUserDataId: Long) : Screen {
 
     @Composable
     private fun MobileUnifiedDiff(rows: List<SideBySideDiffRow>, impacts: List<PropImpact>, padding: PaddingValues) {
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding).background(Color(0xFF121212)), contentPadding = PaddingValues(bottom = 100.dp)) {
-            
-            // СЕКЦИЯ СИРОТСКОГО РЕКВИЗИТА
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding).background(MaterialTheme.colorScheme.background), contentPadding = PaddingValues(bottom = 100.dp)) {
             val orphaned = impacts.filter { it.type == PropImpactType.POTENTIALLY_ORPHANED }
             if (orphaned.isNotEmpty()) {
                 item {
                     Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                         Text(
                             "СИРОТСКИЙ РЕКВИЗИТ (упоминание удалено):", 
-                            color = Color(0xFFE57373), 
+                            color = MaterialTheme.colorScheme.error, 
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold
                         )
@@ -243,14 +237,14 @@ data class SceneDiffScreen(val sceneUserDataId: Long) : Screen {
                         Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
                             orphaned.forEach { impact ->
                                 Surface(
-                                    color = Color(0xFFC62828).copy(alpha = 0.2f),
+                                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.1f),
                                     shape = RoundedCornerShape(6.dp),
-                                    border = BorderStroke(1.dp, Color(0xFFE57373).copy(alpha = 0.4f)),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.3f)),
                                     modifier = Modifier.padding(end = 8.dp)
                                 ) {
                                     Text(
                                         impact.propName,
-                                        color = Color(0xFFE57373),
+                                        color = MaterialTheme.colorScheme.error,
                                         style = MaterialTheme.typography.bodySmall,
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                                     )
@@ -258,14 +252,13 @@ data class SceneDiffScreen(val sceneUserDataId: Long) : Screen {
                             }
                         }
                         Spacer(Modifier.height(16.dp))
-                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
                     }
                 }
             }
 
             items(rows) { row ->
                 val type = row.newBlock?.type ?: row.oldBlock?.type ?: BlockType.ACTION
-                
                 if (row.oldBlock?.text != row.newBlock?.text) {
                     val annotatedText = renderMobileWordDiff(row.oldBlock?.text ?: "", row.newBlock?.text ?: "")
                     MobileDiffItem(annotatedText, type, DiffType.UNCHANGED)
@@ -279,8 +272,8 @@ data class SceneDiffScreen(val sceneUserDataId: Long) : Screen {
     @Composable
     private fun MobileDiffItem(text: AnnotatedString, type: BlockType, diffType: DiffType) {
         val bgColor = when(diffType) {
-            DiffType.ADDED -> Color(0xFF1B5E20).copy(alpha = 0.1f)
-            DiffType.DELETED -> Color(0xFFB71C1C).copy(alpha = 0.1f)
+            DiffType.ADDED -> Color(0xFFE8F5E9).copy(alpha = 0.5f)
+            DiffType.DELETED -> Color(0xFFFBE9E7).copy(alpha = 0.5f)
             else -> Color.Transparent
         }
         
@@ -294,7 +287,7 @@ data class SceneDiffScreen(val sceneUserDataId: Long) : Screen {
                     fontFamily = FontFamily.Monospace,
                     fontSize = 14.sp,
                     lineHeight = 18.sp,
-                    color = Color.White.copy(alpha = 0.9f)
+                    color = MaterialTheme.colorScheme.onBackground
                 ),
                 modifier = Modifier.padding(
                     start = if (type == BlockType.CHARACTER) 40.dp else if (isDialogue) 20.dp else 0.dp
@@ -304,27 +297,25 @@ data class SceneDiffScreen(val sceneUserDataId: Long) : Screen {
     }
 
     private fun renderMobileWordDiff(oldText: String, newText: String): AnnotatedString {
-        val diffs = DiffUtils.diffWords(oldText, newText)
         return buildAnnotatedString {
+            val diffs = DiffUtils.diffWords(oldText, newText)
             diffs.forEach { diff ->
                 when (diff.type) {
                     DiffType.ADDED -> {
                         withStyle(SpanStyle(
-                            color = Color(0xFF81C784), 
-                            background = Color(0xFF2E7D32).copy(alpha = 0.3f),
+                            color = Color(0xFF2E7D32), 
+                            background = Color(0xFFE8F5E9),
                             fontWeight = FontWeight.Bold
                         )) { append(diff.text) }
                     }
                     DiffType.DELETED -> {
                         withStyle(SpanStyle(
-                            color = Color(0xFFE57373), 
-                            background = Color(0xFFC62828).copy(alpha = 0.3f),
+                            color = Color(0xFFC62828), 
+                            background = Color(0xFFFBE9E7),
                             textDecoration = TextDecoration.LineThrough
                         )) { append(diff.text) }
                     }
-                    DiffType.UNCHANGED -> {
-                        append(diff.text)
-                    }
+                    DiffType.UNCHANGED -> append(diff.text)
                 }
             }
         }
@@ -342,7 +333,7 @@ data class SceneDiffScreen(val sceneUserDataId: Long) : Screen {
                 fontFamily = FontFamily.Monospace,
                 lineHeight = 22.sp,
                 fontSize = 16.sp,
-                color = if (isOld) Color.White.copy(alpha = 0.6f) else Color.White
+                color = if (isOld) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onBackground
             ),
             modifier = Modifier
                 .fillMaxWidth()
@@ -355,13 +346,19 @@ data class SceneDiffScreen(val sceneUserDataId: Long) : Screen {
         )
     }
 
-    private fun renderWordDiff(oldText: String, newText: String, isOld: Boolean): AnnotatedString {
+    private fun renderWordDiff(oldText: String, newText: String, isOld: Boolean, isDark: Boolean): AnnotatedString {
         val diffs = DiffUtils.diffWords(oldText, newText)
         return buildAnnotatedString {
             diffs.forEach { diff ->
                 val style = when (diff.type) {
-                    DiffType.ADDED -> if (!isOld) SpanStyle(background = Color(0xFF2E7D32).copy(alpha = 0.4f), fontWeight = FontWeight.Bold) else null
-                    DiffType.DELETED -> if (isOld) SpanStyle(background = Color(0xFFC62828).copy(alpha = 0.4f), textDecoration = TextDecoration.LineThrough) else null
+                    DiffType.ADDED -> if (!isOld) SpanStyle(
+                        background = if (isDark) Color(0xFF2E7D32).copy(alpha = 0.4f) else Color(0xFFC8E6C9), 
+                        fontWeight = FontWeight.Bold
+                    ) else null
+                    DiffType.DELETED -> if (isOld) SpanStyle(
+                        background = if (isDark) Color(0xFFC62828).copy(alpha = 0.4f) else Color(0xFFFFCDD2), 
+                        textDecoration = TextDecoration.LineThrough
+                    ) else null
                     DiffType.UNCHANGED -> null
                 }
                 if (style != null) {

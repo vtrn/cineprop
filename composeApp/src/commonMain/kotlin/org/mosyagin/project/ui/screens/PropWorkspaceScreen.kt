@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -89,6 +90,7 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
         val selectedCategoryFilter by viewModel.selectedCategoryFilter.collectAsState()
         val sortColumn by viewModel.sortColumn.collectAsState()
         val isSortAscending by viewModel.isSortAscending.collectAsState()
+        val searchQuery by viewModel.searchQuery.collectAsState()
 
         Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             ThreePaneLayout(
@@ -106,7 +108,8 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
                         selectedPropId = selectedPropId,
                         viewModel = viewModel,
                         sortColumn = sortColumn,
-                        isSortAscending = isSortAscending
+                        isSortAscending = isSortAscending,
+                        searchQuery = searchQuery
                     )
                 },
                 inspectorPane = {
@@ -114,7 +117,8 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
                         propId = selectedPropId,
                         props = filteredProps,
                         onNoteChange = { id, note -> viewModel.updatePropNote(id, note) },
-                        onConfirm = { id -> viewModel.confirmProps(listOf(id)) }
+                        onConfirm = { id -> viewModel.confirmProps(listOf(id)) },
+                        onDelete = { id -> viewModel.deleteProp(id) }
                     )
                 }
             )
@@ -140,7 +144,7 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
                 title = "Весь реквизит", 
                 icon = Icons.Default.AllInclusive, 
                 isSelected = selectedCategoryFilter == null,
-                color = MaterialTheme.colorScheme.primary // ПЕРЕДАЛ ЦВЕТ
+                color = MaterialTheme.colorScheme.primary
             ) {
                 onCategoryFilterSelected(null)
             }
@@ -209,12 +213,13 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
         selectedPropId: Long?,
         viewModel: PropWorkspaceViewModel,
         sortColumn: PropSortColumn,
-        isSortAscending: Boolean
+        isSortAscending: Boolean,
+        searchQuery: String
     ) {
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
             Row(
-                verticalAlignment = Alignment.Top, 
-                modifier = Modifier.padding(top = 7.dp, bottom = 16.dp).fillMaxWidth()
+                verticalAlignment = Alignment.CenterVertically, 
+                modifier = Modifier.padding(top = 16.dp, bottom = 8.dp).fillMaxWidth()
             ) {
                 Text(
                     "Объекты", 
@@ -250,6 +255,25 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
                 }
             }
 
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { viewModel.onSearchQueryChange(it) },
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                placeholder = { Text("Поиск по названию или сцене...", fontSize = 14.sp) },
+                leadingIcon = { Icon(Icons.Default.Search, null, modifier = Modifier.size(20.dp)) },
+                trailingIcon = if (searchQuery.isNotEmpty()) {
+                    { IconButton(onClick = { viewModel.onSearchQueryChange("") }) { Icon(Icons.Default.Close, null, modifier = Modifier.size(18.dp)) } }
+                } else null,
+                shape = CircleShape,
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                )
+            )
+
             BulkActionsToolbar(selectedIds = selectedPropIds, viewModel = viewModel)
 
             LazyColumn(
@@ -265,7 +289,9 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
                         onClick = { viewModel.onPropSelected(prop.id) },
                         onStatusChange = { viewModel.updatePropStatus(prop.id, it) },
                         onCrossCuttingChange = { viewModel.updatePropCrossCutting(prop.id, it) },
-                        onQuantityChange = { viewModel.updatePropQuantity(prop.id, it) }
+                        onQuantityChange = { viewModel.updatePropQuantity(prop.id, it) },
+                        onCategoryChange = { viewModel.updatePropCategory(prop.id, it) },
+                        onDelete = { viewModel.deleteProp(prop.id) }
                     )
                 }
             }
@@ -281,11 +307,14 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
         onClick: () -> Unit,
         onStatusChange: (PropStatus) -> Unit,
         onCrossCuttingChange: (Boolean) -> Unit,
-        onQuantityChange: (Int) -> Unit
+        onQuantityChange: (Int) -> Unit,
+        onCategoryChange: (String) -> Unit,
+        onDelete: () -> Unit
     ) {
         val categoryColor = getCategoryColor(prop.category)
         val statusColor = getStatusColor(prop.status)
         var statusMenuExpanded by remember { mutableStateOf(false) }
+        var categoryMenuExpanded by remember { mutableStateOf(false) }
         
         val background = if (isCurrent) {
             MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
@@ -320,14 +349,36 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
                 
                 Spacer(Modifier.width(12.dp))
 
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(categoryColor.copy(alpha = 0.1f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(getCategoryIcon(prop.category), null, modifier = Modifier.size(16.dp), tint = categoryColor)
+                Box {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(categoryColor.copy(alpha = 0.1f))
+                            .clickable { categoryMenuExpanded = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(getCategoryIcon(prop.category), null, modifier = Modifier.size(16.dp), tint = categoryColor)
+                    }
+
+                    DropdownMenu(
+                        expanded = categoryMenuExpanded,
+                        onDismissRequest = { categoryMenuExpanded = false },
+                        modifier = Modifier.background(MaterialTheme.colorScheme.surface).border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                    ) {
+                        PropWorkspaceViewModel.DEFAULT_CATEGORIES.forEach { category ->
+                            DropdownMenuItem(
+                                text = { Text(category.replaceFirstChar { it.uppercase() }, fontSize = 14.sp) },
+                                onClick = {
+                                    onCategoryChange(category)
+                                    categoryMenuExpanded = false
+                                },
+                                leadingIcon = {
+                                    Icon(getCategoryIcon(category), null, modifier = Modifier.size(18.dp), tint = getCategoryColor(category))
+                                }
+                            )
+                        }
+                    }
                 }
 
                 Spacer(Modifier.width(12.dp))
@@ -370,7 +421,8 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
 
                 Spacer(Modifier.width(12.dp))
 
-                Box {
+                // ФИКСИРОВАННАЯ ШИРИНА ДЛЯ СТАТУСА
+                Box(modifier = Modifier.width(100.dp)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
@@ -383,7 +435,8 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
                         Text(
                             PropStatus.fromString(prop.status).displayName, 
                             style = MaterialTheme.typography.labelMedium, 
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            maxLines = 1
                         )
                     }
                     
@@ -442,6 +495,20 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
                         Icon(Icons.Default.Add, null, modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                     }
                 }
+
+                Spacer(Modifier.width(8.dp))
+
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        Icons.Default.DeleteOutline, 
+                        contentDescription = "Удалить",
+                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
     }
@@ -459,6 +526,8 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
                     Text("Выбрано: ${selectedIds.size}", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     Spacer(Modifier.width(20.dp))
                     IconButton(onClick = { viewModel.confirmProps(selectedIds.toList()) }, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(18.dp)) }
+                    Spacer(Modifier.width(12.dp))
+                    IconButton(onClick = { viewModel.deleteSelectedProps() }, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(18.dp)) }
                     Spacer(Modifier.weight(1f))
                     IconButton(onClick = { viewModel.clearSelection() }, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Close, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(18.dp)) }
                 }
@@ -467,9 +536,13 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
     }
 
     @Composable
-    private fun PropInspectorPane(propId: Long?, props: List<PropWithScene>, onNoteChange: (Long, String) -> Unit, onConfirm: (Long) -> Unit) {
+    private fun PropInspectorPane(propId: Long?, props: List<PropWithScene>, onNoteChange: (Long, String) -> Unit, onConfirm: (Long) -> Unit, onDelete: (Long) -> Unit) {
         val prop = props.find { it.id == propId }
         
+        var noteValue by remember(propId) { 
+            mutableStateOf(TextFieldValue(prop?.note ?: "")) 
+        }
+
         Column(modifier = Modifier.fillMaxSize()) {
             if (prop == null) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { 
@@ -558,8 +631,11 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
                             }
                             Spacer(Modifier.height(12.dp))
                             BasicTextField(
-                                value = prop.note ?: "",
-                                onValueChange = { onNoteChange(prop.id, it) },
+                                value = noteValue,
+                                onValueChange = { 
+                                    noteValue = it
+                                    onNoteChange(prop.id, it.text) 
+                                },
                                 modifier = Modifier.fillMaxSize(),
                                 textStyle = TextStyle(fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface, lineHeight = 22.sp),
                                 cursorBrush = Brush.verticalGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primary))
@@ -569,13 +645,24 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
                     
                     Spacer(Modifier.height(24.dp))
                     
-                    Button(
-                        onClick = { onConfirm(prop.id) },
-                        modifier = Modifier.fillMaxWidth().height(50.dp).padding(bottom = 8.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                    ) {
-                        Text("Подтвердить готовность", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(
+                            onClick = { onConfirm(prop.id) },
+                            modifier = Modifier.weight(1f).height(50.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Text("Готовность", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        }
+
+                        Button(
+                            onClick = { onDelete(prop.id) },
+                            modifier = Modifier.height(50.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.1f), contentColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Icon(Icons.Default.Delete, null)
+                        }
                     }
                 }
             }
