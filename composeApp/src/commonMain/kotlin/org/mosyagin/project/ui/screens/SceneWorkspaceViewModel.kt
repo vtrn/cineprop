@@ -9,9 +9,19 @@ import org.mosyagin.project.Actor
 import org.mosyagin.project.GetLatestScenesForProject
 import org.mosyagin.project.SceneVersion
 import org.mosyagin.project.models.versioning.Prop
+import org.mosyagin.project.repository.PropWithScene
 import org.mosyagin.project.repository.SceneRepository
 
-// Переносим enum сюда для общего использования
+// Модель данных инспектора
+data class SceneInspectorData(
+    val sceneId: Long,
+    val props: List<Prop>,
+    val actors: List<Actor>,
+    val needsReview: Boolean,
+    val seriesNumber: Long,
+    val sceneNumber: String
+)
+
 enum class SceneFilter { ALL, MODIFIED, NEW }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -29,7 +39,6 @@ class SceneWorkspaceViewModel(
     private val _selectedFilter = MutableStateFlow(SceneFilter.ALL)
     val selectedFilter: StateFlow<SceneFilter> = _selectedFilter.asStateFlow()
 
-    // Список всех сцен с учетом фильтрации и поиска
     val scenesList: StateFlow<List<GetLatestScenesForProject>> = combine(
         sceneRepository.getLatestScenesForProject(projectId),
         _searchQuery,
@@ -47,7 +56,12 @@ class SceneWorkspaceViewModel(
         }
     }.stateIn(screenModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Детали выбранной сцены (текст из последней версии)
+    val projectActors: StateFlow<List<Actor>> = sceneRepository.getActorsByProject(projectId)
+        .stateIn(screenModelScope, SharingStarted.Eagerly, emptyList())
+
+    val allProjectProps: StateFlow<List<PropWithScene>> = sceneRepository.getPropsByProject(projectId)
+        .stateIn(screenModelScope, SharingStarted.Eagerly, emptyList())
+
     val selectedSceneDetails: StateFlow<SceneVersion?> = _selectedSceneId.flatMapLatest { id ->
         if (id == null) flowOf(null)
         else {
@@ -57,8 +71,7 @@ class SceneWorkspaceViewModel(
         }
     }.stateIn(screenModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    // Инспектор выбранной сцены (Реквизит и Актеры)
-    val selectedSceneInspector = _selectedSceneId.flatMapLatest { id ->
+    val selectedSceneInspector: StateFlow<SceneInspectorData?> = _selectedSceneId.flatMapLatest { id ->
         if (id == null) flowOf(null)
         else {
             combine(
@@ -70,7 +83,9 @@ class SceneWorkspaceViewModel(
                     sceneId = id,
                     props = props, 
                     actors = actors,
-                    needsReview = userData?.needsReview == 1L
+                    needsReview = userData?.needsReview == 1L,
+                    seriesNumber = userData?.seriesNumber ?: 0L,
+                    sceneNumber = userData?.sceneNumber ?: ""
                 )
             }
         }
@@ -88,15 +103,56 @@ class SceneWorkspaceViewModel(
         _selectedFilter.value = filter
     }
 
-    // Добавление реквизита (аналогично мобильной версии)
+    // ИСПРАВЛЕНО: Теперь сохраняем все поля сразу через addPropFull
+    fun addPropExtended(
+        name: String,
+        anchor: String,
+        category: String,
+        status: String,
+        quantity: Int,
+        actorId: Long?,
+        note: String?,
+        existingPropId: Long? = null
+    ) {
+        val sceneId = _selectedSceneId.value ?: return
+        screenModelScope.launch {
+            // 1. Определяем groupId для связи, если это сквозной реквизит
+            var targetGroupId: Long? = null
+            if (existingPropId != null) {
+                val existingProp = allProjectProps.value.find { it.id == existingPropId }
+                targetGroupId = existingProp?.groupId ?: existingPropId
+            }
+
+            // 2. Создаем предмет со всеми данными сразу!
+            sceneRepository.addPropFull(
+                sceneUserDataId = sceneId,
+                name = name,
+                anchor = anchor,
+                status = status,
+                category = category,
+                quantity = quantity,
+                actorId = actorId,
+                note = note,
+                isCrossCutting = targetGroupId != null,
+                groupId = targetGroupId
+            )
+            
+            // 3. Обновляем старый предмет, если у него еще не было группы
+            if (existingPropId != null) {
+                val existingProp = allProjectProps.value.find { it.id == existingPropId }
+                if (existingProp?.groupId == null) {
+                    sceneRepository.updatePropGroupId(existingPropId, targetGroupId)
+                    sceneRepository.updatePropCrossCutting(existingPropId, true)
+                }
+            }
+        }
+    }
+
+    // Старый метод для обратной совместимости с простыми вызовами
     fun addProp(name: String, anchor: String) {
         val sceneId = _selectedSceneId.value ?: return
         screenModelScope.launch {
-            sceneRepository.addProp(
-                sceneUserDataId = sceneId,
-                name = name,
-                anchor = anchor
-            )
+            sceneRepository.addProp(sceneId, name, anchor)
         }
     }
 
@@ -106,10 +162,3 @@ class SceneWorkspaceViewModel(
         }
     }
 }
-
-data class SceneInspectorData(
-    val sceneId: Long,
-    val props: List<Prop>,
-    val actors: List<Actor>,
-    val needsReview: Boolean
-)

@@ -226,13 +226,20 @@ CREATE TABLE Prop (
     startOffset INTEGER NOT NULL,
     endOffset INTEGER NOT NULL,
     orphaned INTEGER NOT NULL DEFAULT 0,
+    groupId INTEGER,            -- ID группы для сквозного реквизита
     FOREIGN KEY(sceneUserDataId) REFERENCES SceneUserData(id) ON DELETE CASCADE,
-    FOREIGN KEY(actorId) REFERENCES Actor(id) ON DELETE SET NULL
+    FOREIGN KEY(actorId) REFERENCES Actor(id) ON DELETE SET NULL,
+    FOREIGN KEY(groupId) REFERENCES Prop(id) ON DELETE SET NULL
 );
 
-insertProp:
-INSERT INTO Prop(sceneUserDataId, name, anchor, status, category, propType, note, photoPath, isCrossCutting, quantity, actorId, startOffset, endOffset, orphaned)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+-- ПРАВИЛЬНАЯ ВСТАВКА ВСЕХ ПОЛЕЙ СРАЗУ
+insertFullProp:
+INSERT INTO Prop(
+    sceneUserDataId, name, anchor, status, category, propType,
+    note, photoPath, isCrossCutting, quantity, actorId,
+    startOffset, endOffset, orphaned, groupId
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 getPropsForScene:
 SELECT * FROM Prop WHERE sceneUserDataId = ? ORDER BY id DESC;
@@ -273,6 +280,9 @@ UPDATE Prop SET actorId = ? WHERE id = ?;
 
 updatePropType:
 UPDATE Prop SET propType = ? WHERE id = ?;
+
+updatePropGroupId:
+UPDATE Prop SET groupId = ? WHERE id = ?;
 
 
 -- ТАБЛИЦА ФАЙЛОВ КПП

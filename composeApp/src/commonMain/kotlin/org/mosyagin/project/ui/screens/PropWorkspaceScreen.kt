@@ -22,6 +22,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -33,6 +34,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.koin.koinScreenModel
 import org.koin.core.parameter.parametersOf
@@ -216,6 +218,22 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
         isSortAscending: Boolean,
         searchQuery: String
     ) {
+        var expandedGroups by remember { mutableStateOf(setOf<String>()) }
+        
+        val heads = remember(props) {
+            val seenNames = mutableSetOf<String>()
+            props.filter { 
+                if (!it.isCrossCutting) true
+                else if (seenNames.contains(it.name)) false
+                else {
+                    seenNames.add(it.name)
+                    true
+                }
+            }
+        }
+        
+        val groupedByPropName = remember(props) { props.groupBy { it.name } }
+
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically, 
@@ -280,19 +298,50 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
                 contentPadding = PaddingValues(bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                items(props, key = { it.id }) { prop ->
-                    PropListItem(
-                        prop = prop,
-                        isSelected = selectedPropIds.contains(prop.id),
-                        isCurrent = selectedPropId == prop.id,
-                        onSelect = { viewModel.togglePropSelection(prop.id) },
-                        onClick = { viewModel.onPropSelected(prop.id) },
-                        onStatusChange = { viewModel.updatePropStatus(prop.id, it) },
-                        onCrossCuttingChange = { viewModel.updatePropCrossCutting(prop.id, it) },
-                        onQuantityChange = { viewModel.updatePropQuantity(prop.id, it) },
-                        onCategoryChange = { viewModel.updatePropCategory(prop.id, it) },
-                        onDelete = { viewModel.deleteProp(prop.id) }
-                    )
+                heads.forEach { headProp ->
+                    item(key = headProp.id) {
+                        PropListItem(
+                            prop = headProp,
+                            isSelected = selectedPropIds.contains(headProp.id),
+                            isCurrent = selectedPropId == headProp.id,
+                            onSelect = { viewModel.togglePropSelection(headProp.id) },
+                            onClick = { viewModel.onPropSelected(headProp.id) },
+                            onStatusChange = { viewModel.updatePropStatus(headProp.id, it) },
+                            onCrossCuttingChange = { viewModel.updatePropCrossCutting(headProp.id, it) },
+                            onQuantityChange = { viewModel.updatePropQuantity(headProp.id, it) },
+                            onCategoryChange = { viewModel.updatePropCategory(headProp.id, it) },
+                            onDelete = { viewModel.deleteProp(headProp.id) },
+                            onStackClick = {
+                                if (headProp.isCrossCutting) {
+                                    expandedGroups = if (expandedGroups.contains(headProp.name)) {
+                                        expandedGroups - headProp.name
+                                    } else {
+                                        expandedGroups + headProp.name
+                                    }
+                                }
+                            }
+                        )
+                    }
+                    
+                    if (headProp.isCrossCutting && expandedGroups.contains(headProp.name)) {
+                        val children = groupedByPropName[headProp.name]?.filter { it.id != headProp.id } ?: emptyList()
+                        items(children, key = { it.id }) { childProp ->
+                            Box(modifier = Modifier.padding(start = 28.dp)) {
+                                PropListItem(
+                                    prop = childProp,
+                                    isSelected = selectedPropIds.contains(childProp.id),
+                                    isCurrent = selectedPropId == childProp.id,
+                                    onSelect = { viewModel.togglePropSelection(childProp.id) },
+                                    onClick = { viewModel.onPropSelected(childProp.id) },
+                                    onStatusChange = { viewModel.updatePropStatus(childProp.id, it) },
+                                    onCrossCuttingChange = { viewModel.updatePropCrossCutting(childProp.id, it) },
+                                    onQuantityChange = { viewModel.updatePropQuantity(childProp.id, it) },
+                                    onCategoryChange = { viewModel.updatePropCategory(childProp.id, it) },
+                                    onDelete = { viewModel.deleteProp(childProp.id) }
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -309,13 +358,16 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
         onCrossCuttingChange: (Boolean) -> Unit,
         onQuantityChange: (Int) -> Unit,
         onCategoryChange: (String) -> Unit,
-        onDelete: () -> Unit
+        onDelete: () -> Unit,
+        onStackClick: () -> Unit = {}
     ) {
         val categoryColor = getCategoryColor(prop.category)
         val statusColor = getStatusColor(prop.status)
         var statusMenuExpanded by remember { mutableStateOf(false) }
         var categoryMenuExpanded by remember { mutableStateOf(false) }
         
+        var quantityInput by remember(prop.quantity) { mutableStateOf(prop.quantity.toString()) }
+
         val background = if (isCurrent) {
             MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
         } else {
@@ -340,12 +392,23 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Checkbox(
-                    checked = isSelected, 
-                    onCheckedChange = { onSelect() }, 
-                    modifier = Modifier.size(20.dp),
-                    colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.primary)
-                )
+                Box(
+                    modifier = Modifier
+                        .size(18.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent)
+                        .border(
+                            width = 1.dp, 
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                            shape = RoundedCornerShape(4.dp)
+                        )
+                        .clickable { onSelect() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isSelected) {
+                        Icon(Icons.Default.Check, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onPrimary)
+                    }
+                }
                 
                 Spacer(Modifier.width(12.dp))
 
@@ -392,19 +455,28 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Spacer(Modifier.height(2.dp))
+                    Spacer(Modifier.height(4.dp))
                     
-                    Surface(
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
-                        shape = CircleShape,
-                        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
-                    ) {
-                        Text(
-                            text = "${prop.seriesNumber}-${prop.sceneNumber}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
-                        )
+                    if (prop.isCrossCutting && prop.allSceneNumbers.size > 1) {
+                        Box(modifier = Modifier.clickable { onStackClick() }) {
+                            StackedSceneTags(
+                                currentScene = "${prop.seriesNumber}-${prop.sceneNumber}",
+                                otherScenes = prop.allSceneNumbers.filter { it != "${prop.seriesNumber}-${prop.sceneNumber}" }
+                            )
+                        }
+                    } else {
+                        Surface(
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
+                            shape = CircleShape,
+                            border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                        ) {
+                            Text(
+                                text = "${prop.seriesNumber}-${prop.sceneNumber}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                            )
+                        }
                     }
                 }
 
@@ -421,7 +493,6 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
 
                 Spacer(Modifier.width(12.dp))
 
-                // ФИКСИРОВАННАЯ ШИРИНА ДЛЯ СТАТУСА
                 Box(modifier = Modifier.width(100.dp)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -478,12 +549,22 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
                         Icon(Icons.Default.Remove, null, modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                     }
                     
-                    Text(
-                        prop.quantity.toString(),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(horizontal = 2.dp)
+                    BasicTextField(
+                        value = quantityInput,
+                        onValueChange = { newValue ->
+                            if (newValue.all { it.isDigit() } && newValue.length <= 4) {
+                                quantityInput = newValue
+                                newValue.toIntOrNull()?.let { if (it > 0) onQuantityChange(it) }
+                            }
+                        },
+                        modifier = Modifier.width(32.dp),
+                        textStyle = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            textAlign = TextAlign.Center
+                        ),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true
                     )
 
                     Box(
@@ -510,6 +591,84 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
                     )
                 }
             }
+        }
+    }
+
+    @Composable
+    private fun StackedSceneTags(currentScene: String, otherScenes: List<String>) {
+        val currentSeries = currentScene.split("-").firstOrNull() ?: ""
+        
+        Box(modifier = Modifier.height(24.dp).wrapContentWidth(), contentAlignment = Alignment.CenterStart) {
+            // Background tags - используем сплошные цвета, чтобы слои не просвечивали
+            
+            // Third tag (самый нижний слой)
+            if (otherScenes.size >= 2) {
+                val scene = otherScenes[1]
+                val displayScene = if (scene.startsWith("$currentSeries-")) scene.substringAfter("-") else scene
+                TagLayer(
+                    text = "$displayScene",
+                    xOffset = 48.dp, // Смещение выбрано так, чтобы 2-й тег перекрывал его наполовину
+                    zIndex = 1f,
+                    color = Color(0xFFF5F5F5), // Сплошной светло-серый
+                    textColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                    paddingStart = 10.dp
+                )
+            }
+
+            // Second tag (средний слой)
+            if (otherScenes.isNotEmpty()) {
+                val scene = otherScenes[0]
+                val displayScene = if (scene.startsWith("$currentSeries-")) "-${scene.substringAfter("-")}" else "-$scene"
+                TagLayer(
+                    text = "$displayScene",
+                    xOffset = 20.dp, // Смещение 1/2 от первого тега
+                    zIndex = 2f,     // Выше третьего, перекрывает его непрозрачным фоном
+                    color = Color(0xFFEBEBEB), // Сплошной серый
+                    textColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                    paddingStart = 14.dp
+                )
+            }
+            
+            // Main front tag
+            Surface(
+                color = Color(0xFFE1F5FE),
+                shape = CircleShape,
+                border = BorderStroke(1.dp, Color.White),
+                modifier = Modifier.zIndex(10f)
+            ) {
+                Text(
+                    text = currentScene,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 1.dp)
+                )
+            }
+        }
+    }
+
+    @Composable
+    private fun TagLayer(
+        text: String, 
+        xOffset: androidx.compose.ui.unit.Dp, 
+        zIndex: Float, 
+        color: Color, 
+        textColor: Color = Color.Transparent,
+        paddingStart: androidx.compose.ui.unit.Dp = 14.dp
+    ) {
+        Surface(
+            color = color,
+            shape = CircleShape,
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)),
+            modifier = Modifier
+                .offset(x = xOffset)
+                .zIndex(zIndex)
+        ) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelSmall,
+                color = textColor,
+                modifier = Modifier.padding(start = paddingStart, end = 6.dp, top = 1.dp, bottom = 1.dp)
+            )
         }
     }
 

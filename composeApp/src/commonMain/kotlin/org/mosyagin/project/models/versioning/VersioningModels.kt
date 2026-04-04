@@ -87,7 +87,8 @@ data class Prop(
     val actorId: Long? = null,
     val startOffset: Long,
     val endOffset: Long,
-    val isOrphaned: Boolean
+    val isOrphaned: Boolean,
+    val groupId: Long? = null // ДОБАВЛЕНО
 )
 
 data class SceneCharacter(

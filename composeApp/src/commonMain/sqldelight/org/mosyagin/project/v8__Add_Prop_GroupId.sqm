@@ -1,0 +1,6 @@
+/**
+ * Миграция v8: Добавление groupId для сквозного реквизита.
+ * Разрешаем NULL для старых записей, чтобы не было сбоя.
+ */
+
+ALTER TABLE Prop ADD COLUMN groupId INTEGER DEFAULT NULL REFERENCES Prop(id) ON DELETE SET NULL;

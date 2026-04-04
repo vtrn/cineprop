@@ -32,7 +32,9 @@ data class PropWithScene(
     val actorId: Long?,
     val seriesNumber: Long,
     val sceneNumber: String,
-    val isOrphaned: Boolean = false
+    val isOrphaned: Boolean = false,
+    val groupId: Long? = null,
+    val allSceneNumbers: List<String> = emptyList() // ДОБАВЛЕНО: Список всех сцен в цепочке
 )
 
 interface SceneRepository {
@@ -48,7 +50,21 @@ interface SceneRepository {
     fun getPropsForScene(sceneUserDataId: Long): Flow<List<Prop>>
     fun getPropsByProject(projectId: Long): Flow<List<PropWithScene>>
     suspend fun getSceneUserDataIdBySeriesAndNumber(projectId: Long, series: Long, sceneNumber: String): Long?
-    suspend fun addProp(sceneUserDataId: Long, name: String, anchor: String, status: String = "Найти", startOffset: Long = 0, endOffset: Long = 0)
+    
+    suspend fun addPropFull(
+        sceneUserDataId: Long,
+        name: String,
+        anchor: String,
+        status: String,
+        category: String,
+        quantity: Int,
+        actorId: Long?,
+        note: String?,
+        isCrossCutting: Boolean,
+        groupId: Long?
+    ): Long
+
+    suspend fun addProp(sceneUserDataId: Long, name: String, anchor: String, status: String = "Найти", startOffset: Long = 0, endOffset: Long = 0): Long
     suspend fun updatePropStatus(propId: Long, newStatus: String)
     suspend fun updatePropOrphanedStatus(propId: Long, isOrphaned: Boolean)
     suspend fun deleteProp(propId: Long)
@@ -56,13 +72,13 @@ interface SceneRepository {
     suspend fun confirmAllProps(sceneUserDataId: Long)
     suspend fun markPropAsOrphaned(sceneUserDataId: Long, propName: String)
     
-    // Новые методы для Asset Manager
     suspend fun updatePropCategory(propId: Long, category: String)
     suspend fun updatePropNote(propId: Long, note: String?)
     suspend fun updatePropQuantity(propId: Long, quantity: Int)
     suspend fun updatePropCrossCutting(propId: Long, isCrossCutting: Boolean)
     suspend fun updatePropActor(propId: Long, actorId: Long?)
     suspend fun updatePropType(propId: Long, propType: String)
+    suspend fun updatePropGroupId(propId: Long, groupId: Long?)
     suspend fun bulkUpdatePropStatus(propIds: List<Long>, status: String)
 }
 
@@ -134,7 +150,8 @@ class SceneRepositoryImpl(val queries: DatabaseQueries) : SceneRepository,
                         actorId = p.actorId,
                         startOffset = p.startOffset,
                         endOffset = p.endOffset,
-                        isOrphaned = p.orphaned == 1L
+                        isOrphaned = p.orphaned == 1L,
+                        groupId = p.groupId
                     )
                 } 
             }
@@ -144,6 +161,11 @@ class SceneRepositoryImpl(val queries: DatabaseQueries) : SceneRepository,
             .asFlow()
             .mapToList(Dispatchers.IO)
             .map { list ->
+                // Группируем сцены по groupId
+                val groupScenes = list.filter { it.groupId != null }
+                    .groupBy { it.groupId }
+                    .mapValues { entry -> entry.value.map { "${it.seriesNumber}-${it.sceneNumber}" }.distinct() }
+
                 list.map { prop ->
                     PropWithScene(
                         id = prop.id,
@@ -159,7 +181,9 @@ class SceneRepositoryImpl(val queries: DatabaseQueries) : SceneRepository,
                         actorId = prop.actorId,
                         seriesNumber = prop.seriesNumber,
                         sceneNumber = prop.sceneNumber,
-                        isOrphaned = prop.orphaned == 1L
+                        isOrphaned = prop.orphaned == 1L,
+                        groupId = prop.groupId,
+                        allSceneNumbers = if (prop.groupId != null) groupScenes[prop.groupId] ?: emptyList() else emptyList()
                     )
                 }
             }
@@ -168,8 +192,40 @@ class SceneRepositoryImpl(val queries: DatabaseQueries) : SceneRepository,
         return queries.getSceneUserDataBySeriesAndNumber(projectId, series, sceneNumber).executeAsOneOrNull()?.id
     }
 
-    override suspend fun addProp(sceneUserDataId: Long, name: String, anchor: String, status: String, startOffset: Long, endOffset: Long) {
-        queries.insertProp(
+    override suspend fun addPropFull(
+        sceneUserDataId: Long,
+        name: String,
+        anchor: String,
+        status: String,
+        category: String,
+        quantity: Int,
+        actorId: Long?,
+        note: String?,
+        isCrossCutting: Boolean,
+        groupId: Long?
+    ): Long {
+        queries.insertFullProp(
+            sceneUserDataId = sceneUserDataId,
+            name = name,
+            anchor = anchor,
+            status = status,
+            category = category,
+            propType = "Обстановочный",
+            note = note,
+            photoPath = null,
+            isCrossCutting = if (isCrossCutting) 1L else 0L,
+            quantity = quantity.toLong(),
+            actorId = actorId,
+            startOffset = 0,
+            endOffset = 0,
+            orphaned = 0,
+            groupId = groupId
+        )
+        return queries.lastInsertRowId().executeAsOne()
+    }
+
+    override suspend fun addProp(sceneUserDataId: Long, name: String, anchor: String, status: String, startOffset: Long, endOffset: Long): Long {
+        queries.insertFullProp(
             sceneUserDataId = sceneUserDataId,
             name = name,
             anchor = anchor,
@@ -183,8 +239,10 @@ class SceneRepositoryImpl(val queries: DatabaseQueries) : SceneRepository,
             actorId = null,
             startOffset = startOffset,
             endOffset = endOffset,
-            orphaned = 0
+            orphaned = 0,
+            groupId = null
         )
+        return queries.lastInsertRowId().executeAsOne()
     }
 
     override suspend fun updatePropStatus(propId: Long, newStatus: String) {
@@ -241,6 +299,10 @@ class SceneRepositoryImpl(val queries: DatabaseQueries) : SceneRepository,
 
     override suspend fun updatePropType(propId: Long, propType: String) {
         queries.updatePropType(propType, propId)
+    }
+
+    override suspend fun updatePropGroupId(propId: Long, groupId: Long?) {
+        queries.updatePropGroupId(groupId, propId)
     }
 
     override suspend fun bulkUpdatePropStatus(propIds: List<Long>, status: String) {

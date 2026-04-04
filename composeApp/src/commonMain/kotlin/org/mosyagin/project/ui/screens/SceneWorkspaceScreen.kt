@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -15,9 +16,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.koin.koinScreenModel
@@ -25,13 +27,15 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import kotlinx.coroutines.launch
 import org.koin.core.parameter.parametersOf
+import org.mosyagin.project.Actor
 import org.mosyagin.project.GetLatestScenesForProject
 import org.mosyagin.project.models.versioning.Prop
+import org.mosyagin.project.models.versioning.PropStatus
+import org.mosyagin.project.repository.PropWithScene
 import org.mosyagin.project.ui.components.ThreePaneLayout
 import org.mosyagin.project.ui.components.CineCard
 import org.mosyagin.project.ui.components.CineTag
 import org.mosyagin.project.parser.ScriptParser
-import org.mosyagin.project.ui.components.AppLayoutType
 import org.mosyagin.project.ui.components.LocalAppLayoutType
 
 data class SceneWorkspaceScreen(val projectId: Long) : Screen {
@@ -40,7 +44,6 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
     override fun Content() {
         val screenModel = koinScreenModel<SceneWorkspaceViewModel> { parametersOf(projectId) }
         val navigator = LocalNavigator.currentOrThrow
-        val layoutType = LocalAppLayoutType.current
         val scope = rememberCoroutineScope()
         val listState = rememberLazyListState()
         
@@ -55,7 +58,6 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
         var showAddPropDialog by remember { mutableStateOf(false) }
         var showSelectionPopup by remember { mutableStateOf(false) }
         var selectedAnchor by remember { mutableStateOf("") }
-        var propNameInput by remember { mutableStateOf("") }
 
         Box(modifier = Modifier.fillMaxSize()) {
             ThreePaneLayout(
@@ -104,7 +106,6 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
                 }
             )
 
-            // Попап "Добавить реквизит?"
             if (showSelectionPopup) {
                 Popup(alignment = Alignment.Center, onDismissRequest = { showSelectionPopup = false }) {
                     Card(
@@ -119,8 +120,6 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
                                 TextButton(onClick = { showSelectionPopup = false }) { Text("Нет") }
                                 Button(onClick = {
                                     showSelectionPopup = false
-                                    // ТЕПЕРЬ ПУСТО ПО УМОЛЧАНИЮ
-                                    propNameInput = "" 
                                     showAddPropDialog = true
                                 }) { Text("Да") }
                             }
@@ -131,39 +130,176 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
         }
 
         if (showAddPropDialog) {
-            AlertDialog(
-                onDismissRequest = { showAddPropDialog = false },
-                title = { Text("Новый реквизит") },
-                text = {
-                    Column {
-                        Text("Текст из сценария (anchor):", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                        Text("\"$selectedAnchor\"", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Normal)
-                        Spacer(Modifier.height(16.dp))
-                        OutlinedTextField(
-                            value = propNameInput,
-                            onValueChange = { propNameInput = it },
-                            label = { Text("Название предмета") },
-                            placeholder = { Text("Напр: Цветок в горшке") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(onClick = { 
-                        // Если ввели своё - берем своё. Если пусто - берем якорь.
-                        val finalName = propNameInput.trim().ifBlank { selectedAnchor }
-                        screenModel.addProp(name = finalName, anchor = selectedAnchor)
-
-                        showAddPropDialog = false
-                        selectedAnchor = ""
-                        propNameInput = ""
-                    }) { Text("Сохранить") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showAddPropDialog = false }) { Text("Отмена") }
+            AddPropDialog(
+                anchor = selectedAnchor,
+                seriesNumber = inspectorData?.seriesNumber ?: 0,
+                sceneNumber = inspectorData?.sceneNumber ?: "",
+                actors = screenModel.projectActors.collectAsState().value,
+                existingProps = screenModel.allProjectProps.collectAsState().value,
+                onDismiss = { showAddPropDialog = false },
+                onConfirm = { name, category, status, quantity, actorId, note, existingId ->
+                    // ИСПРАВЛЕНО: Передаем все аргументы в правильном порядке
+                    screenModel.addPropExtended(
+                        name = name,
+                        anchor = selectedAnchor,
+                        category = category,
+                        status = status,
+                        quantity = quantity,
+                        actorId = actorId,
+                        note = note,
+                        existingPropId = existingId
+                    )
+                    showAddPropDialog = false
                 }
             )
+        }
+    }
+
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    private fun AddPropDialog(
+        anchor: String,
+        seriesNumber: Long,
+        sceneNumber: String,
+        actors: List<Actor>,
+        existingProps: List<PropWithScene>,
+        onDismiss: () -> Unit,
+        onConfirm: (String, String, String, Int, Long?, String?, Long?) -> Unit // Добавили String? для заметки
+    ) {
+        var name by remember { mutableStateOf(anchor) }
+        var quantity by remember { mutableStateOf("1") }
+        var selectedCategory by remember { mutableStateOf("Прочее") }
+        var selectedStatus by remember { mutableStateOf(PropStatus.PLANNED.displayName) }
+        var selectedActorId by remember { mutableStateOf<Long?>(null) }
+        var notes by remember { mutableStateOf("") }
+        var selectedExistingPropId by remember { mutableStateOf<Long?>(null) }
+
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = {
+                Column {
+                    Text("Добавление реквизита", style = MaterialTheme.typography.headlineSmall)
+                    Text("Якорь: \"$anchor\" • Сцена $seriesNumber-$sceneNumber", 
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                }
+            },
+            text = {
+                Column(modifier = Modifier.width(450.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text("Название") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedTextField(
+                            value = quantity,
+                            onValueChange = { if (it.all { c -> c.isDigit() }) quantity = it },
+                            label = { Text("Кол-во") },
+                            modifier = Modifier.weight(1f),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                        )
+                        
+                        ExposedDropdown(
+                            label = "Категория",
+                            options = listOf("Персонажный", "Транспорт", "Типографика", "Графика", "Исходящий", "Животные", "Оружие", "Прочее"),
+                            selected = selectedCategory,
+                            onSelect = { selectedCategory = it },
+                            modifier = Modifier.weight(2f)
+                        )
+                    }
+
+                    ExposedDropdown(
+                        label = "Статус",
+                        options = PropStatus.entries.map { it.displayName },
+                        selected = selectedStatus,
+                        onSelect = { selectedStatus = it },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    ExposedDropdown(
+                        label = "Принадлежит персонажу",
+                        options = listOf("Нет") + actors.map { it.name },
+                        selected = actors.find { it.id == selectedActorId }?.name ?: "Нет",
+                        onSelect = { name -> 
+                            selectedActorId = actors.find { it.name == name }?.id
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    ExposedDropdown(
+                        label = "Связать со сквозным (если есть)",
+                        options = listOf("Новый предмет") + existingProps.map { it.name }.distinct(),
+                        selected = existingProps.find { it.id == selectedExistingPropId }?.name ?: "Новый предмет",
+                        onSelect = { propName ->
+                            selectedExistingPropId = existingProps.find { it.name == propName }?.id
+                            if (propName != "Новый предмет") name = propName
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    // НОВОЕ ПОЛЕ: ЗАМЕТКИ
+                    OutlinedTextField(
+                        value = notes,
+                        onValueChange = { notes = it },
+                        label = { Text("Заметки") },
+                        placeholder = { Text("Напр: цвет, материал, особенности...") },
+                        modifier = Modifier.fillMaxWidth().height(100.dp),
+                        maxLines = 4
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = { 
+                    onConfirm(name, selectedCategory, selectedStatus, quantity.toIntOrNull() ?: 1, selectedActorId, notes.ifBlank { null }, selectedExistingPropId) 
+                }) { Text("Добавить") }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) { Text("Отменить") }
+            }
+        )
+    }
+
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    private fun ExposedDropdown(
+        label: String,
+        options: List<String>,
+        selected: String,
+        onSelect: (String) -> Unit,
+        modifier: Modifier = Modifier
+    ) {
+        var expanded by remember { mutableStateOf(false) }
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = it },
+            modifier = modifier
+        ) {
+            OutlinedTextField(
+                value = selected,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text(label) },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable, true).fillMaxWidth(),
+                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
+            )
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                options.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option) },
+                        onClick = {
+                            onSelect(option)
+                            expanded = false
+                        },
+                        contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                    )
+                }
+            }
         }
     }
 
@@ -209,7 +345,7 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
 
                     CineCard(
                         onClick = { onSceneClick(scene.id) },
-                        isSelected = isSelected, // ИСПОЛЬЗУЕМ НОВЫЙ ПАРАМЕТР
+                        isSelected = isSelected,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -249,7 +385,6 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
             Text("Инспектор", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(bottom = 24.dp))
             
             if (data != null) {
-                // КНОПКА DIFF
                 if (data.needsReview) {
                     Button(
                         onClick = { onShowDiff(data.sceneId) },
