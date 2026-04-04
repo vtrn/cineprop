@@ -138,7 +138,6 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
                 existingProps = screenModel.allProjectProps.collectAsState().value,
                 onDismiss = { showAddPropDialog = false },
                 onConfirm = { name, category, status, quantity, actorId, note, existingId ->
-                    // ИСПРАВЛЕНО: Передаем все аргументы в правильном порядке
                     screenModel.addPropExtended(
                         name = name,
                         anchor = selectedAnchor,
@@ -164,7 +163,7 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
         actors: List<Actor>,
         existingProps: List<PropWithScene>,
         onDismiss: () -> Unit,
-        onConfirm: (String, String, String, Int, Long?, String?, Long?) -> Unit // Добавили String? для заметки
+        onConfirm: (String, String, String, Int, Long?, String?, Long?) -> Unit
     ) {
         var name by remember { mutableStateOf(anchor) }
         var quantity by remember { mutableStateOf("1") }
@@ -218,17 +217,17 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    ExposedDropdown(
+                    SearchableExposedDropdown(
                         label = "Принадлежит персонажу",
                         options = listOf("Нет") + actors.map { it.name },
                         selected = actors.find { it.id == selectedActorId }?.name ?: "Нет",
-                        onSelect = { name -> 
-                            selectedActorId = actors.find { it.name == name }?.id
+                        onSelect = { selectedName -> 
+                            selectedActorId = actors.find { it.name == selectedName }?.id
                         },
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    ExposedDropdown(
+                    SearchableExposedDropdown(
                         label = "Связать со сквозным (если есть)",
                         options = listOf("Новый предмет") + existingProps.map { it.name }.distinct(),
                         selected = existingProps.find { it.id == selectedExistingPropId }?.name ?: "Новый предмет",
@@ -239,7 +238,6 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    // НОВОЕ ПОЛЕ: ЗАМЕТКИ
                     OutlinedTextField(
                         value = notes,
                         onValueChange = { notes = it },
@@ -259,6 +257,80 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
                 TextButton(onClick = onDismiss) { Text("Отменить") }
             }
         )
+    }
+
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    private fun SearchableExposedDropdown(
+        label: String,
+        options: List<String>,
+        selected: String,
+        onSelect: (String) -> Unit,
+        modifier: Modifier = Modifier
+    ) {
+        var expanded by remember { mutableStateOf(false) }
+        var query by remember { mutableStateOf("") }
+        
+        val filteredOptions = remember(query, options) {
+            options.filter { it.contains(query, ignoreCase = true) }
+        }
+
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = it },
+            modifier = modifier
+        ) {
+            OutlinedTextField(
+                value = if (expanded) query else selected,
+                onValueChange = { 
+                    query = it
+                    expanded = true
+                },
+                label = { Text(label) },
+                trailingIcon = { 
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (expanded && query.isNotEmpty()) {
+                            IconButton(onClick = { query = "" }) {
+                                Icon(Icons.Default.Close, null, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                    }
+                },
+                modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable, true).fillMaxWidth(),
+                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                singleLine = true,
+                placeholder = { if (expanded) Text("Поиск...") }
+            )
+            
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { 
+                    expanded = false
+                    query = ""
+                }
+            ) {
+                if (filteredOptions.isEmpty()) {
+                    DropdownMenuItem(
+                        text = { Text("Ничего не найдено", color = Color.Gray, fontSize = 14.sp) },
+                        onClick = { },
+                        enabled = false
+                    )
+                } else {
+                    filteredOptions.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(option) },
+                            onClick = {
+                                onSelect(option)
+                                expanded = false
+                                query = ""
+                            },
+                            contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                        )
+                    }
+                }
+            }
+        }
     }
 
     @OptIn(ExperimentalMaterial3Api::class)

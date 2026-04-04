@@ -4,6 +4,7 @@ import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import org.mosyagin.project.Actor
 import org.mosyagin.project.models.versioning.PropStatus
 import org.mosyagin.project.repository.PropWithScene
 import org.mosyagin.project.repository.SceneRepository
@@ -53,6 +54,10 @@ class PropWorkspaceViewModel(
 
     private val allProps = sceneRepository.getPropsByProject(projectId)
         .stateIn(screenModelScope, SharingStarted.Eagerly, emptyList())
+
+    // ДОБАВЛЕНО: Список актеров проекта для отображения в инспекторе
+    val projectActors = sceneRepository.getActorsByProject(projectId)
+        .stateIn(screenModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val categories: StateFlow<List<String>> = allProps.map { list ->
         val fromDb = list.map { it.category.lowercase() }.distinct()
