@@ -20,19 +20,15 @@ class TrackerViewModel(
     private val sceneRepository: SceneRepository
 ) : ScreenModel {
 
-    // Стейт для списка смен
     val shifts: StateFlow<List<Shift>> = shiftRepository.getShiftsByProject(projectId)
         .stateIn(screenModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Стейт для раскрытых смен (набор ID)
     private val _expandedShiftIds = MutableStateFlow<Set<Long>>(emptySet())
     val expandedShiftIds: StateFlow<Set<Long>> = _expandedShiftIds.asStateFlow()
 
-    // Стейт для выбранной сцены
     private val _selectedSceneId = MutableStateFlow<Long?>(null)
     val selectedSceneId: StateFlow<Long?> = _selectedSceneId.asStateFlow()
 
-    // Хранилище для сцен по сменам (кэшируем флоу)
     private val _scenesByShift = mutableMapOf<Long, StateFlow<List<GetScenesForShift>>>()
 
     fun getScenesForShift(shiftId: Long): StateFlow<List<GetScenesForShift>> {
@@ -42,7 +38,6 @@ class TrackerViewModel(
         }
     }
 
-    // Детали выбранной сцены (текст)
     val selectedSceneDetails: StateFlow<SceneVersion?> = _selectedSceneId.flatMapLatest { id ->
         if (id == null) flowOf(null)
         else {
@@ -50,8 +45,7 @@ class TrackerViewModel(
         }
     }.stateIn(screenModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    // Инспектор выбранной сцены
-    val selectedSceneInspector = _selectedSceneId.flatMapLatest { id ->
+    val selectedSceneInspector: StateFlow<SceneInspectorData?> = _selectedSceneId.flatMapLatest { id ->
         if (id == null) flowOf(null)
         else {
             combine(
@@ -63,7 +57,9 @@ class TrackerViewModel(
                     sceneId = id,
                     props = props, 
                     actors = actors,
-                    needsReview = userData?.needsReview == 1L
+                    needsReview = userData?.needsReview == 1L,
+                    seriesNumber = userData?.seriesNumber ?: 0L,
+                    sceneNumber = userData?.sceneNumber ?: ""
                 )
             }
         }

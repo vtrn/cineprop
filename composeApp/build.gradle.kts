@@ -76,6 +76,9 @@ kotlin {
             implementation("app.cash.sqldelight:android-driver:${libs.versions.sqldelight.get()}")
             implementation(libs.pdfbox.android)
             implementation(libs.koin.android)
+            
+            // Apache POI for Android
+            implementation(libs.poi.ooxml)
         }
         
         iosMain.dependencies {
@@ -92,8 +95,10 @@ kotlin {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
             implementation("app.cash.sqldelight:sqlite-driver:${libs.versions.sqldelight.get()}")
-            // Добавляем PDFBox для Desktop
             implementation("org.apache.pdfbox:pdfbox:2.0.30")
+            
+            // Apache POI for Desktop
+            implementation(libs.poi.ooxml)
         }
         
         jvmTest.dependencies {
@@ -142,7 +147,6 @@ dependencies {
 
 compose.desktop {
     application {
-        // ИСПРАВЛЕНО: Полное имя класса с учетом пакета
         mainClass = "org.mosyagin.project.MainKt"
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Exe)
@@ -160,7 +164,6 @@ compose.desktop {
                 shortcut = true
                 menu = true
                 upgradeUuid = "80f86641-3b7c-474c-b9b5-6f9a0c0f993d"
-                // iconFile.set(project.file("launcher_icons/icon.ico"))
             }
         }
     }
