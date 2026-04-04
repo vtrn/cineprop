@@ -4,9 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.koin.koinScreenModel
@@ -41,6 +39,13 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
         val sortColumn by viewModel.sortColumn.collectAsState()
         val isSortAscending by viewModel.isSortAscending.collectAsState()
         val searchQuery by viewModel.searchQuery.collectAsState()
+        
+        // Состояния для режима КПП
+        val isKppMode by viewModel.isKppMode.collectAsState()
+        val propsByShift by viewModel.propsByShift.collectAsState()
+
+        // Состояние диалога экспорта
+        var showExportDialog by remember { mutableStateOf(false) }
 
         Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             // Использование стандартного трехпанельного макета CineApp
@@ -50,7 +55,8 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
                     PropMasterPane(
                         propsByCategory = propsByCategory,
                         selectedCategoryFilter = selectedCategoryFilter,
-                        onCategoryFilterSelected = { viewModel.onCategoryFilterSelected(it) }
+                        onCategoryFilterSelected = { viewModel.onCategoryFilterSelected(it) },
+                        onExportClick = { showExportDialog = true }
                     )
                 },
                 // Центральная панель: Интерактивный список объектов
@@ -62,7 +68,10 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
                         viewModel = viewModel,
                         sortColumn = sortColumn,
                         isSortAscending = isSortAscending,
-                        searchQuery = searchQuery
+                        searchQuery = searchQuery,
+                        isKppMode = isKppMode,
+                        propsByShift = propsByShift,
+                        onToggleKppMode = { viewModel.toggleKppMode() }
                     )
                 },
                 // Правая панель: Инспектор выбранного объекта
@@ -81,6 +90,18 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
                     )
                 }
             )
+
+            // Диалоговое окно экспорта
+            if (showExportDialog) {
+                PropExportDialog(
+                    onDismiss = { showExportDialog = false },
+                    onExport = { grouping, format ->
+                        // ИСПРАВЛЕНО: Теперь реально вызываем экспорт
+                        viewModel.performExport(grouping, format)
+                        showExportDialog = false
+                    }
+                )
+            }
         }
     }
 }

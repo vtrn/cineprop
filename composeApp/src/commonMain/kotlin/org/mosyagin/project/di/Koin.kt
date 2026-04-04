@@ -1,7 +1,7 @@
 package org.mosyagin.project.di
 
-import kotlinx.coroutines.NonCancellable.get
 import org.koin.core.context.startKoin
+import org.koin.core.module.Module
 import org.koin.dsl.KoinAppDeclaration
 import org.koin.dsl.module
 import org.mosyagin.project.db.CinePropDatabase
@@ -12,16 +12,19 @@ import org.mosyagin.project.parser.ScriptParser
 import org.mosyagin.project.parser.update.ScriptUpdateManager
 import org.mosyagin.project.repository.*
 import org.mosyagin.project.ui.screens.*
-import kotlin.coroutines.EmptyCoroutineContext.get
+
+/**
+ * Ожидаемые модули от платформ (Android/JVM)
+ */
+expect val platformModule: Module
 
 /**
  * Инициализация Koin.
- * Вызывается при запуске приложения на каждой платформе.
  */
 fun initKoin(appDeclaration: KoinAppDeclaration = {}) =
     startKoin {
         appDeclaration()
-        modules(appModule, databaseModule, screenModelModule)
+        modules(appModule, databaseModule, screenModelModule, platformModule)
     }
 
 /**
@@ -48,47 +51,45 @@ val screenModelModule = module {
     }
     factory { ScriptViewModel(get()) }
     
-    // Регистрация для управления версиями
     factory { (projectId: Long, seriesNumber: Int) -> 
         ScriptVersionViewModel(get(), projectId, seriesNumber) 
     }
 
-    // Task #48: Workspace для Desktop
     factory { (projectId: Long) -> 
         SceneWorkspaceViewModel(projectId, get()) 
     }
     
-    // Tracker Workspace для Desktop
     factory { (projectId: Long) -> 
         TrackerViewModel(projectId, get(), get()) 
     }
 
-    // Prop Workspace для Desktop
+    // Prop Workspace: передаем все 5 параметров (projectId + 4 зависимости из Koin)
     factory { (projectId: Long) -> 
-        PropWorkspaceViewModel(projectId, get())
+        PropWorkspaceViewModel(
+            projectId = projectId, 
+            sceneRepository = get(),
+            projectRepository = get(),
+            propExporter = get(),
+            fileSaver = get()
+        )
     }
 
-    // Asset Manager для Desktop
     factory { (projectId: Long) -> 
         PropAssetManagerViewModel(get(), projectId)
     }
 
-    // Script Workspace для Desktop
     factory { (projectId: Long) -> 
         ScriptWorkspaceViewModel(projectId, get())
     }
 
-    // Kpp Workspace для Desktop
     factory { (projectId: Long) -> 
         KppWorkspaceViewModel(projectId, get())
     }
 
-    // Character Workspace для Desktop
     factory { (projectId: Long) -> 
         CharacterWorkspaceViewModel(projectId, get())
     }
     
-    // Settings
     factory { SettingsViewModel(get()) }
 }
 
@@ -106,6 +107,5 @@ val appModule = module {
     single<KppRepository> { KppRepositoryImpl(get()) }
     single<ShiftRepository> { ShiftRepositoryImpl(get()) }
     
-    // Явно указываем интерфейс для SettingsRepository
     single<SettingsRepository> { SettingsRepositoryImpl(get()) }
 }

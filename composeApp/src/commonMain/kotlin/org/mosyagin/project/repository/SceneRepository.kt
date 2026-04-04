@@ -15,6 +15,7 @@ import org.mosyagin.project.GetLatestScenesForProject
 import org.mosyagin.project.GetSceneById
 import org.mosyagin.project.GetScenesByActor
 import org.mosyagin.project.Project
+import org.mosyagin.project.Shift
 import org.mosyagin.project.models.versioning.Prop
 import org.mosyagin.project.models.versioning.PropStatus
 
@@ -34,7 +35,9 @@ data class PropWithScene(
     val sceneNumber: String,
     val isOrphaned: Boolean = false,
     val groupId: Long? = null,
-    val allSceneNumbers: List<String> = emptyList() // ДОБАВЛЕНО: Список всех сцен в цепочке
+    val allSceneNumbers: List<String> = emptyList(),
+    val shiftNumber: Long? = null, // НОВОЕ: Номер смены
+    val shiftDate: String? = null  // НОВОЕ: Дата смены
 )
 
 interface SceneRepository {
@@ -49,6 +52,9 @@ interface SceneRepository {
     fun getLocationsByActor(actorId: Long): Flow<List<String>>
     fun getPropsForScene(sceneUserDataId: Long): Flow<List<Prop>>
     fun getPropsByProject(projectId: Long): Flow<List<PropWithScene>>
+    fun getShiftsByProject(projectId: Long): Flow<List<Shift>> // НОВОЕ
+    fun getPropsWithShiftByProject(projectId: Long): Flow<List<PropWithScene>> // НОВОЕ
+    
     suspend fun getSceneUserDataIdBySeriesAndNumber(projectId: Long, series: Long, sceneNumber: String): Long?
     
     suspend fun addPropFull(
@@ -161,7 +167,6 @@ class SceneRepositoryImpl(val queries: DatabaseQueries) : SceneRepository,
             .asFlow()
             .mapToList(Dispatchers.IO)
             .map { list ->
-                // Группируем сцены по groupId
                 val groupScenes = list.filter { it.groupId != null }
                     .groupBy { it.groupId }
                     .mapValues { entry -> entry.value.map { "${it.seriesNumber}-${it.sceneNumber}" }.distinct() }
@@ -184,6 +189,39 @@ class SceneRepositoryImpl(val queries: DatabaseQueries) : SceneRepository,
                         isOrphaned = prop.orphaned == 1L,
                         groupId = prop.groupId,
                         allSceneNumbers = if (prop.groupId != null) groupScenes[prop.groupId] ?: emptyList() else emptyList()
+                    )
+                }
+            }
+
+    override fun getShiftsByProject(projectId: Long): Flow<List<Shift>> =
+        queries.getShiftsByProject(projectId)
+            .asFlow()
+            .mapToList(Dispatchers.IO)
+
+    override fun getPropsWithShiftByProject(projectId: Long): Flow<List<PropWithScene>> =
+        queries.getPropsWithShiftByProject(projectId)
+            .asFlow()
+            .mapToList(Dispatchers.IO)
+            .map { list ->
+                list.map { p ->
+                    PropWithScene(
+                        id = p.id,
+                        name = p.name,
+                        anchor = p.anchor,
+                        status = p.status,
+                        category = p.category,
+                        propType = p.propType,
+                        note = p.note,
+                        photoPath = p.photoPath,
+                        isCrossCutting = p.isCrossCutting == 1L,
+                        quantity = p.quantity.toInt(),
+                        actorId = p.actorId,
+                        seriesNumber = p.seriesNumber,
+                        sceneNumber = p.sceneNumber,
+                        isOrphaned = p.orphaned == 1L,
+                        groupId = p.groupId,
+                        shiftNumber = p.shiftNumber,
+                        shiftDate = p.shiftDate
                     )
                 }
             }

@@ -97,7 +97,7 @@ UPDATE SceneUserData
 SET location = ?, isInterior = ?, timeOfDay = ?
 WHERE id = ?;
 
--- Новые запросы для сцен
+-- Новые запросы для сцн
 insertSceneUserData:
 INSERT INTO SceneUserData(projectId, seriesNumber, sceneNumber, location, isInterior, timeOfDay, notes, needsReview)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?);
@@ -250,6 +250,16 @@ FROM Prop p
 JOIN SceneUserData ud ON p.sceneUserDataId = ud.id
 WHERE ud.projectId = ?
 ORDER BY p.status ASC, p.name ASC;
+
+-- НОВОЕ: Получение реквизита с привязкой к сменам
+getPropsWithShiftByProject:
+SELECT p.*, ud.seriesNumber, ud.sceneNumber, s.shiftNumber, s.date AS shiftDate, s.id AS shiftId
+FROM Prop p
+JOIN SceneUserData ud ON p.sceneUserDataId = ud.id
+JOIN ShiftScene ss ON ud.id = ss.sceneUserDataId
+JOIN Shift s ON ss.shiftId = s.id
+WHERE ud.projectId = ?
+ORDER BY s.shiftNumber ASC, ss.position ASC, p.name ASC;
 
 deleteProp:
 DELETE FROM Prop WHERE id = ?;

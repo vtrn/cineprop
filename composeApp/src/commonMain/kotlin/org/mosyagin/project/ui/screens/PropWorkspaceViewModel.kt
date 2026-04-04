@@ -5,9 +5,14 @@ import cafe.adriel.voyager.core.model.screenModelScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import org.mosyagin.project.Actor
+import org.mosyagin.project.export.FileSaver
+import org.mosyagin.project.export.PropExporter
 import org.mosyagin.project.models.versioning.PropStatus
+import org.mosyagin.project.repository.ProjectRepository
 import org.mosyagin.project.repository.PropWithScene
 import org.mosyagin.project.repository.SceneRepository
+import org.mosyagin.project.ui.components.props.ExportFormat
+import org.mosyagin.project.ui.components.props.ExportGrouping
 
 enum class PropSortColumn {
     NAME, CATEGORY, SCENE, QUANTITY, STATUS
@@ -15,7 +20,10 @@ enum class PropSortColumn {
 
 class PropWorkspaceViewModel(
     private val projectId: Long,
-    private val sceneRepository: SceneRepository
+    private val sceneRepository: SceneRepository,
+    private val projectRepository: ProjectRepository,
+    private val propExporter: PropExporter,
+    private val fileSaver: FileSaver
 ) : ScreenModel {
 
     companion object {
@@ -49,15 +57,25 @@ class PropWorkspaceViewModel(
     private val _isSortAscending = MutableStateFlow(true)
     val isSortAscending: StateFlow<Boolean> = _isSortAscending.asStateFlow()
 
-    private val _expandedCategories = MutableStateFlow<Set<String>>(setOf("Все"))
-    val expandedCategories: StateFlow<Set<String>> = _expandedCategories.asStateFlow()
+    private val _isKppMode = MutableStateFlow(false)
+    val isKppMode: StateFlow<Boolean> = _isKppMode.asStateFlow()
 
     private val allProps = sceneRepository.getPropsByProject(projectId)
         .stateIn(screenModelScope, SharingStarted.Eagerly, emptyList())
 
-    // ДОБАВЛЕНО: Список актеров проекта для отображения в инспекторе
     val projectActors = sceneRepository.getActorsByProject(projectId)
         .stateIn(screenModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /**
+     * Группировка реквизита по сменам КПП.
+     */
+    val propsByShift: StateFlow<Map<Long, List<PropWithScene>>> = combine(
+        sceneRepository.getPropsWithShiftByProject(projectId), 
+        _searchQuery
+    ) { props, query ->
+        props.filter { it.name.contains(query, ignoreCase = true) }
+             .groupBy { it.shiftNumber ?: 0L }
+    }.stateIn(screenModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     val categories: StateFlow<List<String>> = allProps.map { list ->
         val fromDb = list.map { it.category.lowercase() }.distinct()
@@ -115,6 +133,10 @@ class PropWorkspaceViewModel(
         _selectedCategoryFilter.value = category?.lowercase()
     }
 
+    fun toggleKppMode() {
+        _isKppMode.value = !_isKppMode.value
+    }
+
     fun toggleSort(column: PropSortColumn) {
         if (_sortColumn.value == column) {
             _isSortAscending.value = !_isSortAscending.value
@@ -122,12 +144,6 @@ class PropWorkspaceViewModel(
             _sortColumn.value = column
             _isSortAscending.value = true
         }
-    }
-
-    fun toggleCategory(category: String) {
-        val catLower = category.lowercase()
-        val current = _expandedCategories.value
-        _expandedCategories.value = if (current.contains(catLower)) current - catLower else current + catLower
     }
 
     fun togglePropSelection(propId: Long) {
@@ -142,6 +158,38 @@ class PropWorkspaceViewModel(
 
     fun clearSelection() {
         _selectedPropIds.value = emptySet()
+    }
+
+    /**
+     * Основная логика экспорта реквизита.
+     */
+    fun performExport(grouping: ExportGrouping, format: ExportFormat) {
+        screenModelScope.launch {
+            // 1. Получаем данные проекта для заголовка
+            val project = projectRepository.getProjectById(projectId).firstOrNull() ?: return@launch
+            
+            // 2. Получаем актуальный список реквизита
+            val props = if (grouping == ExportGrouping.BY_KPP) {
+                sceneRepository.getPropsWithShiftByProject(projectId).first()
+            } else {
+                sceneRepository.getPropsByProject(projectId).first()
+            }
+
+            // 3. Генерируем байты файла
+            val bytes = propExporter.export(project.name, grouping, format, props)
+            
+            if (bytes.isNotEmpty()) {
+                // 4. Сохраняем файл на диск
+                val fileName = "PropList_${project.name}_${if(grouping == ExportGrouping.BY_KPP) "KPP" else "Script"}.${if(format == ExportFormat.EXCEL) "xlsx" else "pdf"}"
+                val mimeType = if (format == ExportFormat.EXCEL) {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                } else {
+                    "application/pdf"
+                }
+                
+                fileSaver.saveFile(fileName, mimeType, bytes)
+            }
+        }
     }
 
     // Удаление реквизита

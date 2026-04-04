@@ -1,6 +1,8 @@
 package org.mosyagin.project.ui.components.props
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,8 +24,20 @@ import org.mosyagin.project.ui.screens.PropWorkspaceViewModel
 
 /**
  * Центральная панель рабочего пространства: детализированный список реквизита.
- * Поддерживает поиск, сортировку и древовидную группировку сквозного реквизита.
+ * Поддерживает поиск, сортировку, группировку по КПП и древовидную группировку сквозного реквизита.
+ *
+ * @param props Полный список объектов реквизита.
+ * @param selectedPropIds Множество ID выбранных элементов.
+ * @param selectedPropId ID текущего выбранного объекта.
+ * @param viewModel Ссылка на вью-модель.
+ * @param sortColumn Текущая колонка сортировки.
+ * @param isSortAscending Направление сортировки.
+ * @param searchQuery Текущий поисковый запрос.
+ * @param isKppMode Флаг включения режима отображения по КПП.
+ * @param propsByShift Данные реквизита, сгруппированные по сменам (для режима КПП).
+ * @param onToggleKppMode Переключатель режима КПП.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PropDetailPane(
     props: List<PropWithScene>,
@@ -32,7 +46,10 @@ fun PropDetailPane(
     viewModel: PropWorkspaceViewModel,
     sortColumn: PropSortColumn,
     isSortAscending: Boolean,
-    searchQuery: String
+    searchQuery: String,
+    isKppMode: Boolean = false,
+    propsByShift: Map<Long, List<PropWithScene>> = emptyMap(),
+    onToggleKppMode: () -> Unit = {}
 ) {
     // Состояние развернутых групп сквозного реквизита (по имени)
     var expandedGroups by remember { mutableStateOf(setOf<String>()) }
@@ -67,8 +84,20 @@ fun PropDetailPane(
             Spacer(Modifier.weight(1f))
             
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Кнопка переключения режима КПП
+                FilterChip(
+                    selected = isKppMode,
+                    onClick = onToggleKppMode,
+                    label = { Text("По КПП", fontSize = 11.sp) },
+                    leadingIcon = { Icon(Icons.Default.CalendarToday, null, modifier = Modifier.size(12.dp)) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                )
+
                 PropSortColumn.entries.take(3).forEach { col ->
-                    val isSelected = sortColumn == col
+                    val isSelected = sortColumn == col && !isKppMode
                     FilterChip(
                         selected = isSelected,
                         onClick = { viewModel.toggleSort(col) },
@@ -115,53 +144,76 @@ fun PropDetailPane(
         // Панель массовых действий
         BulkActionsToolbar(selectedIds = selectedPropIds, viewModel = viewModel)
 
-        // Основной список с поддержкой вложенности
+        // Основной список
         LazyColumn(
             contentPadding = PaddingValues(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            heads.forEach { headProp ->
-                item(key = headProp.id) {
-                    PropListItem(
-                        prop = headProp,
-                        isSelected = selectedPropIds.contains(headProp.id),
-                        isCurrent = selectedPropId == headProp.id,
-                        onSelect = { viewModel.togglePropSelection(headProp.id) },
-                        onClick = { viewModel.onPropSelected(headProp.id) },
-                        onStatusChange = { viewModel.updatePropStatus(headProp.id, it) },
-                        onCrossCuttingChange = { viewModel.updatePropCrossCutting(headProp.id, it) },
-                        onQuantityChange = { viewModel.updatePropQuantity(headProp.id, it) },
-                        onCategoryChange = { viewModel.updatePropCategory(headProp.id, it) },
-                        onDelete = { viewModel.deleteProp(headProp.id) },
-                        onStackClick = {
-                            if (headProp.isCrossCutting) {
-                                expandedGroups = if (expandedGroups.contains(headProp.name)) {
-                                    expandedGroups - headProp.name
-                                } else {
-                                    expandedGroups + headProp.name
+            if (isKppMode) {
+                // РЕЖИМ КПП: Группировка по сменам со Sticky Headers
+                propsByShift.forEach { (shiftNum, shiftProps) ->
+                    stickyHeader {
+                        ShiftHeader(shiftNum = shiftNum, date = shiftProps.firstOrNull()?.shiftDate ?: "")
+                    }
+                    items(shiftProps, key = { "shift_${shiftNum}_${it.id}" }) { prop ->
+                        PropListItem(
+                            prop = prop,
+                            isSelected = selectedPropIds.contains(prop.id),
+                            isCurrent = selectedPropId == prop.id,
+                            onSelect = { viewModel.togglePropSelection(prop.id) },
+                            onClick = { viewModel.onPropSelected(prop.id) },
+                            onStatusChange = { viewModel.updatePropStatus(prop.id, it) },
+                            onCrossCuttingChange = { viewModel.updatePropCrossCutting(prop.id, it) },
+                            onQuantityChange = { viewModel.updatePropQuantity(prop.id, it) },
+                            onCategoryChange = { viewModel.updatePropCategory(prop.id, it) },
+                            onDelete = { viewModel.deleteProp(prop.id) }
+                        )
+                    }
+                }
+            } else {
+                // ОБЫЧНЫЙ РЕЖИМ: Плоский список с иерархией сквозных
+                heads.forEach { headProp ->
+                    item(key = headProp.id) {
+                        PropListItem(
+                            prop = headProp,
+                            isSelected = selectedPropIds.contains(headProp.id),
+                            isCurrent = selectedPropId == headProp.id,
+                            onSelect = { viewModel.togglePropSelection(headProp.id) },
+                            onClick = { viewModel.onPropSelected(headProp.id) },
+                            onStatusChange = { viewModel.updatePropStatus(headProp.id, it) },
+                            onCrossCuttingChange = { viewModel.updatePropCrossCutting(headProp.id, it) },
+                            onQuantityChange = { viewModel.updatePropQuantity(headProp.id, it) },
+                            onCategoryChange = { viewModel.updatePropCategory(headProp.id, it) },
+                            onDelete = { viewModel.deleteProp(headProp.id) },
+                            onStackClick = {
+                                if (headProp.isCrossCutting) {
+                                    expandedGroups = if (expandedGroups.contains(headProp.name)) {
+                                        expandedGroups - headProp.name
+                                    } else {
+                                        expandedGroups + headProp.name
+                                    }
                                 }
                             }
-                        }
-                    )
-                }
-                
-                // Отображение вложенных карточек для развернутых групп
-                if (headProp.isCrossCutting && expandedGroups.contains(headProp.name)) {
-                    val children = groupedByPropName[headProp.name]?.filter { it.id != headProp.id } ?: emptyList()
-                    items(children, key = { it.id }) { childProp ->
-                        Box(modifier = Modifier.padding(start = 28.dp)) {
-                            PropListItem(
-                                prop = childProp,
-                                isSelected = selectedPropIds.contains(childProp.id),
-                                isCurrent = selectedPropId == childProp.id,
-                                onSelect = { viewModel.togglePropSelection(childProp.id) },
-                                onClick = { viewModel.onPropSelected(childProp.id) },
-                                onStatusChange = { viewModel.updatePropStatus(childProp.id, it) },
-                                onCrossCuttingChange = { viewModel.updatePropCrossCutting(childProp.id, it) },
-                                onQuantityChange = { viewModel.updatePropQuantity(childProp.id, it) },
-                                onCategoryChange = { viewModel.updatePropCategory(childProp.id, it) },
-                                onDelete = { viewModel.deleteProp(childProp.id) }
-                            )
+                        )
+                    }
+                    
+                    if (headProp.isCrossCutting && expandedGroups.contains(headProp.name)) {
+                        val children = groupedByPropName[headProp.name]?.filter { it.id != headProp.id } ?: emptyList()
+                        items(children, key = { it.id }) { childProp ->
+                            Box(modifier = Modifier.padding(start = 28.dp)) {
+                                PropListItem(
+                                    prop = childProp,
+                                    isSelected = selectedPropIds.contains(childProp.id),
+                                    isCurrent = selectedPropId == childProp.id,
+                                    onSelect = { viewModel.togglePropSelection(childProp.id) },
+                                    onClick = { viewModel.onPropSelected(childProp.id) },
+                                    onStatusChange = { viewModel.updatePropStatus(childProp.id, it) },
+                                    onCrossCuttingChange = { viewModel.updatePropCrossCutting(childProp.id, it) },
+                                    onQuantityChange = { viewModel.updatePropQuantity(childProp.id, it) },
+                                    onCategoryChange = { viewModel.updatePropCategory(childProp.id, it) },
+                                    onDelete = { viewModel.deleteProp(childProp.id) }
+                                )
+                            }
                         }
                     }
                 }
@@ -171,7 +223,44 @@ fun PropDetailPane(
 }
 
 /**
- * Панель массовых действий (вызывается из PropDetailPane)
+ * Заголовок смены для режима КПП
+ */
+@Composable
+private fun ShiftHeader(shiftNum: Long, date: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Default.Movie, 
+                null, 
+                modifier = Modifier.size(16.dp), 
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = "Смена №$shiftNum",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            if (date.isNotEmpty()) {
+                Text(
+                    text = " — $date",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Панель массовых действий
  */
 @Composable
 fun BulkActionsToolbar(selectedIds: Set<Long>, viewModel: PropWorkspaceViewModel) {
