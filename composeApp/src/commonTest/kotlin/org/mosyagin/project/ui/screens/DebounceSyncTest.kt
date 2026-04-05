@@ -35,7 +35,7 @@ class DebounceSyncTest {
 
     @Test
     fun testDebounceWriteAmplification() = runTest(testDispatcher) {
-        val syncRepository = FakeSyncRepository()
+        val syncRepository = FakeSyncRepositoryLocal()
         val sceneRepository = FakeSceneRepository()
         val projectRepository = FakeProjectRepository()
         
@@ -68,7 +68,7 @@ class DebounceSyncTest {
 }
 
 // Mock/Fake классы для теста
-class FakeSyncRepository : SyncRepository {
+class FakeSyncRepositoryLocal : SyncRepository {
     private val queue = MutableStateFlow<List<SyncQueue>>(emptyList())
     
     override suspend fun enqueue(operation: String, tableName: String, recordId: Long, dataJson: String?) {
@@ -93,6 +93,7 @@ class FakeSyncRepository : SyncRepository {
 
     override fun getPending(): Flow<List<SyncQueue>> = queue.asStateFlow()
     override suspend fun markSynced(ids: List<Long>) {}
+    override fun setSyncManager(manager: SyncManager) {}
     
     fun getSyncCount() = queue.value.size
 }

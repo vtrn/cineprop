@@ -7,33 +7,31 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import org.mosyagin.project.Project
 import org.mosyagin.project.repository.ProjectRepository
+import org.mosyagin.project.repository.SyncEvent
+import org.mosyagin.project.repository.SyncManager
 import org.mosyagin.project.repository.SyncRepository
-
-/**
- * Событие для очереди синхронизации (копия из PropWorkspaceViewModel для консистентности)
- */
-data class SyncEvent(
-    val operation: String,
-    val tableName: String,
-    val recordId: Long
-)
 
 @OptIn(FlowPreview::class)
 class ProjectListScreenModel(
     private val repository: ProjectRepository,
-    private val syncRepository: SyncRepository
+    private val syncRepository: SyncRepository,
+    private val syncManager: SyncManager // Добавляем менеджер для ручного запуска
 ) : ScreenModel {
 
-    // Поток событий для синхронизации с debounce (Issue #3)
     private val syncEvents = MutableSharedFlow<SyncEvent>()
 
     init {
+        // 1. Настраиваем дебаунс для обновлений
         syncEvents
             .debounce(1500L)
             .onEach { event ->
                 syncRepository.enqueue(event.operation, event.tableName, event.recordId, null)
             }
             .launchIn(screenModelScope)
+
+        // 2. АВТО-СИНХРОНИЗАЦИЯ ПРИ СТАРТЕ (Issue #5)
+        // Как только экран открывается, мы проверяем наличие обновлений в Supabase
+        syncManager.push()
     }
 
     val projects: StateFlow<List<Project>> = repository.getAllProjects()
@@ -46,20 +44,15 @@ class ProjectListScreenModel(
     fun addProject(name: String, director: String) {
         screenModelScope.launch {
             repository.addProject(name, director)
-            // При добавлении нового проекта мы сразу пишем в очередь (через репозиторий), 
-            // так как это не "печатаемое" поле, которое требует дебаунса. 
-            // Репозиторий уже вызывает enqueue для INSERT.
         }
     }
 
     fun deleteProject(id: Long) {
         screenModelScope.launch {
             repository.deleteProject(id)
-            // Репозиторий вызывает enqueue для DELETE.
         }
     }
 
-    // Если появится метод updateProjectName (который пользователь может быстро менять):
     fun updateProject(id: Long, name: String, director: String) {
         screenModelScope.launch {
             repository.updateProject(id, name, director)

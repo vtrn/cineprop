@@ -21,6 +21,10 @@ import org.mosyagin.project.SyncQueue
 class FakeSyncRepository : SyncRepository {
     private val queue = MutableStateFlow<List<SyncQueue>>(emptyList())
     
+    override fun setSyncManager(manager: SyncManager) {
+        // No-op для тестов
+    }
+
     override suspend fun enqueue(operation: String, tableName: String, recordId: Long, dataJson: String?) {
         enqueueSync(operation, tableName, recordId, dataJson)
     }

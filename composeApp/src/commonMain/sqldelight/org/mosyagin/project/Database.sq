@@ -14,6 +14,9 @@ CREATE TABLE Project (
 insertProject:
 INSERT INTO Project(name, director, updatedAt) VALUES (?, ?, ?);
 
+upsertProject:
+INSERT OR REPLACE INTO Project(id, name, director, updatedAt) VALUES (?, ?, ?, ?);
+
 getAllProjects:
 SELECT * FROM Project;
 
@@ -49,6 +52,10 @@ CREATE TABLE ScriptFile (
 insertScriptFile:
 INSERT INTO ScriptFile(projectId, seriesNumber, title, filePath, createdAt, previousVersionId, revisionColor, uploadedBy, updatedAt)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+upsertScriptFile:
+INSERT OR REPLACE INTO ScriptFile(id, projectId, seriesNumber, title, filePath, createdAt, previousVersionId, revisionColor, uploadedBy, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 getScriptsForProject:
 SELECT * FROM ScriptFile WHERE projectId = ? ORDER BY createdAt ASC;
@@ -111,9 +118,17 @@ insertSceneUserData:
 INSERT INTO SceneUserData(projectId, seriesNumber, sceneNumber, location, isInterior, timeOfDay, notes, needsReview, updatedAt)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 
+upsertSceneUserData:
+INSERT OR REPLACE INTO SceneUserData(id, projectId, seriesNumber, sceneNumber, location, isInterior, timeOfDay, notes, needsReview, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
 insertSceneVersion:
 INSERT INTO SceneVersion(scriptFileId, sceneUserDataId, content, contentHash, positionIndex, updatedAt)
 VALUES (?, ?, ?, ?, ?, ?);
+
+upsertSceneVersion:
+INSERT OR REPLACE INTO SceneVersion(id, scriptFileId, sceneUserDataId, content, contentHash, positionIndex, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?);
 
 getScenesBySeries:
 SELECT ud.*, v.content, v.contentHash
@@ -197,6 +212,9 @@ CREATE TABLE Actor (
 insertActor:
 INSERT OR IGNORE INTO Actor(projectId, name, updatedAt) VALUES (?, ?, ?);
 
+upsertActor:
+INSERT OR REPLACE INTO Actor(id, projectId, name, updatedAt) VALUES (?, ?, ?, ?);
+
 getActorByName:
 SELECT * FROM Actor WHERE projectId = ? AND name = ? LIMIT 1;
 
@@ -259,6 +277,10 @@ INSERT INTO Prop(
     startOffset, endOffset, orphaned, groupId, updatedAt
 )
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+upsertProp:
+INSERT OR REPLACE INTO Prop(id, sceneUserDataId, name, anchor, status, category, propType, note, photoPath, isCrossCutting, quantity, actorId, startOffset, endOffset, orphaned, groupId, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 getPropsForScene:
 SELECT * FROM Prop WHERE sceneUserDataId = ? ORDER BY id DESC;
@@ -350,7 +372,7 @@ getKppFilesByProject:
 SELECT * FROM KppFile WHERE projectId = ? ORDER BY version DESC;
 
 
--- ТАБЛИЦА СМЕН
+-- ТАБЛИЦА СМЕНА
 CREATE TABLE Shift (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     projectId INTEGER NOT NULL,

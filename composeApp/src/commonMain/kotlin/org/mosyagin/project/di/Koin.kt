@@ -42,7 +42,8 @@ val databaseModule = module {
  * Модуль для ScreenModels (ViewModels).
  */
 val screenModelModule = module {
-    factory { ProjectListScreenModel(get(), get()) }
+    // Добавлен get() для SyncManager
+    factory { ProjectListScreenModel(get(), get(), get()) }
     
     factory { (sceneUserDataId: Long, scriptFileId: Long) -> 
         SceneDetailScreenModel(get(), get(), sceneUserDataId, scriptFileId)

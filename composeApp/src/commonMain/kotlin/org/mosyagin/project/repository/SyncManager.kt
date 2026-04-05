@@ -1,7 +1,10 @@
+@file:OptIn(ExperimentalTime::class)
+
 package org.mosyagin.project.repository
 
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -11,6 +14,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.mosyagin.project.DatabaseQueries
 import kotlinx.datetime.Instant
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
 @Serializable
 data class ProjectDto(
@@ -84,25 +89,28 @@ class SyncManager(
     private val supabase: SupabaseClient
 ) {
     private val scope = CoroutineScope(Dispatchers.IO)
+    private val LAST_SYNC_KEY = "last_sync_timestamp"
 
     private fun Long.toIsoString(): String = 
         Instant.fromEpochMilliseconds(this).toString()
 
+    private fun String.toEpochMillis(): Long = 
+        Instant.parse(this).toEpochMilliseconds()
+
     /**
-     * Основной метод пуша изменений с соблюдением иерархии Foreign Keys
+     * Основной метод пуша изменений
      */
     fun push() {
         scope.launch {
             try {
                 val pending = syncRepository.getPending().first()
-                if (pending.isEmpty()) return@launch
+                if (pending.isEmpty()) {
+                    pull() // Если пушить нечего, пробуем тянуть
+                    return@launch
+                }
 
-                println("SyncManager: Starting prioritized push for ${pending.size} records...")
-
-                // Группируем по таблицам
+                println("SyncManager: Starting push...")
                 val grouped = pending.groupBy { it.tableName }
-
-                // ВАЖНО: Соблюдаем порядок вставки (Parent -> Child)
                 val tableOrder = listOf("Project", "Actor", "ScriptFile", "SceneUserData", "SceneVersion", "Prop")
 
                 tableOrder.forEach { tableName ->
@@ -112,11 +120,80 @@ class SyncManager(
                     }
                 }
                 
-                println("SyncManager: Push sequence completed.")
+                println("SyncManager: Push sequence completed. Starting pull...")
+                pull()
             } catch (e: Exception) {
-                println("SyncManager: Push failed with error: ${e.message}")
-                e.printStackTrace()
+                println("SyncManager: Push failed: ${e.message}")
             }
+        }
+    }
+
+    /**
+     * Метод получения изменений с сервера
+     */
+    @OptIn(kotlin.time.ExperimentalTime::class)
+    suspend fun pull() {
+        try {
+            val lastSyncStr = queries.getSetting(LAST_SYNC_KEY).executeAsOneOrNull() ?: "1970-01-01T00:00:00Z"
+            println("SyncManager: Starting pull from $lastSyncStr...")
+
+            // 1. Projects
+            val projects = supabase.postgrest["projects"]
+                .select { filter { ProjectDto::updatedAt gt lastSyncStr } }
+                .decodeList<ProjectDto>()
+            projects.forEach { queries.upsertProject(it.id, it.name, it.director, it.updatedAt.toEpochMillis()) }
+
+            // 2. Actors
+            val actors = supabase.postgrest["actors"]
+                .select { filter { ActorDto::updatedAt gt lastSyncStr } }
+                .decodeList<ActorDto>()
+            actors.forEach { queries.upsertActor(it.id, it.projectId, it.name, it.updatedAt.toEpochMillis()) }
+
+            // 3. ScriptFiles
+            val scripts = supabase.postgrest["script_files"]
+                .select { filter { ScriptFileDto::updatedAt gt lastSyncStr } }
+                .decodeList<ScriptFileDto>()
+            scripts.forEach { 
+                queries.upsertScriptFile(
+                    id = it.id,
+                    projectId = it.projectId,
+                    seriesNumber = it.seriesNumber.toLong(),
+                    title = it.title,
+                    filePath = it.filePath ?: "",
+                    createdAt = it.createdAt,
+                    previousVersionId = null,
+                    revisionColor = "White",
+                    uploadedBy = "Supabase",
+                    updatedAt = it.updatedAt.toEpochMillis()
+                )
+            }
+
+            // 4. Scenes
+            val scenes = supabase.postgrest["scenes"]
+                .select { filter { SceneDto::updatedAt gt lastSyncStr } }
+                .decodeList<SceneDto>()
+            scenes.forEach { queries.upsertSceneUserData(it.id, it.projectId, it.seriesNumber.toLong(), it.sceneNumber, it.location, if (it.isInterior) 1L else 0L, it.timeOfDay, it.notes, 0L, it.updatedAt.toEpochMillis()) }
+
+            // 5. Scene Versions
+            val versions = supabase.postgrest["scene_versions"]
+                .select { filter { SceneVersionDto::updatedAt gt lastSyncStr } }
+                .decodeList<SceneVersionDto>()
+            versions.forEach { queries.upsertSceneVersion(it.id, it.scriptFileId, it.sceneId, it.content, it.contentHash ?: "", it.positionIndex.toLong(), it.updatedAt.toEpochMillis()) }
+
+            // 6. Props
+            val props = supabase.postgrest["props"]
+                .select { filter { PropDto::updatedAt gt lastSyncStr } }
+                .decodeList<PropDto>()
+            props.forEach { queries.upsertProp(it.id, it.sceneId, it.name, it.anchor, it.status, it.category, "Обстановочный", it.note, null, if (it.isCrossCutting) 1L else 0L, it.quantity.toLong(), it.actorId, 0, 0, 0, null, it.updatedAt.toEpochMillis()) }
+
+            // Обновляем метку времени синхронизации (текущее время сервера/клиента в ISO)
+            val nowStr = Instant.fromEpochMilliseconds(kotlin.time.Clock.System.now().toEpochMilliseconds()).toString()
+            queries.upsertSetting(LAST_SYNC_KEY, nowStr)
+            
+            println("SyncManager: Pull completed successfully.")
+        } catch (e: Exception) {
+            println("SyncManager: Pull failed: ${e.message}")
+            e.printStackTrace()
         }
     }
 

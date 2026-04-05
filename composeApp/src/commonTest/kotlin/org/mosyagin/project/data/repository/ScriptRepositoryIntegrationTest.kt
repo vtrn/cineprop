@@ -46,9 +46,10 @@ class ScriptRepositoryIntegrationTest : KoinTest {
             modules(module {
                 single { dbQueries }
                 single { ScriptParser() }
-                single { ScriptUpdateManager(get(), get()) }
                 single<SyncRepository> { FakeSyncRepository() }
-                single<ScriptRepository> { ScriptRepositoryImpl(get(), get()) }
+                // Передаем по 3 параметра get(), так как конструкторы обновились
+                single { ScriptUpdateManager(get(), get(), get()) }
+                single<ScriptRepository> { ScriptRepositoryImpl(get(), get(), get()) }
             })
         }
     }

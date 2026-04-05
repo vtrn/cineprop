@@ -5,6 +5,7 @@ import org.mosyagin.project.DatabaseQueries
 import org.mosyagin.project.db.CinePropDatabase
 import org.mosyagin.project.db.createTestDriver
 import org.mosyagin.project.parser.ScriptParser
+import org.mosyagin.project.repository.FakeSyncRepository
 import org.mosyagin.project.repository.ScriptRepository
 import org.mosyagin.project.repository.ScriptRepositoryImpl
 import org.junit.runner.RunWith
@@ -25,12 +26,12 @@ class ScriptRepositoryAndroidIntegrationTest {
         val driver = createTestDriver()
         val database = CinePropDatabase(driver)
         queries = database.databaseQueries
-        repository = ScriptRepositoryImpl(queries, parser)
+        repository = ScriptRepositoryImpl(queries, parser, FakeSyncRepository())
     }
 
     @Test
     fun testParseAndSaveIntegration() = runTest {
-        queries.insertProject("Интеграционный тест", "Режиссер")
+        queries.insertProject("Интеграционный тест", "Режиссер", 0L)
         val projects = queries.getAllProjects().executeAsList()
         val projectId = projects.last().id
 
@@ -67,7 +68,7 @@ class ScriptRepositoryAndroidIntegrationTest {
 
     @Test
     fun testActorsAreLinkedDuringParsing() = runTest {
-        queries.insertProject("Актеры", "Режиссер")
+        queries.insertProject("Актеры", "Режиссер", 0L)
         val projectId = queries.lastInsertRowId().executeAsOne()
 
         val scriptText = """
