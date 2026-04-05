@@ -112,6 +112,7 @@ class VersioningLogicTest {
             timeOfDay = "ДЕНЬ",
             notes = null,
             needsReview = 0,
+            updatedAt = 0L,
             content = content,
             contentHash = ""
         )

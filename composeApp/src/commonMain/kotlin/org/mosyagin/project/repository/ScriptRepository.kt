@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalTime::class)
+
 package org.mosyagin.project.repository
 
 import app.cash.sqldelight.coroutines.asFlow
@@ -9,6 +11,8 @@ import kotlinx.coroutines.withContext
 import org.mosyagin.project.DatabaseQueries
 import org.mosyagin.project.ScriptFile
 import org.mosyagin.project.parser.ScriptParser
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
 interface ScriptRepository {
     fun getScriptsForProject(projectId: Long): Flow<List<ScriptFile>>
@@ -26,7 +30,8 @@ interface ScriptRepository {
 
 class ScriptRepositoryImpl(
     private val queries: DatabaseQueries,
-    private val parser: ScriptParser
+    private val parser: ScriptParser,
+    private val syncRepository: SyncRepository
 ) : ScriptRepository {
 
     override fun getScriptsForProject(projectId: Long): Flow<List<ScriptFile>> =
@@ -39,6 +44,7 @@ class ScriptRepositoryImpl(
             .asFlow()
             .map { it.executeAsOneOrNull() }
 
+    @OptIn(ExperimentalTime::class)
     override suspend fun saveParsedScript(
         projectId: Long, 
         seriesNumber: Int, 
@@ -48,6 +54,7 @@ class ScriptRepositoryImpl(
     ) {
         withContext(Dispatchers.Default) {
             val parsedScenes = parser.parse(fullText, seriesNumber)
+            val now = Clock.System.now().toEpochMilliseconds()
 
             queries.transaction {
                 // 1. Создаем запись о файле
@@ -59,10 +66,12 @@ class ScriptRepositoryImpl(
                     createdAt = createdAt,
                     previousVersionId = null,
                     revisionColor = "White",
-                    uploadedBy = "User"
+                    uploadedBy = "User",
+                    updatedAt = now
                 )
 
                 val scriptFileId = queries.lastInsertRowId().executeAsOne()
+                syncRepository.enqueueSync("INSERT", "ScriptFile", scriptFileId, null)
 
                 // 2. Сохраняем сцены
                 parsedScenes.forEachIndexed { index, scene ->
@@ -74,25 +83,32 @@ class ScriptRepositoryImpl(
                         isInterior = if (scene.type == "ИНТ") 1L else 0L,
                         timeOfDay = scene.time,
                         notes = null,
-                        needsReview = 0L
+                        needsReview = 0L,
+                        updatedAt = now
                     )
 
                     val sceneUserDataId = queries.lastInsertRowId().executeAsOne()
+                    syncRepository.enqueueSync("INSERT", "SceneUserData", sceneUserDataId, null)
 
                     queries.insertSceneVersion(
                         scriptFileId = scriptFileId,
                         sceneUserDataId = sceneUserDataId,
                         content = scene.content,
                         contentHash = "",
-                        positionIndex = index.toLong()
+                        positionIndex = index.toLong(),
+                        updatedAt = now
                     )
+                    
+                    val sceneVersionId = queries.lastInsertRowId().executeAsOne()
+                    syncRepository.enqueueSync("INSERT", "SceneVersion", sceneVersionId, null)
 
                     scene.actors.forEach { actorName ->
                         val cleanName = actorName.trim()
                         if (cleanName.isNotEmpty()) {
-                            queries.insertActor(projectId, cleanName)
+                            queries.insertActor(projectId, cleanName, now)
                             val actor = queries.getActorByName(projectId, cleanName).executeAsOneOrNull()
                             if (actor != null) {
+                                syncRepository.enqueueSync("INSERT", "Actor", actor.id, null)
                                 queries.linkActorToScene(sceneUserDataId, actor.id)
                             }
                         }
@@ -107,13 +123,16 @@ class ScriptRepositoryImpl(
             queries.transaction {
                 queries.deleteScenesByScriptFile(fileId)
                 queries.deleteScriptFile(fileId)
+                syncRepository.enqueueSync("DELETE", "ScriptFile", fileId, null)
             }
         }
     }
 
     override suspend fun updateScriptTitle(fileId: Long, newTitle: String) {
         withContext(Dispatchers.Default) {
-            queries.updateScriptFileTitle(newTitle, fileId)
+            val now = Clock.System.now().toEpochMilliseconds()
+            queries.updateScriptFileTitle(newTitle, now, fileId)
+            syncRepository.enqueueSync("UPDATE", "ScriptFile", fileId, null)
         }
     }
 }

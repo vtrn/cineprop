@@ -3,6 +3,7 @@ package org.mosyagin.project.ui.screens
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import org.mosyagin.project.Actor
@@ -11,6 +12,8 @@ import org.mosyagin.project.SceneVersion
 import org.mosyagin.project.models.versioning.Prop
 import org.mosyagin.project.repository.PropWithScene
 import org.mosyagin.project.repository.SceneRepository
+import org.mosyagin.project.repository.SyncEvent
+import org.mosyagin.project.repository.SyncRepository
 
 // Модель данных инспектора
 data class SceneInspectorData(
@@ -24,11 +27,24 @@ data class SceneInspectorData(
 
 enum class SceneFilter { ALL, MODIFIED, NEW }
 
-@OptIn(ExperimentalCoroutinesApi::class)
+@OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 class SceneWorkspaceViewModel(
     private val projectId: Long,
-    private val sceneRepository: SceneRepository
+    private val sceneRepository: SceneRepository,
+    private val syncRepository: SyncRepository
 ) : ScreenModel {
+
+    private val syncEvents = MutableSharedFlow<SyncEvent>()
+
+    init {
+        // Issue #3: Debounce sync queue
+        syncEvents
+            .debounce(1500L)
+            .onEach { event ->
+                syncRepository.enqueue(event.operation, event.tableName, event.recordId, event.dataJson)
+            }
+            .launchIn(screenModelScope)
+    }
 
     private val _selectedSceneId = MutableStateFlow<Long?>(null)
     val selectedSceneId: StateFlow<Long?> = _selectedSceneId.asStateFlow()
@@ -103,7 +119,6 @@ class SceneWorkspaceViewModel(
         _selectedFilter.value = filter
     }
 
-    // ИСПРАВЛЕНО: Теперь сохраняем все поля сразу через addPropFull
     fun addPropExtended(
         name: String,
         anchor: String,
@@ -116,15 +131,13 @@ class SceneWorkspaceViewModel(
     ) {
         val sceneId = _selectedSceneId.value ?: return
         screenModelScope.launch {
-            // 1. Определяем groupId для связи, если это сквозной реквизит
             var targetGroupId: Long? = null
             if (existingPropId != null) {
                 val existingProp = allProjectProps.value.find { it.id == existingPropId }
                 targetGroupId = existingProp?.groupId ?: existingPropId
             }
 
-            // 2. Создаем предмет со всеми данными сразу!
-            sceneRepository.addPropFull(
+            val id = sceneRepository.addPropFull(
                 sceneUserDataId = sceneId,
                 name = name,
                 anchor = anchor,
@@ -137,18 +150,18 @@ class SceneWorkspaceViewModel(
                 groupId = targetGroupId
             )
             
-            // 3. Обновляем старый предмет, если у него еще не было группы
             if (existingPropId != null) {
                 val existingProp = allProjectProps.value.find { it.id == existingPropId }
                 if (existingProp?.groupId == null) {
                     sceneRepository.updatePropGroupId(existingPropId, targetGroupId)
                     sceneRepository.updatePropCrossCutting(existingPropId, true)
+                    // Emit update for existing prop
+                    syncEvents.emit(SyncEvent("UPDATE", "Prop", existingPropId))
                 }
             }
         }
     }
 
-    // Старый метод для обратной совместимости с простыми вызовами
     fun addProp(name: String, anchor: String) {
         val sceneId = _selectedSceneId.value ?: return
         screenModelScope.launch {
@@ -159,6 +172,14 @@ class SceneWorkspaceViewModel(
     fun deleteProp(propId: Long) {
         screenModelScope.launch {
             sceneRepository.deleteProp(propId)
+        }
+    }
+
+    fun updateSceneReviewStatus(needsReview: Boolean) {
+        val sceneId = _selectedSceneId.value ?: return
+        screenModelScope.launch {
+            sceneRepository.updateSceneUserDataReviewStatus(if (needsReview) 1L else 0L, sceneId)
+            syncEvents.emit(SyncEvent("UPDATE", "SceneUserData", sceneId))
         }
     }
 }

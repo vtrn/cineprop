@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.test.*
 import org.mosyagin.project.db.ProjectListScreenModel
 import org.mosyagin.project.repository.FakeProjectRepository
+import org.mosyagin.project.repository.FakeSyncRepository
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -17,13 +18,15 @@ class ProjectListScreenModelTest {
 
     private val testDispatcher = UnconfinedTestDispatcher()
     private lateinit var repository: FakeProjectRepository
+    private lateinit var syncRepository: FakeSyncRepository
     private lateinit var screenModel: ProjectListScreenModel
 
     @BeforeTest
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         repository = FakeProjectRepository()
-        screenModel = ProjectListScreenModel(repository)
+        syncRepository = FakeSyncRepository()
+        screenModel = ProjectListScreenModel(repository, syncRepository)
     }
 
     @AfterTest

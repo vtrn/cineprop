@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalTime::class)
+
 package org.mosyagin.project.repository
 
 import app.cash.sqldelight.coroutines.asFlow
@@ -18,6 +20,8 @@ import org.mosyagin.project.Project
 import org.mosyagin.project.Shift
 import org.mosyagin.project.models.versioning.Prop
 import org.mosyagin.project.models.versioning.PropStatus
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
 data class PropWithScene(
     val id: Long,
@@ -36,8 +40,8 @@ data class PropWithScene(
     val isOrphaned: Boolean = false,
     val groupId: Long? = null,
     val allSceneNumbers: List<String> = emptyList(),
-    val shiftNumber: Long? = null, // НОВОЕ: Номер смены
-    val shiftDate: String? = null  // НОВОЕ: Дата смены
+    val shiftNumber: Long? = null,
+    val shiftDate: String? = null
 )
 
 interface SceneRepository {
@@ -52,8 +56,8 @@ interface SceneRepository {
     fun getLocationsByActor(actorId: Long): Flow<List<String>>
     fun getPropsForScene(sceneUserDataId: Long): Flow<List<Prop>>
     fun getPropsByProject(projectId: Long): Flow<List<PropWithScene>>
-    fun getShiftsByProject(projectId: Long): Flow<List<Shift>> // НОВОЕ
-    fun getPropsWithShiftByProject(projectId: Long): Flow<List<PropWithScene>> // НОВОЕ
+    fun getShiftsByProject(projectId: Long): Flow<List<Shift>>
+    fun getPropsWithShiftByProject(projectId: Long): Flow<List<PropWithScene>>
     
     suspend fun getSceneUserDataIdBySeriesAndNumber(projectId: Long, series: Long, sceneNumber: String): Long?
     
@@ -88,8 +92,10 @@ interface SceneRepository {
     suspend fun bulkUpdatePropStatus(propIds: List<Long>, status: String)
 }
 
-class SceneRepositoryImpl(val queries: DatabaseQueries) : SceneRepository,
-    ProjectRepository {
+class SceneRepositoryImpl(
+    val queries: DatabaseQueries,
+    private val syncRepository: SyncRepository
+) : SceneRepository, ProjectRepository {
     override fun getSceneById(sceneId: Long, scriptFileId: Long): Flow<GetSceneById?> =
         queries.getSceneById(sceneId, scriptFileId)
             .asFlow()
@@ -242,111 +248,107 @@ class SceneRepositoryImpl(val queries: DatabaseQueries) : SceneRepository,
         isCrossCutting: Boolean,
         groupId: Long?
     ): Long {
+        val now = Clock.System.now().toEpochMilliseconds()
         queries.insertFullProp(
-            sceneUserDataId = sceneUserDataId,
-            name = name,
-            anchor = anchor,
-            status = status,
-            category = category,
-            propType = "Обстановочный",
-            note = note,
-            photoPath = null,
-            isCrossCutting = if (isCrossCutting) 1L else 0L,
-            quantity = quantity.toLong(),
-            actorId = actorId,
-            startOffset = 0,
-            endOffset = 0,
-            orphaned = 0,
-            groupId = groupId
+            sceneUserDataId, name, anchor, status, category, "Обстановочный",
+            note, null, if (isCrossCutting) 1L else 0L, quantity.toLong(), actorId,
+            0, 0, 0, groupId, now
         )
-        return queries.lastInsertRowId().executeAsOne()
+        val id = queries.lastInsertRowId().executeAsOne()
+        syncRepository.enqueue("INSERT", "Prop", id, null)
+        return id
     }
 
     override suspend fun addProp(sceneUserDataId: Long, name: String, anchor: String, status: String, startOffset: Long, endOffset: Long): Long {
+        val now = Clock.System.now().toEpochMilliseconds()
         queries.insertFullProp(
-            sceneUserDataId = sceneUserDataId,
-            name = name,
-            anchor = anchor,
-            status = status,
-            category = "Прочее",
-            propType = "Обстановочный",
-            note = null,
-            photoPath = null,
-            isCrossCutting = 0,
-            quantity = 1,
-            actorId = null,
-            startOffset = startOffset,
-            endOffset = endOffset,
-            orphaned = 0,
-            groupId = null
+            sceneUserDataId, name, anchor, status, "Прочее", "Обстановочный",
+            null, null, 0, 1, null, startOffset, endOffset, 0, null, now
         )
-        return queries.lastInsertRowId().executeAsOne()
+        val id = queries.lastInsertRowId().executeAsOne()
+        syncRepository.enqueue("INSERT", "Prop", id, null)
+        return id
     }
 
+    @OptIn(ExperimentalTime::class)
     override suspend fun updatePropStatus(propId: Long, newStatus: String) {
-        queries.updatePropStatus(newStatus, propId)
+        val now = Clock.System.now().toEpochMilliseconds()
+        queries.updatePropStatus(newStatus, now, propId)
     }
 
     override suspend fun updatePropOrphanedStatus(propId: Long, isOrphaned: Boolean) {
-        queries.updatePropOrphanedStatus(if (isOrphaned) 1L else 0L, propId)
+        val now = Clock.System.now().toEpochMilliseconds()
+        queries.updatePropOrphanedStatus(if (isOrphaned) 1L else 0L, now, propId)
     }
 
     override suspend fun deleteProp(propId: Long) {
         queries.deleteProp(propId)
+        syncRepository.enqueue("DELETE", "Prop", propId, null)
     }
 
     override suspend fun updateSceneUserDataReviewStatus(needsReview: Long, id: Long) {
-        queries.updateSceneUserDataReviewStatus(needsReview, id)
+        val now = Clock.System.now().toEpochMilliseconds()
+        queries.updateSceneUserDataReviewStatus(needsReview, now, id)
     }
 
     override suspend fun confirmAllProps(sceneUserDataId: Long) {
+        val now = Clock.System.now().toEpochMilliseconds()
         queries.transaction {
             val props = queries.getPropsForScene(sceneUserDataId).executeAsList()
             props.forEach { prop ->
-                queries.updatePropOrphanedStatus(0L, prop.id)
+                queries.updatePropOrphanedStatus(0L, now, prop.id)
             }
         }
     }
 
     override suspend fun markPropAsOrphaned(sceneUserDataId: Long, propName: String) {
+        val now = Clock.System.now().toEpochMilliseconds()
         val props = queries.getPropsForScene(sceneUserDataId).executeAsList()
         props.find { it.name.equals(propName, ignoreCase = true) }?.let {
-            queries.updatePropOrphanedStatus(1L, it.id)
+            queries.updatePropOrphanedStatus(1L, now, it.id)
         }
     }
 
     override suspend fun updatePropCategory(propId: Long, category: String) {
-        queries.updatePropCategory(category, propId)
+        val now = Clock.System.now().toEpochMilliseconds()
+        queries.updatePropCategory(category, now, propId)
     }
 
     override suspend fun updatePropNote(propId: Long, note: String?) {
-        queries.updatePropNote(note, propId)
+        val now = Clock.System.now().toEpochMilliseconds()
+        queries.updatePropNote(note, now, propId)
     }
 
     override suspend fun updatePropQuantity(propId: Long, quantity: Int) {
-        queries.updatePropQuantity(quantity.toLong(), propId)
+        val now = Clock.System.now().toEpochMilliseconds()
+        queries.updatePropQuantity(quantity.toLong(), now, propId)
     }
 
     override suspend fun updatePropCrossCutting(propId: Long, isCrossCutting: Boolean) {
-        queries.updatePropCrossCutting(if (isCrossCutting) 1L else 0L, propId)
+        val now = Clock.System.now().toEpochMilliseconds()
+        queries.updatePropCrossCutting(if (isCrossCutting) 1L else 0L, now, propId)
     }
 
     override suspend fun updatePropActor(propId: Long, actorId: Long?) {
-        queries.updatePropActor(actorId, propId)
+        val now = Clock.System.now().toEpochMilliseconds()
+        queries.updatePropActor(actorId, now, propId)
     }
 
     override suspend fun updatePropType(propId: Long, propType: String) {
-        queries.updatePropType(propType, propId)
+        val now = Clock.System.now().toEpochMilliseconds()
+        queries.updatePropType(propType, now, propId)
     }
 
     override suspend fun updatePropGroupId(propId: Long, groupId: Long?) {
-        queries.updatePropGroupId(groupId, propId)
+        val now = Clock.System.now().toEpochMilliseconds()
+        queries.updatePropGroupId(groupId, now, propId)
     }
 
     override suspend fun bulkUpdatePropStatus(propIds: List<Long>, status: String) {
+        val now = Clock.System.now().toEpochMilliseconds()
         queries.transaction {
             propIds.forEach { id ->
-                queries.updatePropStatus(status, id)
+                queries.updatePropStatus(status, now, id)
             }
         }
     }
@@ -362,10 +364,19 @@ class SceneRepositoryImpl(val queries: DatabaseQueries) : SceneRepository,
             .map { it.executeAsOneOrNull() }
 
     override suspend fun addProject(name: String, director: String) {
-        queries.insertProject(name, director)
+        val now = Clock.System.now().toEpochMilliseconds()
+        queries.insertProject(name, director, now)
+        val id = queries.lastInsertRowId().executeAsOne()
+        syncRepository.enqueue("INSERT", "Project", id, null)
     }
 
     override suspend fun deleteProject(id: Long) {
         queries.deleteProject(id)
+        syncRepository.enqueue("DELETE", "Project", id, null)
+    }
+
+    override suspend fun updateProject(id: Long, name: String, director: String) {
+        val now = Clock.System.now().toEpochMilliseconds()
+        queries.updateProject(name, director, now, id)
     }
 }

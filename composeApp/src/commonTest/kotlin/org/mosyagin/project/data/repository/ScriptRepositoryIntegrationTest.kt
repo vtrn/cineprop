@@ -12,8 +12,10 @@ import org.mosyagin.project.db.CinePropDatabase
 import org.mosyagin.project.db.createTestDriver
 import org.mosyagin.project.parser.ScriptParser
 import org.mosyagin.project.parser.update.ScriptUpdateManager
+import org.mosyagin.project.repository.FakeSyncRepository
 import org.mosyagin.project.repository.ScriptRepository
 import org.mosyagin.project.repository.ScriptRepositoryImpl
+import org.mosyagin.project.repository.SyncRepository
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -45,6 +47,7 @@ class ScriptRepositoryIntegrationTest : KoinTest {
                 single { dbQueries }
                 single { ScriptParser() }
                 single { ScriptUpdateManager(get(), get()) }
+                single<SyncRepository> { FakeSyncRepository() }
                 single<ScriptRepository> { ScriptRepositoryImpl(get(), get()) }
             })
         }
@@ -60,7 +63,8 @@ class ScriptRepositoryIntegrationTest : KoinTest {
 
     @Test
     fun testParseAndSaveIntegration() = runTest {
-        queries.insertProject("Интеграционный тест", "Режиссер")
+        // Добавлен updatedAt = 0
+        queries.insertProject("Интеграционный тест", "Режиссер", 0L)
         val projectId = queries.lastInsertRowId().executeAsOne()
 
         val scriptText = """
@@ -94,7 +98,8 @@ class ScriptRepositoryIntegrationTest : KoinTest {
 
     @Test
     fun testActorsAreLinkedDuringParsing() = runTest {
-        queries.insertProject("Актеры", "Режиссер")
+        // Добавлен updatedAt = 0
+        queries.insertProject("Актеры", "Режиссер", 0L)
         val projectId = queries.lastInsertRowId().executeAsOne()
 
         val scriptText = """

@@ -8,6 +8,7 @@ import org.mosyagin.project.repository.ProjectRepository
 import org.mosyagin.project.DatabaseQueries
 import org.mosyagin.project.db.CinePropDatabase
 import org.mosyagin.project.db.createTestDriver
+import org.mosyagin.project.repository.FakeSyncRepository
 import org.mosyagin.project.repository.SceneRepositoryImpl
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -36,14 +37,14 @@ class ProjectRepositoryTest {
 
         val database = CinePropDatabase(driver)
         queries = database.databaseQueries
-        repository = SceneRepositoryImpl(queries)
+        repository = SceneRepositoryImpl(queries, FakeSyncRepository())
 
         // СОЗДАЕМ ОБЯЗАТЕЛЬНУЮ ИЕРАРХИЮ
-        // 1. Проект
-        queries.insertProject("Test Project", "Director")
+        // 1. Проект (добавлен updatedAt = 0)
+        queries.insertProject("Test Project", "Director", 0L)
         val projectId = queries.lastInsertRowId().executeAsOne()
 
-        // 2. Файл сценария (нужен для версий)
+        // 2. Файл сценария (добавлен updatedAt = 0)
         queries.insertScriptFile(
             projectId = projectId,
             seriesNumber = 1L,
@@ -52,11 +53,12 @@ class ProjectRepositoryTest {
             createdAt = 123456789L,
             previousVersionId = null,
             revisionColor = "White",
-            uploadedBy = "Tester"
+            uploadedBy = "Tester",
+            updatedAt = 0L
         )
         val scriptId = queries.lastInsertRowId().executeAsOne()
 
-        // 3. Якорь сцены (нужен для реквизита и актеров)
+        // 3. Якорь сцены (добавлен updatedAt = 0)
         queries.insertSceneUserData(
             projectId = projectId,
             seriesNumber = 1L,
@@ -65,7 +67,8 @@ class ProjectRepositoryTest {
             isInterior = 1L,
             timeOfDay = "Day",
             notes = null,
-            needsReview = 0L
+            needsReview = 0L,
+            updatedAt = 0L
         )
         val userDataId = queries.lastInsertRowId().executeAsOne()
 

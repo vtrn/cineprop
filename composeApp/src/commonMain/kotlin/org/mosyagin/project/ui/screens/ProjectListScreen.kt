@@ -132,7 +132,7 @@ class ProjectListScreen : Screen {
                     ) {
                         items(projects.filter { it.name.contains(searchQuery, ignoreCase = true) }) { project ->
                             ModernProjectCard(
-                                project = org.mosyagin.project.Project(project.id, project.name, project.director),
+                                project = project,
                                 onClick = { navigator.push(ProjectDashboardScreen(project.id)) }
                             )
                         }

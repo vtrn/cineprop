@@ -24,7 +24,7 @@ expect val platformModule: Module
 fun initKoin(appDeclaration: KoinAppDeclaration = {}) =
     startKoin {
         appDeclaration()
-        modules(appModule, databaseModule, screenModelModule, platformModule)
+        modules(appModule, databaseModule, screenModelModule, platformModule, supabaseModule)
     }
 
 /**
@@ -42,7 +42,8 @@ val databaseModule = module {
  * Модуль для ScreenModels (ViewModels).
  */
 val screenModelModule = module {
-    factory { ProjectListScreenModel(get()) }
+    factory { ProjectListScreenModel(get(), get()) }
+    
     factory { (sceneUserDataId: Long, scriptFileId: Long) -> 
         SceneDetailScreenModel(get(), get(), sceneUserDataId, scriptFileId)
     }
@@ -56,26 +57,26 @@ val screenModelModule = module {
     }
 
     factory { (projectId: Long) -> 
-        SceneWorkspaceViewModel(projectId, get()) 
+        SceneWorkspaceViewModel(projectId, get(), get()) 
     }
     
     factory { (projectId: Long) -> 
         TrackerViewModel(projectId, get(), get()) 
     }
 
-    // Prop Workspace: передаем все 5 параметров (projectId + 4 зависимости из Koin)
     factory { (projectId: Long) -> 
         PropWorkspaceViewModel(
             projectId = projectId, 
             sceneRepository = get(),
             projectRepository = get(),
+            syncRepository = get(),
             propExporter = get(),
             fileSaver = get()
         )
     }
 
     factory { (projectId: Long) -> 
-        PropAssetManagerViewModel(get(), projectId)
+        PropAssetManagerViewModel(get(), get(), projectId)
     }
 
     factory { (projectId: Long) -> 
@@ -99,13 +100,30 @@ val screenModelModule = module {
 val appModule = module {
     single { ScriptParser() }
     single { KppParser(get(), get()) }
-    single { ScriptUpdateManager(get(), get()) }
     
-    single<ProjectRepository> { ProjectRepositoryImpl(get()) }
-    single<SceneRepository> { SceneRepositoryImpl(get()) }
-    single<ScriptRepository> { ScriptRepositoryImpl(get(), get()) }
-    single<KppRepository> { KppRepositoryImpl(get()) }
-    single<ShiftRepository> { ShiftRepositoryImpl(get()) }
+    // ScriptUpdateManager теперь требует SyncRepository
+    single { ScriptUpdateManager(get(), get(), get()) }
+    
+    // 1. Очередь синхронизации
+    single<SyncRepository> { SyncRepositoryImpl(get()) }
+    
+    // 2. Менеджер синхронизации
+    single { SyncManager(get(), get(), get()) }
+    
+    // 3. Инициализируем связь один раз при старте
+    single(createdAtStart = true) {
+        val repo = get<SyncRepository>()
+        val manager = get<SyncManager>()
+        repo.setSyncManager(manager)
+        "SyncLinkInitialized"
+    }
+    
+    single<ProjectRepository> { ProjectRepositoryImpl(get(), get()) }
+    single<SceneRepository> { SceneRepositoryImpl(get(), get()) }
+
+    single<ScriptRepository> { ScriptRepositoryImpl(get(), get(), get()) }
+    single<KppRepository> { KppRepositoryImpl(get(), get()) }
+    single<ShiftRepository> { ShiftRepositoryImpl(get(), get()) }
     
     single<SettingsRepository> { SettingsRepositoryImpl(get()) }
 }

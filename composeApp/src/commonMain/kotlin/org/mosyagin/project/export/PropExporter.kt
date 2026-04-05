@@ -12,7 +12,7 @@ interface PropExporter {
     /**
      * Генерирует файл экспорта и возвращает его в виде массива байтов.
      */
-    fun export(
+    suspend fun export(
         projectName: String,
         grouping: ExportGrouping,
         format: ExportFormat,

@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.map
 import org.mosyagin.project.DatabaseQueries
 import org.mosyagin.project.GetScenesForShift
 import org.mosyagin.project.Shift
+import kotlin.time.Clock
 
 interface ShiftRepository {
     fun getShiftsByProject(projectId: Long): Flow<List<Shift>>
@@ -18,7 +19,10 @@ interface ShiftRepository {
     suspend fun getShiftByNumber(projectId: Long, shiftNumber: Long): Shift?
 }
 
-class ShiftRepositoryImpl(private val queries: DatabaseQueries) : ShiftRepository {
+class ShiftRepositoryImpl(
+    private val queries: DatabaseQueries,
+    private val syncRepository: SyncRepository
+) : ShiftRepository {
     override fun getShiftsByProject(projectId: Long): Flow<List<Shift>> =
         queries.getShiftsByProject(projectId)
             .asFlow()
@@ -34,13 +38,20 @@ class ShiftRepositoryImpl(private val queries: DatabaseQueries) : ShiftRepositor
             .asFlow()
             .mapToList(Dispatchers.Default)
 
+    @OptIn(kotlin.time.ExperimentalTime::class)
     override suspend fun addShift(projectId: Long, shiftNumber: Long, date: String): Long {
-        queries.insertShift(projectId, shiftNumber, date)
-        return queries.lastInsertRowId().executeAsOne()
+        val now = Clock.System.now().toEpochMilliseconds()
+        queries.insertShift(projectId, shiftNumber, date, now)
+        val id = queries.lastInsertRowId().executeAsOne()
+        syncRepository.enqueue("INSERT", "Shift", id, null)
+        return id
     }
 
     override suspend fun linkSceneToShift(shiftId: Long, sceneUserDataId: Long, position: Long) {
         queries.linkShiftToScene(shiftId, sceneUserDataId, position)
+        // Для связей многие-ко-многим (ShiftScene) можно либо создать таблицу в SyncQueue, 
+        // либо полагаться на то, что Shift обновится. 
+        // Но пока зафиксируем сам факт создания смены.
     }
 
     override suspend fun getShiftByNumber(projectId: Long, shiftNumber: Long): Shift? =

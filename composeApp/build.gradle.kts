@@ -1,5 +1,7 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
+import com.codingfeline.buildkonfig.compiler.FieldSpec.Type.STRING
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -7,7 +9,28 @@ plugins {
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.composeHotReload)
+    alias(libs.plugins.buildkonfig)
     id("app.cash.sqldelight")
+    kotlin("plugin.serialization") version "2.1.0" // Добавлен плагин сериализации
+}
+
+// Загрузка секретов из local.properties
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(localPropertiesFile.inputStream())
+}
+
+buildkonfig {
+    packageName = "org.mosyagin.project"
+    
+    val supabaseUrl = localProperties.getProperty("SUPABASE_URL") ?: ""
+    val supabaseKey = localProperties.getProperty("SUPABASE_KEY") ?: ""
+
+    defaultConfigs {
+        buildConfigField(STRING, "SUPABASE_URL", supabaseUrl)
+        buildConfigField(STRING, "SUPABASE_KEY", supabaseKey)
+    }
 }
 
 sqldelight {
@@ -64,10 +87,21 @@ kotlin {
             // SQLDelight
             implementation("app.cash.sqldelight:runtime:${libs.versions.sqldelight.get()}")
             implementation("app.cash.sqldelight:coroutines-extensions:${libs.versions.sqldelight.get()}")
-            implementation(compose.materialIconsExtended)
+            
+            // Самый стабильный способ для иконок в Compose Multiplatform
+            implementation(compose.materialIconsExtended) 
             
             // Datetime
             implementation(libs.kotlinx.datetime)
+
+            // Supabase (Прямое подключение без platform() для стабильности в commonMain)
+            implementation(libs.supabase.postgrest)
+            implementation(libs.supabase.auth)
+            implementation(libs.supabase.storage)
+            implementation(libs.ktor.client.core)
+            
+            // Serialization
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
         }
         
         androidMain.dependencies {
@@ -79,6 +113,7 @@ kotlin {
             
             // Apache POI for Android
             implementation(libs.poi.ooxml)
+            implementation(libs.ktor.client.android)
         }
         
         iosMain.dependencies {
@@ -99,16 +134,20 @@ kotlin {
             
             // Apache POI for Desktop
             implementation(libs.poi.ooxml)
+            implementation(libs.ktor.client.cio)
         }
         
         jvmTest.dependencies {
             implementation("app.cash.sqldelight:sqlite-driver:${libs.versions.sqldelight.get()}")
         }
 
-        androidUnitTest.dependencies {
-            implementation("androidx.test:core:1.6.1")
-            implementation("org.robolectric:robolectric:4.12.2")
-            implementation(libs.koin.test)
+        // Исправленный способ обращения к Android тестам
+        getByName("androidUnitTest") {
+            dependencies {
+                implementation("androidx.test:core:1.6.1")
+                implementation("org.robolectric:robolectric:4.12.2")
+                implementation(libs.koin.test)
+            }
         }
     }
 }

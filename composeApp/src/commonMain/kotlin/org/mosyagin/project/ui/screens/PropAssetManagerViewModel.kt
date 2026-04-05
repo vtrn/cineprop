@@ -2,11 +2,14 @@ package org.mosyagin.project.ui.screens
 
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import org.mosyagin.project.models.versioning.PropStatus
 import org.mosyagin.project.repository.PropWithScene
 import org.mosyagin.project.repository.SceneRepository
+import org.mosyagin.project.repository.SyncEvent
+import org.mosyagin.project.repository.SyncRepository
 
 data class PropAssetManagerUiState(
     val isLoading: Boolean = true,
@@ -20,15 +23,27 @@ data class PropAssetManagerUiState(
     val error: String? = null
 )
 
+@OptIn(FlowPreview::class)
 class PropAssetManagerViewModel(
     private val repository: SceneRepository,
+    private val syncRepository: SyncRepository,
     private val projectId: Long
 ) : ScreenModel {
 
     private val _uiState = MutableStateFlow(PropAssetManagerUiState())
     val uiState: StateFlow<PropAssetManagerUiState> = _uiState.asStateFlow()
 
+    private val syncEvents = MutableSharedFlow<SyncEvent>()
+
     init {
+        // Issue #3: Debounce sync queue
+        syncEvents
+            .debounce(1500L)
+            .onEach { event ->
+                syncRepository.enqueue(event.operation, event.tableName, event.recordId, event.dataJson)
+            }
+            .launchIn(screenModelScope)
+            
         loadProps()
     }
 
@@ -114,34 +129,39 @@ class PropAssetManagerViewModel(
         _uiState.update { it.copy(selectedPropIds = emptySet()) }
     }
 
-    // Update operations
+    // Update operations with Debounce
     fun updatePropStatus(propId: Long, status: PropStatus) {
         screenModelScope.launch {
             repository.updatePropStatus(propId, status.displayName)
+            syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 
     fun updatePropCategory(propId: Long, category: String) {
         screenModelScope.launch {
             repository.updatePropCategory(propId, category)
+            syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 
     fun updatePropQuantity(propId: Long, quantity: Int) {
         screenModelScope.launch {
             repository.updatePropQuantity(propId, quantity)
+            syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 
     fun updatePropCrossCutting(propId: Long, isCrossCutting: Boolean) {
         screenModelScope.launch {
             repository.updatePropCrossCutting(propId, isCrossCutting)
+            syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 
     fun updatePropNote(propId: Long, note: String?) {
         screenModelScope.launch {
             repository.updatePropNote(propId, note)
+            syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 
@@ -151,6 +171,7 @@ class PropAssetManagerViewModel(
         if (selectedIds.isNotEmpty()) {
             screenModelScope.launch {
                 repository.bulkUpdatePropStatus(selectedIds, status.displayName)
+                selectedIds.forEach { syncEvents.emit(SyncEvent("UPDATE", "Prop", it)) }
                 clearSelection()
             }
         }

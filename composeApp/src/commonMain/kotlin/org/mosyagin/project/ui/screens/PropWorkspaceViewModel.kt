@@ -2,6 +2,7 @@ package org.mosyagin.project.ui.screens
 
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import org.mosyagin.project.Actor
@@ -11,6 +12,7 @@ import org.mosyagin.project.models.versioning.PropStatus
 import org.mosyagin.project.repository.ProjectRepository
 import org.mosyagin.project.repository.PropWithScene
 import org.mosyagin.project.repository.SceneRepository
+import org.mosyagin.project.repository.SyncRepository
 import org.mosyagin.project.ui.components.props.ExportFormat
 import org.mosyagin.project.ui.components.props.ExportGrouping
 
@@ -18,10 +20,21 @@ enum class PropSortColumn {
     NAME, CATEGORY, SCENE, QUANTITY, STATUS
 }
 
+/**
+ * Событие для очереди синхронизации
+ */
+data class SyncEvent(
+    val operation: String,
+    val tableName: String,
+    val recordId: Long
+)
+
+@OptIn(FlowPreview::class)
 class PropWorkspaceViewModel(
     private val projectId: Long,
     private val sceneRepository: SceneRepository,
     private val projectRepository: ProjectRepository,
+    private val syncRepository: SyncRepository,
     private val propExporter: PropExporter,
     private val fileSaver: FileSaver
 ) : ScreenModel {
@@ -37,6 +50,19 @@ class PropWorkspaceViewModel(
             "оружие",
             "прочее"
         )
+    }
+
+    // Поток событий для синхронизации с debounce
+    private val syncEvents = MutableSharedFlow<SyncEvent>()
+
+    init {
+        // Issue #3: Защита от write amplification через debounce
+        syncEvents
+            .debounce(1500L)
+            .onEach { event ->
+                syncRepository.enqueue(event.operation, event.tableName, event.recordId, null)
+            }
+            .launchIn(screenModelScope)
     }
 
     private val _searchQuery = MutableStateFlow("")
@@ -192,7 +218,7 @@ class PropWorkspaceViewModel(
         }
     }
 
-    // Удаление реквизита
+    // Удаление реквизита (без debounce, так как действие разовое)
     fun deleteProp(propId: Long) {
         screenModelScope.launch {
             sceneRepository.deleteProp(propId)
@@ -214,34 +240,41 @@ class PropWorkspaceViewModel(
         }
     }
 
-    // Update operations
+    // Операции обновления с защитой Debounce
     fun updatePropStatus(propId: Long, status: PropStatus) {
         screenModelScope.launch {
+            // 1. Сразу в локальную БД
             sceneRepository.updatePropStatus(propId, status.displayName)
+            // 2. В очередь синхронизации с задержкой
+            syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 
     fun updatePropCategory(propId: Long, category: String) {
         screenModelScope.launch {
             sceneRepository.updatePropCategory(propId, category.lowercase())
+            syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 
     fun updatePropQuantity(propId: Long, quantity: Int) {
         screenModelScope.launch {
             sceneRepository.updatePropQuantity(propId, quantity)
+            syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 
     fun updatePropCrossCutting(propId: Long, isCrossCutting: Boolean) {
         screenModelScope.launch {
             sceneRepository.updatePropCrossCutting(propId, isCrossCutting)
+            syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 
     fun updatePropNote(propId: Long, note: String?) {
         screenModelScope.launch {
             sceneRepository.updatePropNote(propId, note)
+            syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 
@@ -250,6 +283,7 @@ class PropWorkspaceViewModel(
         if (ids.isNotEmpty()) {
             screenModelScope.launch {
                 sceneRepository.bulkUpdatePropStatus(ids, status.displayName)
+                ids.forEach { syncEvents.emit(SyncEvent("UPDATE", "Prop", it)) }
                 clearSelection()
             }
         }
@@ -259,6 +293,7 @@ class PropWorkspaceViewModel(
         screenModelScope.launch {
             propIds.forEach { id ->
                 sceneRepository.updatePropOrphanedStatus(id, false)
+                syncEvents.emit(SyncEvent("UPDATE", "Prop", id))
             }
         }
     }

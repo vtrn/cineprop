@@ -11,5 +11,5 @@ interface FileSaver {
      * @param mimeType MIME-тип файла (например, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet").
      * @param bytes Содержимое файла.
      */
-    fun saveFile(fileName: String, mimeType: String, bytes: ByteArray)
+    suspend fun saveFile(fileName: String, mimeType: String, bytes: ByteArray)
 }

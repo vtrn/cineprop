@@ -9,6 +9,7 @@ import org.mosyagin.project.repository.SceneRepositoryImpl
 import org.mosyagin.project.DatabaseQueries
 import org.mosyagin.project.db.CinePropDatabase
 import org.mosyagin.project.db.createTestDriver
+import org.mosyagin.project.repository.FakeSyncRepository
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -36,10 +37,10 @@ class SceneRepositoryTest {
 
         val database = CinePropDatabase(driver)
         queries = database.databaseQueries
-        repository = SceneRepositoryImpl(queries)
+        repository = SceneRepositoryImpl(queries, FakeSyncRepository())
 
-        // Создаем базовую структуру для тестов
-        queries.insertProject("Проект", "Реж")
+        // Создаем базовую структуру для тестов (добавлен updatedAt = 0)
+        queries.insertProject("Проект", "Реж", 0L)
         testProjectId = queries.lastInsertRowId().executeAsOne()
 
         queries.insertScriptFile(
@@ -50,7 +51,8 @@ class SceneRepositoryTest {
             createdAt = 123456789L,
             previousVersionId = null,
             revisionColor = "White",
-            uploadedBy = "User"
+            uploadedBy = "User",
+            updatedAt = 0L
         )
         testScriptId = queries.lastInsertRowId().executeAsOne()
 
@@ -62,7 +64,8 @@ class SceneRepositoryTest {
             isInterior = 1L,
             timeOfDay = "ДЕНЬ",
             notes = null,
-            needsReview = 0L
+            needsReview = 0L,
+            updatedAt = 0L
         )
         testUserDataId = queries.lastInsertRowId().executeAsOne()
     }
@@ -75,7 +78,7 @@ class SceneRepositoryTest {
 
     @Test
     fun testAddAndGetProp() = runTest {
-        queries.insertSceneVersion(testScriptId, testUserDataId, "Текст сцены", "hash", 0)
+        queries.insertSceneVersion(testScriptId, testUserDataId, "Текст сцены", "hash", 0, 0L)
 
         repository.addProp(testUserDataId, "Меч", "в руках меч", "Найти", 0, 10)
 
@@ -96,6 +99,6 @@ class SceneRepositoryTest {
 
         val updatedProps = repository.getPropsByProject(testProjectId).first()
         assertTrue(updatedProps.isNotEmpty(), "Props should exist")
-        assertEquals("Готово", updatedProps[0].status)
+        assertEquals("Готово", updatedProps[0].status.toString()) // Преобразуем статус в строку для сравнения
     }
 }

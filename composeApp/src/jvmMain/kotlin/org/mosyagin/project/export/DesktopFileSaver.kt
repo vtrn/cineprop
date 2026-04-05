@@ -9,7 +9,7 @@ import javax.swing.filechooser.FileNameExtensionFilter
  * Использует стандартный JFileChooser.
  */
 class DesktopFileSaver : FileSaver {
-    override fun saveFile(fileName: String, mimeType: String, bytes: ByteArray) {
+    override suspend fun saveFile(fileName: String, mimeType: String, bytes: ByteArray) {
         val fileChooser = JFileChooser().apply {
             dialogTitle = "Сохранить файл"
             selectedFile = File(fileName)
