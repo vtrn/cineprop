@@ -3,11 +3,12 @@ package org.mosyagin.project.parser.update
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.mosyagin.project.DatabaseQueries
+import org.mosyagin.project.crypto.DataEncrypter
+import org.mosyagin.project.generateUUID
 import org.mosyagin.project.parser.ParsedScene
 import org.mosyagin.project.parser.ScriptParser
 import org.mosyagin.project.repository.SyncRepository
-import kotlin.time.Clock
-import kotlin.time.ExperimentalTime
+import org.mosyagin.project.util.currentTimestamp
 
 /**
  * Результат процесса обновления сценария.
@@ -26,7 +27,7 @@ sealed class UpdateResult {
  * Данные для фиксации обновления.
  */
 data class PreviewData(
-    val projectId: Long,
+    val projectId: String,
     val seriesNumber: Int,
     val filePath: String,
     val fullText: String,
@@ -35,16 +36,17 @@ data class PreviewData(
 )
 
 /**
- * ScriptUpdateManager — ядро системы версионирования SceneMatch.
+ * ScriptUpdateManager — ядро системы версионирования сцен.
  */
 class ScriptUpdateManager(
     private val queries: DatabaseQueries,
     private val parser: ScriptParser,
-    private val syncRepository: SyncRepository // Добавлена зависимость для синхронизации
+    private val syncRepository: SyncRepository,
+    private val encrypter: DataEncrypter
 ) {
 
     suspend fun prepareUpdate(
-        projectId: Long,
+        projectId: String,
         seriesNumber: Int,
         filePath: String,
         fullText: String,
@@ -71,123 +73,201 @@ class ScriptUpdateManager(
                 previewData = PreviewData(projectId, seriesNumber, filePath, fullText, createdAt, matches)
             )
         } catch (e: Exception) {
+            e.printStackTrace()
             UpdateResult.Error(e.message ?: "Ошибка анализа")
         }
     }
 
-    @OptIn(ExperimentalTime::class)
     suspend fun executeUpdate(data: PreviewData) = withContext(Dispatchers.Default) {
-        val now = Clock.System.now().toEpochMilliseconds()
+        val now = currentTimestamp()
+        println("ScriptUpdateManager: Executing update for project ${data.projectId}...")
+        
+        // 1. Предварительно подготавливаем данные вне транзакции
+        val encryptedMatches = data.matches.map { match ->
+            val scene = when (match) {
+                is SceneMatch.Exact -> match.scene
+                is SceneMatch.Fuzzy -> match.scene
+                is SceneMatch.New -> match.scene
+                else -> null
+            }
+            if (scene != null) {
+                scene to encrypter.encrypt(scene.content)
+            } else {
+                null to null
+            }
+        }
+
+        val existingActors = queries.getActorsByProject(data.projectId).executeAsList().associateBy { it.name }
+        val actorsToCreate = mutableMapOf<String, String>()
+
         queries.transaction {
             val lastScriptFile = queries.getLatestScriptVersion(data.projectId, data.seriesNumber.toLong()).executeAsOneOrNull()
 
+            val scriptFileId = generateUUID()
             queries.insertScriptFile(
-                data.projectId,
-                data.seriesNumber.toLong(),
-                "Серия ${data.seriesNumber} (Ревизия от ${data.createdAt})",
-                data.filePath,
-                data.createdAt,
-                lastScriptFile?.id,
-                "White",
-                "User",
-                now
+                id = scriptFileId,
+                projectId = data.projectId,
+                seriesNumber = data.seriesNumber.toLong(),
+                title = "Серия ${data.seriesNumber} (Ревизия от ${data.createdAt})",
+                filePath = data.filePath,
+                createdAt = data.createdAt,
+                previousVersionId = lastScriptFile?.id,
+                revisionColor = "White",
+                uploadedBy = "User",
+                updatedAt = now
             )
-            val scriptFileId = queries.lastInsertRowId().executeAsOne()
             syncRepository.enqueueSync("INSERT", "ScriptFile", scriptFileId, null)
 
             data.matches.forEachIndexed { index, match ->
+                val (parsedScene, encryptedContent) = encryptedMatches[index]
+                
                 when (match) {
                     is SceneMatch.Exact -> {
-                        queries.updateSceneUserDataHeader(
-                            match.scene.location, 
-                            if (match.scene.type == "ИНТ") 1L else 0L, 
-                            match.scene.time, 
-                            now, 
-                            match.oldSceneUserDataId
-                        )
-                        syncRepository.enqueueSync("UPDATE", "SceneUserData", match.oldSceneUserDataId, null)
+                        val userDataId = match.oldSceneUserDataId
+                        updateSceneHeader(userDataId, match.scene, now)
+                        insertVersion(scriptFileId, userDataId, encryptedContent ?: "", index.toLong(), now)
                         
-                        saveSceneVersion(scriptFileId, match.oldSceneUserDataId, match.scene, index.toLong(), now)
-                        queries.clearSceneActors(match.oldSceneUserDataId)
-                        updateSceneActors(data.projectId, match.oldSceneUserDataId, match.scene.actors, now)
-                        preserveUserData(match.oldSceneUserDataId, match.scene.content, now)
+                        queries.clearSceneActors(userDataId)
+                        // Мы не синхронизируем clearSceneActors, так как Supabase upsert перезапишет/дополнит, 
+                        // но для чистоты можно было бы добавить DELETE в очередь.
+                        
+                        linkActors(data.projectId, userDataId, match.scene.actors, existingActors, actorsToCreate, now, match.scene.sceneNumber)
                     }
                     is SceneMatch.Fuzzy -> {
-                        queries.updateSceneUserDataHeader(
-                            match.scene.location, 
-                            if (match.scene.type == "ИНТ") 1L else 0L, 
-                            match.scene.time, 
-                            now, 
-                            match.oldSceneUserDataId
-                        )
-                        syncRepository.enqueueSync("UPDATE", "SceneUserData", match.oldSceneUserDataId, null)
-
-                        saveSceneVersion(scriptFileId, match.oldSceneUserDataId, match.scene, index.toLong(), now)
-                        queries.clearSceneActors(match.oldSceneUserDataId)
-                        updateSceneActors(data.projectId, match.oldSceneUserDataId, match.scene.actors, now)
-                        queries.updateSceneUserDataReviewStatus(1L, now, match.oldSceneUserDataId)
-                        preserveUserData(match.oldSceneUserDataId, match.scene.content, now)
+                        val userDataId = match.oldSceneUserDataId
+                        updateSceneHeader(userDataId, match.scene, now)
+                        queries.updateSceneUserDataReviewStatus(1L, now, userDataId)
+                        syncRepository.enqueueSync("UPDATE", "SceneUserData", userDataId, null)
+                        
+                        insertVersion(scriptFileId, userDataId, encryptedContent ?: "", index.toLong(), now)
+                        
+                        queries.clearSceneActors(userDataId)
+                        linkActors(data.projectId, userDataId, match.scene.actors, existingActors, actorsToCreate, now, match.scene.sceneNumber)
                     }
                     is SceneMatch.New -> {
+                        val userDataId = generateUUID()
                         queries.insertSceneUserData(
-                            data.projectId, 
-                            data.seriesNumber.toLong(), 
-                            match.scene.sceneNumber, 
-                            match.scene.location, 
-                            if (match.scene.type == "ИНТ") 1L else 0L, 
-                            match.scene.time, 
-                            null, 
-                            0L, 
-                            now
+                            id = userDataId,
+                            projectId = data.projectId, 
+                            seriesNumber = data.seriesNumber.toLong(), 
+                            sceneNumber = match.scene.sceneNumber, 
+                            location = match.scene.location, 
+                            isInterior = if (match.scene.type == "ИНТ") 1L else 0L, 
+                            timeOfDay = match.scene.time, 
+                            notes = null, 
+                            needsReview = 0L, 
+                            updatedAt = now
                         )
-                        val userDataId = queries.lastInsertRowId().executeAsOne()
                         syncRepository.enqueueSync("INSERT", "SceneUserData", userDataId, null)
 
-                        saveSceneVersion(scriptFileId, userDataId, match.scene, index.toLong(), now)
-                        updateSceneActors(data.projectId, userDataId, match.scene.actors, now)
+                        insertVersion(scriptFileId, userDataId, encryptedContent ?: "", index.toLong(), now)
+                        linkActors(data.projectId, userDataId, match.scene.actors, existingActors, actorsToCreate, now, match.scene.sceneNumber)
+                    }
+                    is SceneMatch.Deleted -> {
                     }
                     else -> {}
                 }
             }
         }
+        println("ScriptUpdateManager: Update finished. Triggering push...")
+        syncRepository.triggerPush()
     }
 
-    private fun matchScenes(oldScenes: List<org.mosyagin.project.GetScenesBySeries>, newScenes: List<ParsedScene>): List<SceneMatch> {
+    private fun updateSceneHeader(id: String, scene: ParsedScene, now: Long) {
+        queries.updateSceneUserDataHeader(
+            location = scene.location, 
+            isInterior = if (scene.type == "ИНТ") 1L else 0L, 
+            timeOfDay = scene.time, 
+            updatedAt = now, 
+            id = id
+        )
+        syncRepository.enqueueSync("UPDATE", "SceneUserData", id, null)
+    }
+
+    private fun insertVersion(scriptId: String, userDataId: String, content: String, index: Long, now: Long) {
+        val versionId = generateUUID()
+        queries.insertSceneVersion(
+            id = versionId,
+            scriptFileId = scriptId, 
+            sceneUserDataId = userDataId, 
+            content = content, 
+            contentHash = "", 
+            positionIndex = index, 
+            updatedAt = now
+        )
+        syncRepository.enqueueSync("INSERT", "SceneVersion", versionId, null)
+    }
+
+    private fun linkActors(
+        projectId: String, 
+        userDataId: String, 
+        names: List<String>, 
+        existing: Map<String, org.mosyagin.project.Actor>,
+        toCreate: MutableMap<String, String>,
+        now: Long,
+        sceneNum: String
+    ) {
+        names.forEach { name ->
+            val cleanName = name.trim()
+            if (cleanName.isNotEmpty()) {
+                val actorId = existing[cleanName]?.id ?: toCreate[cleanName] ?: run {
+                    val newId = generateUUID()
+                    queries.insertActor(newId, projectId, cleanName, now)
+                    syncRepository.enqueueSync("INSERT", "Actor", newId, null)
+                    toCreate[cleanName] = newId
+                    newId
+                }
+                queries.linkActorToScene(userDataId, actorId)
+                // ИСПРАВЛЕНИЕ: Добавляем связь в очередь синхронизации
+                syncRepository.enqueueSync("INSERT", "SceneActor", "${userDataId}|${actorId}", null)
+                println("ScriptUpdateManager: Linked actor '$cleanName' to scene $sceneNum")
+            }
+        }
+    }
+
+    private fun matchScenes(
+        oldScenes: List<org.mosyagin.project.GetScenesBySeries>, 
+        newScenes: List<ParsedScene>
+    ): List<SceneMatch> {
         val finalMatches = mutableListOf<SceneMatch>()
+        val matchedOldIds = mutableSetOf<String>()
+
         for (newScene in newScenes) {
-            val exactMatch = oldScenes.find { it.sceneNumber == newScene.sceneNumber }
-            if (exactMatch != null) {
-                finalMatches.add(SceneMatch.Exact(exactMatch.id, newScene))
+            val oldScene = oldScenes.find { it.sceneNumber == newScene.sceneNumber }
+            
+            if (oldScene != null) {
+                matchedOldIds.add(oldScene.id)
+                
+                // Дешифруем старый контент для честного сравнения
+                val oldContentDecrypted = encrypter.decrypt(oldScene.content) ?: ""
+                
+                val isContentSame = QuickComparator.compareExact(oldContentDecrypted, newScene.content)
+                val isMetadataSame = oldScene.location == newScene.location &&
+                                     oldScene.timeOfDay == newScene.time &&
+                                     (oldScene.isInterior == 1L) == (newScene.type == "ИНТ")
+
+                if (isContentSame && isMetadataSame) {
+                    finalMatches.add(SceneMatch.Exact(oldScene.id, newScene))
+                } else {
+                    finalMatches.add(SceneMatch.Fuzzy(oldScene.id, newScene, 0.5))
+                }
             } else {
                 finalMatches.add(SceneMatch.New(newScene))
             }
         }
-        return finalMatches
-    }
 
-    private fun preserveUserData(sceneUserDataId: Long, newContent: String, now: Long) {
-        val props = queries.getPropsForScene(sceneUserDataId).executeAsList()
-        props.forEach { prop ->
-            queries.updatePropOrphanedStatus(if (newContent.contains(prop.name, ignoreCase = true)) 0L else 1L, now, prop.id)
-            syncRepository.enqueueSync("UPDATE", "Prop", prop.id, null)
-        }
-    }
-    
-    private fun updateSceneActors(projectId: Long, sceneUserDataId: Long, actorNames: List<String>, now: Long) {
-        actorNames.forEach { name ->
-            queries.insertActor(projectId, name, now)
-            val actor = queries.getActorByName(projectId, name).executeAsOneOrNull()
-            if (actor != null) {
-                syncRepository.enqueueSync("INSERT", "Actor", actor.id, null)
-                queries.linkActorToScene(sceneUserDataId, actor.id)
+        // Находим те, что были в старой версии, но отсутствуют в новой
+        for (oldScene in oldScenes) {
+            if (oldScene.id !in matchedOldIds) {
+                finalMatches.add(SceneMatch.Deleted(
+                    oldSceneUserDataId = oldScene.id,
+                    oldSceneNumber = oldScene.sceneNumber,
+                    oldSceneTitle = oldScene.location
+                ))
             }
         }
-    }
 
-    private fun saveSceneVersion(scriptFileId: Long, userDataId: Long, scene: ParsedScene, positionIndex: Long, now: Long) {
-        queries.insertSceneVersion(scriptFileId, userDataId, scene.content, "", positionIndex, now)
-        val versionId = queries.lastInsertRowId().executeAsOne()
-        syncRepository.enqueueSync("INSERT", "SceneVersion", versionId, null)
+        return finalMatches
     }
 
     private fun calculateStats(matches: List<SceneMatch>) = UpdateStats(

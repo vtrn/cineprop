@@ -40,7 +40,7 @@ class DebounceSyncTest {
         val projectRepository = FakeProjectRepository()
         
         val viewModel = PropWorkspaceViewModel(
-            projectId = 1L,
+            projectId = "1",
             sceneRepository = sceneRepository,
             projectRepository = projectRepository,
             syncRepository = syncRepository,
@@ -50,7 +50,7 @@ class DebounceSyncTest {
 
         // 1. Делаем 10 быстрых изменений статуса реквизита
         repeat(10) {
-            viewModel.updatePropStatus(1L, PropStatus.READY)
+            viewModel.updatePropStatus("1", PropStatus.READY)
             delay(100) 
         }
 
@@ -71,11 +71,11 @@ class DebounceSyncTest {
 class FakeSyncRepositoryLocal : SyncRepository {
     private val queue = MutableStateFlow<List<SyncQueue>>(emptyList())
     
-    override suspend fun enqueue(operation: String, tableName: String, recordId: Long, dataJson: String?) {
+    override suspend fun enqueue(operation: String, tableName: String, recordId: String, dataJson: String?) {
         enqueueSync(operation, tableName, recordId, dataJson)
     }
 
-    override fun enqueueSync(operation: String, tableName: String, recordId: Long, dataJson: String?) {
+    override fun enqueueSync(operation: String, tableName: String, recordId: String, dataJson: String?) {
         val newQueue = queue.value.toMutableList()
         newQueue.add(
             SyncQueue(
@@ -94,6 +94,7 @@ class FakeSyncRepositoryLocal : SyncRepository {
     override fun getPending(): Flow<List<SyncQueue>> = queue.asStateFlow()
     override suspend fun markSynced(ids: List<Long>) {}
     override fun setSyncManager(manager: SyncManager) {}
+    override fun triggerPush() {}
     
     fun getSyncCount() = queue.value.size
 }

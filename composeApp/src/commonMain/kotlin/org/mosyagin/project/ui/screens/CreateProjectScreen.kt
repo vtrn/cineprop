@@ -14,7 +14,7 @@ import org.koin.compose.koinInject
 import org.mosyagin.project.repository.ProjectRepository
 
 class CreateProjectScreen(
-    private val projectIdToEdit: Long? = null,
+    private val projectIdToEdit: String? = null,
     private val initialName: String? = null,
     private val initialDirector: String? = null
 ) : Screen {

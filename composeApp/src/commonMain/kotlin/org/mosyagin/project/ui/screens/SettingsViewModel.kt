@@ -15,9 +15,18 @@ class SettingsViewModel(
     val themeMode: StateFlow<String> = repository.getThemeMode()
         .stateIn(screenModelScope, SharingStarted.Eagerly, "system")
 
+    val isEncryptionEnabled: StateFlow<Boolean> = repository.isEncryptionEnabled()
+        .stateIn(screenModelScope, SharingStarted.Eagerly, false)
+
     fun setThemeMode(mode: String) {
         screenModelScope.launch {
             repository.setThemeMode(mode)
+        }
+    }
+
+    fun setEncryptionEnabled(enabled: Boolean) {
+        screenModelScope.launch {
+            repository.setEncryptionEnabled(enabled)
         }
     }
 }

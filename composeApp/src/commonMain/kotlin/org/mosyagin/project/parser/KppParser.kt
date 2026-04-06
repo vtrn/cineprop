@@ -15,7 +15,7 @@ class KppParser(
     /**
      * Основной метод парсинга CSV текста.
      */
-    fun parseAndSaveKpp(projectId: Long, csvText: String) {
+    fun parseAndSaveKpp(projectId: String, csvText: String) {
         val rows = csvText.lines()
 
         var currentShiftNumber: Long = 1
@@ -49,12 +49,13 @@ class KppParser(
 
                 if (!series.isNullOrBlank() && !sceneNumber.isNullOrBlank() && series.any { it.isDigit() }) {
                     
-                    val shift = shiftRepository.getShiftByNumber(projectId, currentShiftNumber)
-                    val shiftId = shift?.id ?: shiftRepository.addShift(projectId, currentShiftNumber, currentDate)
+                    val shift = shiftRepository.getShiftByNumber(projectId.toString(), currentShiftNumber)
+                    val shiftId = shift?.id ?: shiftRepository.addShift(projectId.toString(), currentShiftNumber, currentDate)
 
                     val seriesLong = series.filter { it.isDigit() }.toLongOrNull()
                     if (seriesLong != null) {
-                        val sceneUserDataId = sceneRepository.getSceneUserDataIdBySeriesAndNumber(projectId, seriesLong, sceneNumber)
+                        val sceneUserDataId = sceneRepository.getSceneUserDataIdBySeriesAndNumber(
+                            projectId.toString(), seriesLong, sceneNumber)
 
                         if (sceneUserDataId != null) {
                             shiftRepository.linkSceneToShift(

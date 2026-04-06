@@ -27,7 +27,7 @@ import org.mosyagin.project.ui.components.AppLayoutType
 import org.mosyagin.project.ui.components.CineCard
 import org.mosyagin.project.ui.components.LocalAppLayoutType
 
-data class ProjectDashboardScreen(val projectId: Long) : Screen {
+data class ProjectDashboardScreen(val projectId: String) : Screen { // Изменено на String
 
     @Composable
     override fun Content() {
@@ -135,7 +135,6 @@ data class ProjectDashboardScreen(val projectId: Long) : Screen {
                             "Сценарий", 
                             Icons.Default.Description,
                             onClick = { 
-                                // Task #48: Workspace для Сценариев
                                 if (layoutType == AppLayoutType.DESKTOP) {
                                     navigator.push(ScriptWorkspaceScreen(projectId))
                                 } else {

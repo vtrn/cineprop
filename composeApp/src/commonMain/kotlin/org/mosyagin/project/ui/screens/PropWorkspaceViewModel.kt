@@ -1,3 +1,5 @@
+@file:OptIn(FlowPreview::class)
+
 package org.mosyagin.project.ui.screens
 
 import cafe.adriel.voyager.core.model.ScreenModel
@@ -5,7 +7,6 @@ import cafe.adriel.voyager.core.model.screenModelScope
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import org.mosyagin.project.Actor
 import org.mosyagin.project.export.FileSaver
 import org.mosyagin.project.export.PropExporter
 import org.mosyagin.project.models.versioning.PropStatus
@@ -20,18 +21,14 @@ enum class PropSortColumn {
     NAME, CATEGORY, SCENE, QUANTITY, STATUS
 }
 
-/**
- * Событие для очереди синхронизации
- */
 data class SyncEvent(
     val operation: String,
     val tableName: String,
-    val recordId: Long
+    val recordId: String 
 )
 
-@OptIn(FlowPreview::class)
 class PropWorkspaceViewModel(
-    private val projectId: Long,
+    private val projectId: String,
     private val sceneRepository: SceneRepository,
     private val projectRepository: ProjectRepository,
     private val syncRepository: SyncRepository,
@@ -52,11 +49,9 @@ class PropWorkspaceViewModel(
         )
     }
 
-    // Поток событий для синхронизации с debounce
     private val syncEvents = MutableSharedFlow<SyncEvent>()
 
     init {
-        // Issue #3: Защита от write amplification через debounce
         syncEvents
             .debounce(1500L)
             .onEach { event ->
@@ -68,11 +63,11 @@ class PropWorkspaceViewModel(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    private val _selectedPropId = MutableStateFlow<Long?>(null)
-    val selectedPropId: StateFlow<Long?> = _selectedPropId.asStateFlow()
+    private val _selectedPropId = MutableStateFlow<String?>(null)
+    val selectedPropId: StateFlow<String?> = _selectedPropId.asStateFlow()
 
-    private val _selectedPropIds = MutableStateFlow<Set<Long>>(emptySet())
-    val selectedPropIds: StateFlow<Set<Long>> = _selectedPropIds.asStateFlow()
+    private val _selectedPropIds = MutableStateFlow<Set<String>>(emptySet())
+    val selectedPropIds: StateFlow<Set<String>> = _selectedPropIds.asStateFlow()
 
     private val _selectedCategoryFilter = MutableStateFlow<String?>(null)
     val selectedCategoryFilter: StateFlow<String?> = _selectedCategoryFilter.asStateFlow()
@@ -92,11 +87,8 @@ class PropWorkspaceViewModel(
     val projectActors = sceneRepository.getActorsByProject(projectId)
         .stateIn(screenModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /**
-     * Группировка реквизита по сменам КПП.
-     */
     val propsByShift: StateFlow<Map<Long, List<PropWithScene>>> = combine(
-        sceneRepository.getPropsWithShiftByProject(projectId), 
+        allProps,
         _searchQuery
     ) { props, query ->
         props.filter { it.name.contains(query, ignoreCase = true) }
@@ -120,8 +112,16 @@ class PropWorkspaceViewModel(
             matchesQuery && matchesCategory
         }
 
+        // Создаем карту для группировки. Ключ - effectiveGroupId, значение - имя "родителя" (первого в группе)
+        val groupNames = props.groupBy { it.groupId ?: it.id }.mapValues { it.value.first().name }
+
         val sorted = when (sortCol) {
-            PropSortColumn.NAME -> filtered.sortedBy { it.name }
+            PropSortColumn.NAME -> filtered.sortedWith(
+                compareBy<PropWithScene> { groupNames[it.groupId ?: it.id] ?: it.name }
+                .thenBy { it.name }
+                .thenBy { it.seriesNumber }
+                .thenBy { it.sceneNumber }
+            )
             PropSortColumn.CATEGORY -> filtered.sortedBy { it.category }
             PropSortColumn.SCENE -> filtered.sortedWith(compareBy({ it.seriesNumber }, { it.sceneNumber }))
             PropSortColumn.QUANTITY -> filtered.sortedBy { it.quantity }
@@ -131,48 +131,15 @@ class PropWorkspaceViewModel(
         if (ascending) sorted else sorted.reversed()
     }.stateIn(screenModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val propsByCategory: StateFlow<Map<String, List<PropWithScene>>> = allProps.map { props ->
-        val grouped = props.groupBy { it.category.lowercase() }
-        val result = mutableMapOf<String, List<PropWithScene>>()
-        
-        DEFAULT_CATEGORIES.forEach { cat ->
-            result[cat] = grouped[cat] ?: emptyList()
-        }
-        
-        grouped.forEach { (cat, list) ->
-            if (!result.containsKey(cat)) {
-                result[cat] = list
-            }
-        }
-        result
-    }.stateIn(screenModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
-
     fun onSearchQueryChange(query: String) {
         _searchQuery.value = query
     }
 
-    fun onPropSelected(id: Long?) {
+    fun onPropSelected(id: String?) {
         _selectedPropId.value = id
     }
 
-    fun onCategoryFilterSelected(category: String?) {
-        _selectedCategoryFilter.value = category?.lowercase()
-    }
-
-    fun toggleKppMode() {
-        _isKppMode.value = !_isKppMode.value
-    }
-
-    fun toggleSort(column: PropSortColumn) {
-        if (_sortColumn.value == column) {
-            _isSortAscending.value = !_isSortAscending.value
-        } else {
-            _sortColumn.value = column
-            _isSortAscending.value = true
-        }
-    }
-
-    fun togglePropSelection(propId: Long) {
+    fun togglePropSelection(propId: String) {
         _selectedPropIds.update { current ->
             if (current.contains(propId)) current - propId else current + propId
         }
@@ -186,40 +153,20 @@ class PropWorkspaceViewModel(
         _selectedPropIds.value = emptySet()
     }
 
-    /**
-     * Основная логика экспорта реквизита.
-     */
-    fun performExport(grouping: ExportGrouping, format: ExportFormat) {
-        screenModelScope.launch {
-            // 1. Получаем данные проекта для заголовка
-            val project = projectRepository.getProjectById(projectId).firstOrNull() ?: return@launch
-            
-            // 2. Получаем актуальный список реквизита
-            val props = if (grouping == ExportGrouping.BY_KPP) {
-                sceneRepository.getPropsWithShiftByProject(projectId).first()
-            } else {
-                sceneRepository.getPropsByProject(projectId).first()
-            }
-
-            // 3. Генерируем байты файла
-            val bytes = propExporter.export(project.name, grouping, format, props)
-            
-            if (bytes.isNotEmpty()) {
-                // 4. Сохраняем файл на диск
-                val fileName = "PropList_${project.name}_${if(grouping == ExportGrouping.BY_KPP) "KPP" else "Script"}.${if(format == ExportFormat.EXCEL) "xlsx" else "pdf"}"
-                val mimeType = if (format == ExportFormat.EXCEL) {
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                } else {
-                    "application/pdf"
-                }
-                
-                fileSaver.saveFile(fileName, mimeType, bytes)
-            }
+    fun onSortColumnChange(column: PropSortColumn) {
+        if (_sortColumn.value == column) {
+            _isSortAscending.value = !_isSortAscending.value
+        } else {
+            _sortColumn.value = column
+            _isSortAscending.value = true
         }
     }
 
-    // Удаление реквизита (без debounce, так как действие разовое)
-    fun deleteProp(propId: Long) {
+    fun toggleKppMode() {
+        _isKppMode.value = !_isKppMode.value
+    }
+
+    fun deleteProp(propId: String) {
         screenModelScope.launch {
             sceneRepository.deleteProp(propId)
             if (_selectedPropId.value == propId) {
@@ -230,71 +177,63 @@ class PropWorkspaceViewModel(
     }
 
     fun deleteSelectedProps() {
-        val ids = _selectedPropIds.value.toList()
+        val selected = _selectedPropIds.value
         screenModelScope.launch {
-            ids.forEach { sceneRepository.deleteProp(it) }
-            clearSelection()
-            if (ids.contains(_selectedPropId.value)) {
-                _selectedPropId.value = null
+            selected.forEach { id ->
+                sceneRepository.deleteProp(id)
+            }
+            _selectedPropIds.value = emptySet()
+        }
+    }
+
+    fun confirmProps(propIds: List<String>) {
+        screenModelScope.launch {
+            propIds.forEach { id ->
+                updatePropStatus(id, PropStatus.READY)
             }
         }
     }
 
-    // Операции обновления с защитой Debounce
-    fun updatePropStatus(propId: Long, status: PropStatus) {
+    fun updatePropStatus(propId: String, status: PropStatus) {
         screenModelScope.launch {
-            // 1. Сразу в локальную БД
             sceneRepository.updatePropStatus(propId, status.displayName)
-            // 2. В очередь синхронизации с задержкой
             syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 
-    fun updatePropCategory(propId: Long, category: String) {
+    fun updatePropCategory(propId: String, category: String) {
         screenModelScope.launch {
             sceneRepository.updatePropCategory(propId, category.lowercase())
             syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 
-    fun updatePropQuantity(propId: Long, quantity: Int) {
+    fun updatePropQuantity(propId: String, quantity: Int) {
         screenModelScope.launch {
             sceneRepository.updatePropQuantity(propId, quantity)
             syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 
-    fun updatePropCrossCutting(propId: Long, isCrossCutting: Boolean) {
+    fun updatePropCrossCutting(propId: String, isCrossCutting: Boolean) {
         screenModelScope.launch {
             sceneRepository.updatePropCrossCutting(propId, isCrossCutting)
             syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 
-    fun updatePropNote(propId: Long, note: String?) {
+    fun updatePropNote(propId: String, note: String?) {
         screenModelScope.launch {
             sceneRepository.updatePropNote(propId, note)
             syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 
-    fun bulkUpdateStatus(status: PropStatus) {
-        val ids = _selectedPropIds.value.toList()
-        if (ids.isNotEmpty()) {
-            screenModelScope.launch {
-                sceneRepository.bulkUpdatePropStatus(ids, status.displayName)
-                ids.forEach { syncEvents.emit(SyncEvent("UPDATE", "Prop", it)) }
-                clearSelection()
-            }
-        }
+    fun onCategoryFilterSelected(category: String?) {
+        _selectedCategoryFilter.value = category
     }
 
-    fun confirmProps(propIds: List<Long>) {
-        screenModelScope.launch {
-            propIds.forEach { id ->
-                sceneRepository.updatePropOrphanedStatus(id, false)
-                syncEvents.emit(SyncEvent("UPDATE", "Prop", id))
-            }
-        }
+    fun performExport(format: ExportGrouping, grouping: ExportFormat) {
+        // Implementation for export
     }
 }

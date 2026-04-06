@@ -16,6 +16,7 @@ import org.mosyagin.project.repository.FakeSyncRepository
 import org.mosyagin.project.repository.ScriptRepository
 import org.mosyagin.project.repository.ScriptRepositoryImpl
 import org.mosyagin.project.repository.SyncRepository
+import org.mosyagin.project.crypto.PlainDataEncrypter
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -47,9 +48,10 @@ class ScriptRepositoryIntegrationTest : KoinTest {
                 single { dbQueries }
                 single { ScriptParser() }
                 single<SyncRepository> { FakeSyncRepository() }
-                // Передаем по 3 параметра get(), так как конструкторы обновились
-                single { ScriptUpdateManager(get(), get(), get()) }
-                single<ScriptRepository> { ScriptRepositoryImpl(get(), get(), get()) }
+                single { PlainDataEncrypter() }
+                // Передаем по 4 параметра get(), так как конструкторы обновились
+                single { ScriptUpdateManager(get(), get(), get(), get()) }
+                single<ScriptRepository> { ScriptRepositoryImpl(get(), get(), get(), get()) }
             })
         }
     }
@@ -64,9 +66,8 @@ class ScriptRepositoryIntegrationTest : KoinTest {
 
     @Test
     fun testParseAndSaveIntegration() = runTest {
-        // Добавлен updatedAt = 0
-        queries.insertProject("Интеграционный тест", "Режиссер", 0L)
-        val projectId = queries.lastInsertRowId().executeAsOne()
+        val projectId = "test-project-id"
+        queries.insertProject(projectId, "Интеграционный тест", "Режиссер", 0L)
 
         val scriptText = """
             1. ИНТ. ОФИС - ДЕНЬ
@@ -99,9 +100,8 @@ class ScriptRepositoryIntegrationTest : KoinTest {
 
     @Test
     fun testActorsAreLinkedDuringParsing() = runTest {
-        // Добавлен updatedAt = 0
-        queries.insertProject("Актеры", "Режиссер", 0L)
-        val projectId = queries.lastInsertRowId().executeAsOne()
+        val projectId = "actors-test-id"
+        queries.insertProject(projectId, "Актеры", "Режиссер", 0L)
 
         val scriptText = """
             1. ИНТ. КУХНЯ - ДЕНЬ

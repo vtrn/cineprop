@@ -21,16 +21,15 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import kotlinx.datetime.*
-import kotlinx.datetime.LocalDate
 import org.koin.compose.koinInject
 import org.mosyagin.project.Shift
 import org.mosyagin.project.repository.ShiftRepository
 import org.mosyagin.project.ui.components.AppLayoutType
 import org.mosyagin.project.ui.components.CineCard
 import org.mosyagin.project.ui.components.LocalAppLayoutType
-import kotlin.time.Clock
+import org.mosyagin.project.util.currentDate
 
-data class KppCalendarScreen(val projectId: Long) : Screen {
+data class KppCalendarScreen(val projectId: String) : Screen {
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
@@ -40,15 +39,14 @@ data class KppCalendarScreen(val projectId: Long) : Screen {
         val layoutType = LocalAppLayoutType.current
         val shifts by shiftRepository.getShiftsByProject(projectId).collectAsState(initial = emptyList())
 
-        // 1. Инициализируем стейт первым числом текущего месяца.
+        // Инициализируем стейт первым числом текущего месяца.
         val initialDate = remember {
-            val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
+            val today = currentDate()
             LocalDate(today.year, today.month, 1)
         }
 
         var currentMonthDate by remember { mutableStateOf(initialDate) }
 
-        // 2. Оптимизация: парсим даты смен только тогда, когда меняется список shifts.
         val parsedShiftsWithDates = remember(shifts) {
             shifts.mapNotNull { shift ->
                 val date = parseShiftDate(shift.date)
@@ -67,14 +65,7 @@ data class KppCalendarScreen(val projectId: Long) : Screen {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                             }
                         }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent,
-                        scrolledContainerColor = Color.Unspecified,
-                        navigationIconContentColor = Color.Unspecified,
-                        titleContentColor = Color.Unspecified,
-                        actionIconContentColor = Color.Unspecified
-                    )
+                    }
                 )
             }
         ) { paddingValues ->
@@ -137,7 +128,6 @@ data class KppCalendarScreen(val projectId: Long) : Screen {
         val daysInMonth = getDaysInMonth(currentDate.month, currentDate.year)
         val firstDayOfWeek = firstDayOfMonth.dayOfWeek.isoDayNumber
 
-        // Оптимизация: предвычисляем дни со сменами для текущего месяца
         val shiftDays = remember(parsedShifts, currentDate.month, currentDate.year) {
             parsedShifts
                 .filter { (_, date) ->
@@ -196,7 +186,7 @@ data class KppCalendarScreen(val projectId: Long) : Screen {
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (day != null) {
-                                    val hasShift = day in shiftDays  // O(1) проверка
+                                    val hasShift = day in shiftDays
 
                                     if (hasShift) {
                                         Box(

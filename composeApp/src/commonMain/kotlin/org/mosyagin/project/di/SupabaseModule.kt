@@ -4,23 +4,26 @@ import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.storage.Storage
+import io.github.jan.supabase.realtime.Realtime
+import io.ktor.client.engine.*
 import org.koin.dsl.module
 import org.mosyagin.project.BuildKonfig
 
 /**
  * Модуль для работы с Supabase.
- * Ключи подтягиваются из BuildKonfig (из local.properties), 
- * что безопасно для публичных репозиториев.
  */
 val supabaseModule = module {
     single {
+        val engine = get<HttpClientEngine>()
         createSupabaseClient(
             supabaseUrl = BuildKonfig.SUPABASE_URL,
             supabaseKey = BuildKonfig.SUPABASE_KEY
         ) {
-            install(Postgrest) // Для синхронизации таблиц
-            install(Auth)      // Для авторизации пользователей
-            install(Storage)   // Для хранения файлов
+            httpEngine = engine
+            install(Postgrest)
+            install(Auth)
+            install(Storage)
+            install(Realtime)
         }
     }
 }

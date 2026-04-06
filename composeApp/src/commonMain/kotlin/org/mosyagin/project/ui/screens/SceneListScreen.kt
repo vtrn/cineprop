@@ -1,6 +1,5 @@
 package org.mosyagin.project.ui.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,7 +25,7 @@ import org.mosyagin.project.ui.components.CineCard
 import org.mosyagin.project.ui.components.CineTag
 import org.mosyagin.project.ui.components.LocalAppLayoutType
 
-data class SceneListScreen(val projectId: Long, val projectName: String) : Screen {
+data class SceneListScreen(val projectId: String, val projectName: String) : Screen { // Изменено на String
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable

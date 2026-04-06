@@ -15,11 +15,10 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.koin.koinScreenModel
 import org.koin.core.parameter.parametersOf
-import org.mosyagin.project.Actor
 import org.mosyagin.project.ui.components.ThreePaneLayout
 import org.mosyagin.project.ui.components.CineCard
 
-data class CharacterWorkspaceScreen(val projectId: Long) : Screen {
+data class CharacterWorkspaceScreen(val projectId: String) : Screen {
 
     @Composable
     override fun Content() {

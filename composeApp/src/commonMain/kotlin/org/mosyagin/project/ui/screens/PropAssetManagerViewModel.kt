@@ -18,7 +18,7 @@ data class PropAssetManagerUiState(
     val searchQuery: String = "",
     val selectedCategory: String? = null,
     val selectedStatus: PropStatus? = null,
-    val selectedPropIds: Set<Long> = emptySet(),
+    val selectedPropIds: Set<String> = emptySet(), // Изменено на String
     val categories: List<String> = emptyList(),
     val error: String? = null
 )
@@ -27,7 +27,7 @@ data class PropAssetManagerUiState(
 class PropAssetManagerViewModel(
     private val repository: SceneRepository,
     private val syncRepository: SyncRepository,
-    private val projectId: Long
+    private val projectId: String // Изменено на String
 ) : ScreenModel {
 
     private val _uiState = MutableStateFlow(PropAssetManagerUiState())
@@ -36,7 +36,6 @@ class PropAssetManagerViewModel(
     private val syncEvents = MutableSharedFlow<SyncEvent>()
 
     init {
-        // Issue #3: Debounce sync queue
         syncEvents
             .debounce(1500L)
             .onEach { event ->
@@ -108,7 +107,7 @@ class PropAssetManagerViewModel(
         }
     }
 
-    fun togglePropSelection(propId: Long) {
+    fun togglePropSelection(propId: String) { // Изменено на String
         _uiState.update { state ->
             val newSelection = if (state.selectedPropIds.contains(propId)) {
                 state.selectedPropIds - propId
@@ -129,51 +128,38 @@ class PropAssetManagerViewModel(
         _uiState.update { it.copy(selectedPropIds = emptySet()) }
     }
 
-    // Update operations with Debounce
-    fun updatePropStatus(propId: Long, status: PropStatus) {
+    fun updatePropStatus(propId: String, status: PropStatus) { // Изменено на String
         screenModelScope.launch {
             repository.updatePropStatus(propId, status.displayName)
             syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 
-    fun updatePropCategory(propId: Long, category: String) {
+    fun updatePropCategory(propId: String, category: String) { // Изменено на String
         screenModelScope.launch {
             repository.updatePropCategory(propId, category)
             syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 
-    fun updatePropQuantity(propId: Long, quantity: Int) {
+    fun updatePropQuantity(propId: String, quantity: Int) { // Изменено на String
         screenModelScope.launch {
             repository.updatePropQuantity(propId, quantity)
             syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 
-    fun updatePropCrossCutting(propId: Long, isCrossCutting: Boolean) {
+    fun updatePropCrossCutting(propId: String, isCrossCutting: Boolean) { // Изменено на String
         screenModelScope.launch {
             repository.updatePropCrossCutting(propId, isCrossCutting)
             syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 
-    fun updatePropNote(propId: Long, note: String?) {
+    fun updatePropNote(propId: String, note: String?) { // Изменено на String
         screenModelScope.launch {
             repository.updatePropNote(propId, note)
             syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
-        }
-    }
-
-    // Bulk actions
-    fun bulkUpdateStatus(status: PropStatus) {
-        val selectedIds = _uiState.value.selectedPropIds.toList()
-        if (selectedIds.isNotEmpty()) {
-            screenModelScope.launch {
-                repository.bulkUpdatePropStatus(selectedIds, status.displayName)
-                selectedIds.forEach { syncEvents.emit(SyncEvent("UPDATE", "Prop", it)) }
-                clearSelection()
-            }
         }
     }
 }

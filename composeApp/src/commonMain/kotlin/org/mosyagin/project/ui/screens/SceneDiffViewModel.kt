@@ -19,7 +19,7 @@ data class SideBySideDiffRow(
 )
 
 class SceneDiffViewModel(
-    private val sceneUserDataId: Long,
+    private val sceneUserDataId: String,
     private val repository: SceneRepository,
     private val parser: ScriptParser
 ) : ScreenModel {

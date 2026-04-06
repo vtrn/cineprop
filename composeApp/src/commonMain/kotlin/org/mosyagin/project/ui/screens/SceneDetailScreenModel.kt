@@ -6,69 +6,46 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import org.mosyagin.project.Actor
 import org.mosyagin.project.models.versioning.Prop
-import org.mosyagin.project.GetSceneById
-import org.mosyagin.project.parser.ScriptBlock
-import org.mosyagin.project.parser.ScriptParser
-import org.mosyagin.project.parser.update.ScriptUpdateManager
+import org.mosyagin.project.models.versioning.PropStatus
 import org.mosyagin.project.repository.SceneRepository
 
 class SceneDetailScreenModel(
     private val repository: SceneRepository,
-    private val scriptUpdateManager: ScriptUpdateManager,
-    private val sceneUserDataId: Long,
-    private val scriptFileId: Long
+    private val sceneUserDataId: String, // Изменено на String
+    private val scriptFileId: String // Изменено на String
 ) : ScreenModel {
 
-    val scene: StateFlow<GetSceneById?> = repository.getSceneById(sceneUserDataId, scriptFileId)
-        .stateIn(screenModelScope, SharingStarted.Eagerly, null)
+    val sceneData = repository.getSceneById(sceneUserDataId, scriptFileId)
+        .stateIn(screenModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    val actors: StateFlow<List<Actor>> = repository.getActorsForScene(sceneUserDataId)
+    val props = repository.getPropsForScene(sceneUserDataId)
         .stateIn(screenModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val props: StateFlow<List<Prop>> = repository.getPropsForScene(sceneUserDataId)
+    val actors = repository.getActorsForScene(sceneUserDataId)
         .stateIn(screenModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _selectedPropId = MutableStateFlow<Long?>(null)
-    val selectedPropId: StateFlow<Long?> = _selectedPropId.asStateFlow()
-
-    val scriptBlocks: StateFlow<List<ScriptBlock>> = scene
-        .filterNotNull()
-        .map { ScriptParser().parseBlocks(it.content) }
-        .stateIn(screenModelScope, SharingStarted.Lazily, emptyList())
-
-    fun setSelectedProp(id: Long?) {
-        _selectedPropId.value = id
-    }
-
-    fun addProp(name: String, anchor: String, startOffset: Long = 0, endOffset: Long = 0) {
+    fun updatePropStatus(propId: String, status: PropStatus) { // Изменено на String
         screenModelScope.launch {
-            repository.addProp(
-                sceneUserDataId = sceneUserDataId,
-                name = name,
-                anchor = anchor,
-                startOffset = startOffset,
-                endOffset = endOffset
-            )
+            repository.updatePropStatus(propId, status.toDbString())
         }
     }
 
-    fun deleteProp(propId: Long) {
+    private fun PropStatus.toDbString(): String = when(this) {
+        PropStatus.PLANNED -> "Найти"
+        PropStatus.BOUGHT -> "Куплено"
+        PropStatus.READY -> "Готово"
+        PropStatus.LOST -> "Утеряно"
+    }
+
+    fun updateNeedsReview(needsReview: Boolean) {
+        screenModelScope.launch {
+            repository.updateSceneUserDataReviewStatus(if (needsReview) 1L else 0L, sceneUserDataId)
+        }
+    }
+
+    fun deleteProp(propId: String) { // Изменено на String
         screenModelScope.launch {
             repository.deleteProp(propId)
-        }
-    }
-
-    fun confirmAllProps() {
-        screenModelScope.launch {
-            repository.confirmAllProps(sceneUserDataId)
-        }
-    }
-
-    fun updateScript(projectId: Long, seriesNumber: Int, filePath: String, fullText: String) {
-        screenModelScope.launch {
-            // В реальной жизни тут нужен вызов prepareUpdate и показ диалога, 
-            // но для D&D в контексте ОДНОЙ сцены мы можем упростить или обновить файл
-            // (Пока оставим как заглушку для вызова логики обновления из ТЗ)
         }
     }
 }

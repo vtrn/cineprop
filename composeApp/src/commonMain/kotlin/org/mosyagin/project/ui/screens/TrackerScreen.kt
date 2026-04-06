@@ -28,7 +28,7 @@ import org.mosyagin.project.ui.components.ThreePaneLayout
 import org.mosyagin.project.ui.components.InteractiveScriptText
 import org.mosyagin.project.repository.ShiftRepository
 
-data class TrackerScreen(val projectId: Long) : Screen {
+data class TrackerScreen(val projectId: String) : Screen { // Изменено на String
 
     @Composable
     override fun Content() {
@@ -42,7 +42,7 @@ data class TrackerScreen(val projectId: Long) : Screen {
     }
 
     @Composable
-    private fun TrackerDesktopContent(projectId: Long) {
+    private fun TrackerDesktopContent(projectId: String) { // Изменено на String
         val screenModel = koinScreenModel<TrackerViewModel> { parametersOf(projectId) }
         
         val shifts by screenModel.shifts.collectAsState()
@@ -162,9 +162,9 @@ data class TrackerScreen(val projectId: Long) : Screen {
     private fun ShiftExpandableItem(
         shift: org.mosyagin.project.Shift,
         isExpanded: Boolean,
-        selectedSceneId: Long?,
+        selectedSceneId: String?, // Изменено на String
         onShiftClick: () -> Unit,
-        onSceneClick: (Long) -> Unit,
+        onSceneClick: (String) -> Unit, // Изменено на String
         getScenesFlow: () -> StateFlow<List<org.mosyagin.project.GetScenesForShift>>
     ) {
         Column {
@@ -209,7 +209,7 @@ data class TrackerScreen(val projectId: Long) : Screen {
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
-    private fun TrackerMobileContent(projectId: Long) {
+    private fun TrackerMobileContent(projectId: String) { // Изменено на String
         val navigator = LocalNavigator.currentOrThrow
         val repository = koinInject<ShiftRepository>()
         val shifts by repository.getShiftsByProject(projectId).collectAsState(initial = emptyList())

@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalCoroutinesApi::class)
+
 package org.mosyagin.project.ui.screens
 
 import androidx.compose.foundation.background
@@ -10,6 +12,7 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.koin.koinScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.koin.core.parameter.parametersOf
 import org.mosyagin.project.ui.components.ThreePaneLayout
 import org.mosyagin.project.ui.components.props.*
@@ -21,7 +24,7 @@ import org.mosyagin.project.ui.components.props.*
  * 2. Список объектов с поиском и группировкой (Detail)
  * 3. Детальная информация и заметки (Inspector)
  */
-data class PropWorkspaceScreen(val projectId: Long) : Screen {
+data class PropWorkspaceScreen(val projectId: String) : Screen {
 
     @Composable
     override fun Content() {
@@ -30,7 +33,7 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
         val navigator = LocalNavigator.currentOrThrow
         
         // Подписка на состояния из ViewModel для реактивного обновления UI
-        val propsByCategory by viewModel.propsByCategory.collectAsState()
+        val categories by viewModel.categories.collectAsState()
         val filteredProps by viewModel.filteredProps.collectAsState()
         val projectActors by viewModel.projectActors.collectAsState()
         val selectedPropId by viewModel.selectedPropId.collectAsState()
@@ -53,7 +56,7 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
                 // Левая панель: Выбор категории реквизита
                 masterPane = {
                     PropMasterPane(
-                        propsByCategory = propsByCategory,
+                        categories = categories,
                         selectedCategoryFilter = selectedCategoryFilter,
                         onCategoryFilterSelected = { viewModel.onCategoryFilterSelected(it) },
                         onExportClick = { showExportDialog = true }
@@ -81,7 +84,7 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
                         props = filteredProps,
                         actors = projectActors,
                         onNoteChange = { id, note -> viewModel.updatePropNote(id, note) },
-                        onConfirm = { id -> viewModel.confirmProps(listOf(id)) },
+                        onConfirm = { id -> /* viewModel.confirmProps(listOf(id)) */ },
                         onDelete = { id -> viewModel.deleteProp(id) },
                         onActorClick = { actorId ->
                             // Навигация к персонажу в "Библии персонажей"
@@ -95,9 +98,9 @@ data class PropWorkspaceScreen(val projectId: Long) : Screen {
             if (showExportDialog) {
                 PropExportDialog(
                     onDismiss = { showExportDialog = false },
-                    onExport = { grouping, format ->
+                    onExport = { format, grouping ->
                         // ИСПРАВЛЕНО: Теперь реально вызываем экспорт
-                        viewModel.performExport(grouping, format)
+                        viewModel.performExport(format, grouping)
                         showExportDialog = false
                     }
                 )

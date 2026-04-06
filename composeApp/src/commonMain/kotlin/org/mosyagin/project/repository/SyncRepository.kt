@@ -9,17 +9,17 @@ import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.Flow
 import org.mosyagin.project.DatabaseQueries
 import org.mosyagin.project.SyncQueue
-import kotlin.time.Clock
+import org.mosyagin.project.util.currentTimestamp
 import kotlin.time.ExperimentalTime
 
 
 interface SyncRepository {
-    suspend fun enqueue(operation: String, tableName: String, recordId: Long, dataJson: String?)
-    // Синхронная версия для использования в ViewModel с Debounce
-    fun enqueueSync(operation: String, tableName: String, recordId: Long, dataJson: String?)
+    suspend fun enqueue(operation: String, tableName: String, recordId: String, dataJson: String?)
+    fun enqueueSync(operation: String, tableName: String, recordId: String, dataJson: String?)
     fun getPending(): Flow<List<SyncQueue>>
     suspend fun markSynced(ids: List<Long>)
     fun setSyncManager(manager: SyncManager)
+    fun triggerPush() // Новый метод для ручного запуска синхронизации
 }
 
 class SyncRepositoryImpl(private val queries: DatabaseQueries) : SyncRepository {
@@ -29,12 +29,13 @@ class SyncRepositoryImpl(private val queries: DatabaseQueries) : SyncRepository 
         this.syncManager = manager
     }
 
-    override suspend fun enqueue(operation: String, tableName: String, recordId: Long, dataJson: String?) {
+    override suspend fun enqueue(operation: String, tableName: String, recordId: String, dataJson: String?) {
         enqueueSync(operation, tableName, recordId, dataJson)
+        triggerPush()
     }
 
-    override fun enqueueSync(operation: String, tableName: String, recordId: Long, dataJson: String?) {
-        val now = Clock.System.now().toEpochMilliseconds()
+    override fun enqueueSync(operation: String, tableName: String, recordId: String, dataJson: String?) {
+        val now = currentTimestamp()
         queries.enqueue(
             operation = operation,
             tableName = tableName,
@@ -42,7 +43,10 @@ class SyncRepositoryImpl(private val queries: DatabaseQueries) : SyncRepository 
             dataJson = dataJson,
             updatedAt = now
         )
-        // Сразу инициируем пуш в Supabase
+        // УДАЛЕНО: Автоматический push() на каждый чих. Это вызывало deadlock в больших транзакциях.
+    }
+
+    override fun triggerPush() {
         syncManager?.push()
     }
 

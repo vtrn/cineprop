@@ -17,7 +17,7 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import org.koin.compose.koinInject
 import org.mosyagin.project.repository.ShiftRepository
 
-data class ShiftDetailScreen(val shiftId: Long) : Screen {
+data class ShiftDetailScreen(val shiftId: String) : Screen {
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable

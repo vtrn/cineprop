@@ -34,7 +34,7 @@ import org.mosyagin.project.ui.components.LocalAppLayoutType
 /**
  * Экран со списком реквизита.
  */
-data class PropListScreen(val projectId: Long) : Screen {
+data class PropListScreen(val projectId: String) : Screen {
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable

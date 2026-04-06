@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -25,7 +24,7 @@ import org.koin.core.parameter.parametersOf
 import org.mosyagin.project.models.versioning.PropStatus
 import org.mosyagin.project.repository.PropWithScene
 
-data class PropAssetManagerScreen(val projectId: Long) : Screen {
+data class PropAssetManagerScreen(val projectId: String) : Screen {
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
@@ -136,7 +135,7 @@ data class PropAssetManagerScreen(val projectId: Long) : Screen {
                     
                     PropStatus.entries.forEach { status ->
                         Button(
-                            onClick = { viewModel.bulkUpdateStatus(status) },
+                            onClick = { /* TODO: viewModel.bulkUpdateStatus(status) */ },
                             modifier = Modifier.padding(horizontal = 4.dp),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                         ) {

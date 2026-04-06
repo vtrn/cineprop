@@ -15,13 +15,12 @@ import org.mosyagin.project.repository.SyncRepository
 class ProjectListScreenModel(
     private val repository: ProjectRepository,
     private val syncRepository: SyncRepository,
-    private val syncManager: SyncManager // Добавляем менеджер для ручного запуска
+    private val syncManager: SyncManager
 ) : ScreenModel {
 
     private val syncEvents = MutableSharedFlow<SyncEvent>()
 
     init {
-        // 1. Настраиваем дебаунс для обновлений
         syncEvents
             .debounce(1500L)
             .onEach { event ->
@@ -29,8 +28,6 @@ class ProjectListScreenModel(
             }
             .launchIn(screenModelScope)
 
-        // 2. АВТО-СИНХРОНИЗАЦИЯ ПРИ СТАРТЕ (Issue #5)
-        // Как только экран открывается, мы проверяем наличие обновлений в Supabase
         syncManager.push()
     }
 
@@ -47,13 +44,13 @@ class ProjectListScreenModel(
         }
     }
 
-    fun deleteProject(id: Long) {
+    fun deleteProject(id: String) { // Изменено на String
         screenModelScope.launch {
             repository.deleteProject(id)
         }
     }
 
-    fun updateProject(id: Long, name: String, director: String) {
+    fun updateProject(id: String, name: String, director: String) { // Изменено на String
         screenModelScope.launch {
             repository.updateProject(id, name, director)
             syncEvents.emit(SyncEvent("UPDATE", "Project", id))

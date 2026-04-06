@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalTime::class)
+
 package org.mosyagin.project.repository
 
 import app.cash.sqldelight.coroutines.asFlow
@@ -8,15 +10,17 @@ import kotlinx.coroutines.flow.map
 
 import org.mosyagin.project.DatabaseQueries
 import org.mosyagin.project.Project
+import org.mosyagin.project.generateUUID
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
+
 interface ProjectRepository {
     fun getAllProjects(): Flow<List<Project>>
-    fun getProjectById(id: Long): Flow<Project?>
+    fun getProjectById(id: String): Flow<Project?>
     suspend fun addProject(name: String, director: String)
-    suspend fun deleteProject(id: Long)
-    suspend fun updateProject(id: Long, name: String, director: String)
+    suspend fun deleteProject(id: String)
+    suspend fun updateProject(id: String, name: String, director: String)
 }
 
 class ProjectRepositoryImpl(
@@ -28,31 +32,27 @@ class ProjectRepositoryImpl(
             .asFlow()
             .mapToList(Dispatchers.Default)
 
-    override fun getProjectById(id: Long): Flow<Project?> =
+    override fun getProjectById(id: String): Flow<Project?> =
         queries.getProjectById(id)
             .asFlow()
             .map { it.executeAsOneOrNull() }
 
-    @OptIn(ExperimentalTime::class)
     override suspend fun addProject(name: String, director: String) {
         val now = Clock.System.now().toEpochMilliseconds()
-        queries.insertProject(name, director, now)
-        val id = queries.lastInsertRowId().executeAsOne()
+        val id = generateUUID() // Генерируем уникальный ID на клиенте
+        
+        queries.insertProject(id, name, director, now)
         syncRepository.enqueue("INSERT", "Project", id, null)
     }
 
-    override suspend fun deleteProject(id: Long) {
+    override suspend fun deleteProject(id: String) {
         queries.deleteProject(id)
         syncRepository.enqueue("DELETE", "Project", id, null)
     }
 
-    @OptIn(ExperimentalTime::class)
-    override suspend fun updateProject(id: Long, name: String, director: String) {
+    override suspend fun updateProject(id: String, name: String, director: String) {
         val now = Clock.System.now().toEpochMilliseconds()
         queries.updateProject(name, director, now, id)
-        // Обновление проекта (Project) обычно не требует дебаунса во ViewModel, 
-        // но если вы планируете печатать имя проекта, можно вызывать enqueue из ViewModel.
-        // Для надежности добавим сюда прямое попадание в очередь для не-текстовых полей.
         syncRepository.enqueue("UPDATE", "Project", id, null)
     }
 }

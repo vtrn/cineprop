@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalTime::class)
+
 package org.mosyagin.project.ui.screens
 
 import cafe.adriel.voyager.core.model.ScreenModel
@@ -12,10 +14,13 @@ import org.mosyagin.project.parser.update.ScriptUpdateManager
 import org.mosyagin.project.parser.update.UpdateResult
 import org.mosyagin.project.repository.ScriptRepository
 import org.mosyagin.project.util.extractTextFromPdf
+import kotlin.time.Clock
+
+import kotlin.time.ExperimentalTime
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ScriptWorkspaceViewModel(
-    private val projectId: Long,
+    private val projectId: String,
     private val scriptRepository: ScriptRepository
 ) : ScreenModel, KoinComponent {
 
@@ -29,8 +34,8 @@ class ScriptWorkspaceViewModel(
     private val _expandedSeries = MutableStateFlow<Set<Long>>(emptySet())
     val expandedSeries: StateFlow<Set<Long>> = _expandedSeries.asStateFlow()
 
-    private val _selectedScriptFileId = MutableStateFlow<Long?>(null)
-    val selectedScriptFileId: StateFlow<Long?> = _selectedScriptFileId.asStateFlow()
+    private val _selectedScriptFileId = MutableStateFlow<String?>(null)
+    val selectedScriptFileId: StateFlow<String?> = _selectedScriptFileId.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -48,7 +53,7 @@ class ScriptWorkspaceViewModel(
         _expandedSeries.value = if (current.contains(seriesNumber)) current - seriesNumber else current + seriesNumber
     }
 
-    fun onScriptFileSelected(id: Long) {
+    fun onScriptFileSelected(id: String) {
         _selectedScriptFileId.value = id
     }
 
@@ -86,7 +91,7 @@ class ScriptWorkspaceViewModel(
                     seriesNumber = seriesNumber,
                     filePath = uri,
                     fullText = fullText,
-                    createdAt = System.currentTimeMillis()
+                    createdAt = Clock.System.now().toEpochMilliseconds()
                 )
                 _updateResult.value = result
             } catch (e: Exception) {

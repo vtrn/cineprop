@@ -12,6 +12,7 @@ import org.mosyagin.project.parser.ScriptParser
 import org.mosyagin.project.parser.update.ScriptUpdateManager
 import org.mosyagin.project.repository.*
 import org.mosyagin.project.ui.screens.*
+import org.mosyagin.project.crypto.*
 
 /**
  * Ожидаемые модули от платформ (Android/JVM)
@@ -42,30 +43,29 @@ val databaseModule = module {
  * Модуль для ScreenModels (ViewModels).
  */
 val screenModelModule = module {
-    // Добавлен get() для SyncManager
     factory { ProjectListScreenModel(get(), get(), get()) }
     
-    factory { (sceneUserDataId: Long, scriptFileId: Long) -> 
-        SceneDetailScreenModel(get(), get(), sceneUserDataId, scriptFileId)
+    factory { (sceneUserDataId: String, scriptFileId: String) -> 
+        SceneDetailScreenModel(get(), sceneUserDataId, scriptFileId)
     }
-    factory { (sceneUserDataId: Long) -> 
+    factory { (sceneUserDataId: String) -> 
         SceneDiffViewModel(sceneUserDataId = sceneUserDataId, repository = get(), parser = get())
     }
     factory { ScriptViewModel(get()) }
     
-    factory { (projectId: Long, seriesNumber: Int) -> 
+    factory { (projectId: String, seriesNumber: Int) -> 
         ScriptVersionViewModel(get(), projectId, seriesNumber) 
     }
 
-    factory { (projectId: Long) -> 
+    factory { (projectId: String) -> 
         SceneWorkspaceViewModel(projectId, get(), get()) 
     }
     
-    factory { (projectId: Long) -> 
+    factory { (projectId: String) -> 
         TrackerViewModel(projectId, get(), get()) 
     }
 
-    factory { (projectId: Long) -> 
+    factory { (projectId: String) -> 
         PropWorkspaceViewModel(
             projectId = projectId, 
             sceneRepository = get(),
@@ -76,19 +76,19 @@ val screenModelModule = module {
         )
     }
 
-    factory { (projectId: Long) -> 
+    factory { (projectId: String) -> 
         PropAssetManagerViewModel(get(), get(), projectId)
     }
 
-    factory { (projectId: Long) -> 
+    factory { (projectId: String) -> 
         ScriptWorkspaceViewModel(projectId, get())
     }
 
-    factory { (projectId: Long) -> 
+    factory { (projectId: String) -> 
         KppWorkspaceViewModel(projectId, get())
     }
 
-    factory { (projectId: Long) -> 
+    factory { (projectId: String) -> 
         CharacterWorkspaceViewModel(projectId, get())
     }
     
@@ -102,8 +102,8 @@ val appModule = module {
     single { ScriptParser() }
     single { KppParser(get(), get()) }
     
-    // ScriptUpdateManager теперь требует SyncRepository
-    single { ScriptUpdateManager(get(), get(), get()) }
+    // ScriptUpdateManager (queries, parser, syncRepository, encrypter)
+    single { ScriptUpdateManager(get(), get(), get(), get()) }
     
     // 1. Очередь синхронизации
     single<SyncRepository> { SyncRepositoryImpl(get()) }
@@ -111,7 +111,12 @@ val appModule = module {
     // 2. Менеджер синхронизации
     single { SyncManager(get(), get(), get()) }
     
-    // 3. Инициализируем связь один раз при старте
+    // 3. Шифрование данных (keyProvider, settingsRepository)
+    single<DataEncrypter> {
+        AesEncrypter(get(), get())
+    }
+    
+    // 4. Инициализируем связь один раз при старте
     single(createdAtStart = true) {
         val repo = get<SyncRepository>()
         val manager = get<SyncManager>()
@@ -120,9 +125,13 @@ val appModule = module {
     }
     
     single<ProjectRepository> { ProjectRepositoryImpl(get(), get()) }
-    single<SceneRepository> { SceneRepositoryImpl(get(), get()) }
+    
+    // SceneRepository (queries, syncRepository, encrypter)
+    single<SceneRepository> { SceneRepositoryImpl(get(), get(), get()) }
 
-    single<ScriptRepository> { ScriptRepositoryImpl(get(), get(), get()) }
+    // ScriptRepository (queries, parser, syncRepository, encrypter)
+    single<ScriptRepository> { ScriptRepositoryImpl(get(), get(), get(), get()) }
+
     single<KppRepository> { KppRepositoryImpl(get(), get()) }
     single<ShiftRepository> { ShiftRepositoryImpl(get(), get()) }
     

@@ -7,28 +7,34 @@ import kotlinx.coroutines.flow.Flow
 
 import org.mosyagin.project.DatabaseQueries
 import org.mosyagin.project.KppFile
+import org.mosyagin.project.generateUUID
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
 interface KppRepository {
-    fun getKppFilesByProject(projectId: Long): Flow<List<KppFile>>
-    suspend fun addKppFile(projectId: Long, fileName: String, filePath: String, version: Long)
+    fun getKppFilesByProject(projectId: String): Flow<List<KppFile>>
+    suspend fun addKppFile(projectId: String, fileName: String, filePath: String, version: Long)
 }
 
 class KppRepositoryImpl(
     private val queries: DatabaseQueries,
     private val syncRepository: SyncRepository
 ) : KppRepository {
-    override fun getKppFilesByProject(projectId: Long): Flow<List<KppFile>> =
+    override fun getKppFilesByProject(projectId: String): Flow<List<KppFile>> =
         queries.getKppFilesByProject(projectId)
             .asFlow()
             .mapToList(Dispatchers.Default)
 
     @OptIn(ExperimentalTime::class)
-    override suspend fun addKppFile(projectId: Long, fileName: String, filePath: String, version: Long) {
+    override suspend fun addKppFile(projectId: String, fileName: String, filePath: String, version: Long) {
+        // Стабильный ID для файла КПП (префикс + проект + версия)
+        val id = "kpp_${projectId}_$version"
         val now = Clock.System.now().toEpochMilliseconds()
-        queries.insertKppFile(projectId, fileName, filePath, version, now)
-        val id = queries.lastInsertRowId().executeAsOne()
-        syncRepository.enqueue("INSERT", "KppFile", id, null)
+        
+        val existing = queries.getKppFileById(id).executeAsOneOrNull()
+        if (existing == null) {
+            queries.insertKppFile(id, projectId, fileName, filePath, version, now)
+            syncRepository.enqueue("INSERT", "KppFile", id, null)
+        }
     }
 }
