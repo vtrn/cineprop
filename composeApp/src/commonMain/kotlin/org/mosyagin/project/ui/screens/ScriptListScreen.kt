@@ -1,6 +1,5 @@
 package org.mosyagin.project.ui.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -29,14 +28,15 @@ import org.mosyagin.project.ui.components.CineCard
 import org.mosyagin.project.ui.components.LocalAppLayoutType
 import org.mosyagin.project.ui.components.UpdateReportDialog
 
-data class ScriptListScreen(val projectId: Long) : Screen {
+data class ScriptListScreen(val projectId: String) : Screen {
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val repository = koinInject<ScriptRepository>()
-        val screenModel = koinScreenModel<ScriptViewModel>()
+        // Предполагаем, что ScriptViewModel существует или используем ScriptWorkspaceViewModel
+        val screenModel = koinScreenModel<ScriptWorkspaceViewModel> { org.koin.core.parameter.parametersOf(projectId) }
         val layoutType = LocalAppLayoutType.current
 
         val isLoading by screenModel.isLoading.collectAsState()
@@ -45,7 +45,6 @@ data class ScriptListScreen(val projectId: Long) : Screen {
 
         val scripts by repository.getScriptsForProject(projectId).collectAsState(initial = emptyList())
 
-        // Группируем скрипты по номеру серии
         val groupedScripts = remember(scripts) {
             scripts.groupBy { it.seriesNumber }
         }
@@ -57,7 +56,7 @@ data class ScriptListScreen(val projectId: Long) : Screen {
             platformFile?.uriString?.let { uri ->
                 scope.launch {
                     val seriesNum = seriesNumberInput.toIntOrNull() ?: 1
-                    screenModel.processPdfUri(projectId, seriesNum, uri)
+                    screenModel.processPdfFile(seriesNum, uri)
                 }
             }
         }
@@ -94,11 +93,9 @@ data class ScriptListScreen(val projectId: Long) : Screen {
                     ) {
                         items(groupedScripts.keys.toList().sorted()) { seriesNum ->
                             val versions = groupedScripts[seriesNum] ?: emptyList()
-                            val latestVersion = versions.maxByOrNull { it.createdAt }
 
                             CineCard(
                                 onClick = {
-                                    // Переходим к истории версий этой серии
                                     navigator.push(ScriptVersionScreen(projectId, seriesNum.toInt()))
                                 }
                             ) {
@@ -116,7 +113,7 @@ data class ScriptListScreen(val projectId: Long) : Screen {
                                                 style = MaterialTheme.typography.titleMedium
                                             )
                                             Text(
-                                                text = "${versions.size} версий • Посл. от ${formatDate(latestVersion?.createdAt ?: 0)}",
+                                                text = "${versions.size} версий",
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -151,7 +148,6 @@ data class ScriptListScreen(val projectId: Long) : Screen {
                 }
             }
 
-            // Показ диалога с результатами обновления (Добавлено)
             updateResult?.let { result ->
                 when (result) {
                     is UpdateResult.Success -> {
@@ -164,7 +160,7 @@ data class ScriptListScreen(val projectId: Long) : Screen {
                                 }
                             },
                             onCancel = { screenModel.clearUpdateResult() },
-                            onViewDiff = { /* Необязательно для новой серии */ }
+                            onViewDiff = { /* ... */ }
                         )
                     }
                     is UpdateResult.Error -> {
@@ -191,9 +187,5 @@ data class ScriptListScreen(val projectId: Long) : Screen {
                 }
             }
         }
-    }
-
-    private fun formatDate(timestamp: Long): String {
-        return (timestamp / 1000 / 3600 / 24 % 31).toString() + " числа"
     }
 }

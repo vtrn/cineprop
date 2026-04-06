@@ -28,7 +28,7 @@ actual class ScriptViewModel actual constructor(actual val repository: ScriptRep
     private val _updateResult = MutableStateFlow<UpdateResult?>(null)
     actual val updateResult: StateFlow<UpdateResult?> = _updateResult.asStateFlow()
     
-    actual suspend fun processPdfUri(projectId: Long, seriesNumber: Int, uriString: String) {
+    actual suspend fun processPdfUri(projectId: String, seriesNumber: Int, uriString: String) {
         _isLoading.value = true
         _updateResult.value = null
 
@@ -53,7 +53,7 @@ actual class ScriptViewModel actual constructor(actual val repository: ScriptRep
                 }
 
                 val result = updateManager.prepareUpdate(
-                    projectId = projectId,
+                    projectId = projectId.toString(),
                     seriesNumber = seriesNumber,
                     filePath = uriString,
                     fullText = fullText,
@@ -94,13 +94,13 @@ actual class ScriptViewModel actual constructor(actual val repository: ScriptRep
 
     actual fun deleteScriptFile(fileId: Long) {
         screenModelScope.launch(Dispatchers.IO) {
-            repository.deleteScriptFile(fileId)
+            repository.deleteScriptFile(fileId.toString())
         }
     }
 
     actual fun updateScriptTitle(fileId: Long, newTitle: String) {
         screenModelScope.launch(Dispatchers.IO) {
-            repository.updateScriptTitle(fileId, newTitle)
+            repository.updateScriptTitle(fileId.toString(), newTitle)
         }
     }
     

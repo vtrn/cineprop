@@ -35,7 +35,7 @@ fun App() {
             ) {
                 var isInProject by remember { mutableStateOf(false) }
                 var currentSection by remember { mutableStateOf("projects") }
-                var activeProjectId by remember { mutableStateOf<Long?>(null) }
+                var activeProjectId by remember { mutableStateOf<String?>(null) }
                 var lastLayoutType by remember { mutableStateOf(AppLayoutType.MOBILE) }
 
                 Navigator(ProjectListScreen()) { navigator ->
@@ -51,19 +51,34 @@ fun App() {
                                 activeProjectId = item.projectId
                                 currentSection = "dashboard"
                             }
-                            is ScriptListScreen, is ScriptWorkspaceScreen -> {
+                            is ScriptListScreen -> {
                                 isInProject = true
-                                activeProjectId = if (item is ScriptListScreen) item.projectId else (item as ScriptWorkspaceScreen).projectId
+                                activeProjectId = item.projectId
                                 currentSection = "script"
                             }
-                            is SceneListScreen, is SceneWorkspaceScreen -> {
+                            is ScriptWorkspaceScreen -> {
                                 isInProject = true
-                                activeProjectId = if (item is SceneListScreen) item.projectId else (item as SceneWorkspaceScreen).projectId
+                                activeProjectId = item.projectId.toString()
+                                currentSection = "script"
+                            }
+                            is SceneListScreen -> {
+                                isInProject = true
+                                activeProjectId = item.projectId
                                 currentSection = "scenes"
                             }
-                            is KppListScreen, is KppWorkspaceScreen -> {
+                            is SceneWorkspaceScreen -> {
                                 isInProject = true
-                                activeProjectId = if (item is KppListScreen) item.projectId else (item as KppWorkspaceScreen).projectId
+                                activeProjectId = item.projectId.toString()
+                                currentSection = "scenes"
+                            }
+                            is KppListScreen -> {
+                                isInProject = true
+                                activeProjectId = item.projectId.toString()
+                                currentSection = "schedule"
+                            }
+                            is KppWorkspaceScreen -> {
+                                isInProject = true
+                                activeProjectId = item.projectId.toString()
                                 currentSection = "schedule"
                             }
                             is TrackerScreen -> {
@@ -71,14 +86,24 @@ fun App() {
                                 activeProjectId = item.projectId
                                 currentSection = "tracker"
                             }
-                            is PropListScreen, is PropWorkspaceScreen -> {
+                            is PropListScreen -> {
                                 isInProject = true
-                                activeProjectId = if (item is PropListScreen) item.projectId else (item as PropWorkspaceScreen).projectId
+                                activeProjectId = item.projectId.toString()
                                 currentSection = "inventory"
                             }
-                            is CharacterBibleScreen, is CharacterWorkspaceScreen -> {
+                            is PropWorkspaceScreen -> {
                                 isInProject = true
-                                activeProjectId = if (item is CharacterBibleScreen) item.projectId else (item as CharacterWorkspaceScreen).projectId
+                                activeProjectId = item.projectId.toString()
+                                currentSection = "inventory"
+                            }
+                            is CharacterBibleScreen -> {
+                                isInProject = true
+                                activeProjectId = item.projectId.toString()
+                                currentSection = "bible"
+                            }
+                            is CharacterWorkspaceScreen -> {
+                                isInProject = true
+                                activeProjectId = item.projectId.toString()
                                 currentSection = "bible"
                             }
                             is ProjectListScreen -> {

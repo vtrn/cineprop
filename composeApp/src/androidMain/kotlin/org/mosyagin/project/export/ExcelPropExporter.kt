@@ -13,7 +13,7 @@ import java.io.ByteArrayOutputStream
  */
 class AndroidPropExporter : PropExporter {
 
-    override fun export(
+    override suspend fun export(
         projectName: String,
         grouping: ExportGrouping,
         format: ExportFormat,

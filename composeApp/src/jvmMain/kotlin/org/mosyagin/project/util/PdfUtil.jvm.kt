@@ -37,8 +37,8 @@ private class ScriptPdfStripper : PDFTextStripper() {
             val firstChar = textPositions[0]
             val x = firstChar.xDirAdj
             
-            // Расчет пробелов: вычитаем базовое поле (70) и делим на ширину Courier-символа (8)
-            val spaceCount = ((x - 70) / 8).toInt().coerceIn(0, 50)
+            // Синхронизировано: база 70, шаг 8
+            val spaceCount = ((x - 70) / 8.0).toInt().coerceIn(0, 50)
             if (spaceCount > 0) {
                 output.write(" ".repeat(spaceCount))
             }
@@ -47,7 +47,8 @@ private class ScriptPdfStripper : PDFTextStripper() {
 
         var lastX = -1f
         for (pos in textPositions) {
-            if (lastX > 0 && (pos.xDirAdj - lastX) > 15f) {
+            // Синхронизировано: порог пробела 14f
+            if (lastX > 0 && (pos.xDirAdj - lastX) > 14f) {
                 output.write(" ")
             }
             output.write(pos.unicode)

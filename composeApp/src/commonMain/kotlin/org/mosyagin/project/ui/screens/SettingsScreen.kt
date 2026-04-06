@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.SettingsBrightness
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -18,9 +19,9 @@ class SettingsScreen : Screen {
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     override fun Content() {
-        // Используем koinScreenModel вместо getScreenModel (исправление deprecation)
         val viewModel = koinScreenModel<SettingsViewModel>()
         val themeMode by viewModel.themeMode.collectAsState()
+        val isEncryptionEnabled by viewModel.isEncryptionEnabled.collectAsState()
 
         Scaffold(
             topBar = {
@@ -34,14 +35,9 @@ class SettingsScreen : Screen {
             ) {
                 item {
                     Text("Внешний вид", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-                }
-
-                item {
+                    Spacer(Modifier.height(8.dp))
                     Card(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text("Тема приложения", style = MaterialTheme.typography.titleSmall)
-                            Spacer(Modifier.height(8.dp))
-                            
                             ThemeOption(
                                 title = "Системная",
                                 icon = Icons.Default.SettingsBrightness,
@@ -63,6 +59,34 @@ class SettingsScreen : Screen {
                         }
                     }
                 }
+
+                item {
+                    Text("Безопасность", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.height(8.dp))
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Lock, null, modifier = Modifier.size(24.dp))
+                                Spacer(Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Сквозное шифрование (E2EE)", style = MaterialTheme.typography.titleSmall)
+                                    Text(
+                                        "Шифрует заметки и сценарии перед отправкой в облако.", 
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Switch(
+                                    checked = isEncryptionEnabled,
+                                    onCheckedChange = { viewModel.setEncryptionEnabled(it) }
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -77,8 +101,7 @@ class SettingsScreen : Screen {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
-                .padding(vertical = 4.dp),
+                .height(48.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(icon, null, modifier = Modifier.size(24.dp))

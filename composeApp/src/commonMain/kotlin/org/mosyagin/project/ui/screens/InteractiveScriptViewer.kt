@@ -33,8 +33,8 @@ import kotlin.math.min
 fun InteractiveScriptViewer(
     blocks: List<ScriptBlock>,
     props: List<Prop>,
-    selectedPropId: Long?,
-    onPropClick: (Long) -> Unit,
+    selectedPropId: String?,
+    onPropClick: (String) -> Unit,
     onTextSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
     listState: LazyListState,
@@ -44,7 +44,7 @@ fun InteractiveScriptViewer(
         state = listState,
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background), // Фон адаптируется под тему
+            .background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(
             vertical = if (layoutType == AppLayoutType.MOBILE) 20.dp else 60.dp,
             horizontal = if (layoutType == AppLayoutType.MOBILE) 16.dp else 40.dp
@@ -67,17 +67,15 @@ fun InteractiveScriptViewer(
 fun ScriptBlockItem(
     block: ScriptBlock,
     props: List<Prop>,
-    selectedPropId: Long?,
-    onPropClick: (Long) -> Unit,
+    selectedPropId: String?,
+    onPropClick: (String) -> Unit,
     onTextSelected: (String) -> Unit,
     layoutType: AppLayoutType
 ) {
     val isMobile = layoutType == AppLayoutType.MOBILE
-    
-    // Извлекаем цвета темы заранее, чтобы не вызывать их внутри remember
     val textColor = MaterialTheme.colorScheme.onBackground
     val selectionColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-    val highlightColor = MaterialTheme.colorScheme.primary // Фиолетовый для выбранного реквизита
+    val highlightColor = MaterialTheme.colorScheme.primary
 
     val style = when (block.type) {
         BlockType.SLUGLINE -> MaterialTheme.typography.bodyLarge.copy(
@@ -117,20 +115,17 @@ fun ScriptBlockItem(
     val padding = when (block.type) {
         BlockType.CHARACTER -> Modifier.padding(top = if (isMobile) 12.dp else 24.dp, bottom = 2.dp).fillMaxWidth()
         BlockType.DIALOGUE -> {
-            val startPadding = if (isMobile) 40.dp else 180.dp
-            val endPadding = if (isMobile) 20.dp else 150.dp
-            Modifier.padding(start = startPadding, end = endPadding, bottom = if (isMobile) 8.dp else 12.dp)
+            Modifier.padding(start = if (isMobile) 40.dp else 180.dp, end = if (isMobile) 20.dp else 150.dp, bottom = if (isMobile) 8.dp else 12.dp)
         }
         BlockType.PARENTHETICAL -> {
-            val startPadding = if (isMobile) 55.dp else 220.dp
-            val endPadding = if (isMobile) 30.dp else 180.dp
-            Modifier.padding(start = startPadding, end = endPadding, bottom = 4.dp)
+            Modifier.padding(start = if (isMobile) 55.dp else 220.dp, end = if (isMobile) 30.dp else 180.dp, bottom = 4.dp)
         }
         BlockType.SLUGLINE -> Modifier.padding(top = if (isMobile) 16.dp else 32.dp, bottom = if (isMobile) 8.dp else 16.dp)
         else -> Modifier.padding(vertical = if (isMobile) 4.dp else 8.dp)
     }
 
     var selectionRange by remember { mutableStateOf<IntRange?>(null) }
+    var initialOffset by remember { mutableStateOf<Int?>(null) }
     var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
 
     val baseAnnotatedString = remember(block.text, props, selectedPropId, textColor, highlightColor) {
@@ -139,7 +134,6 @@ fun ScriptBlockItem(
             text = processedText,
             props = props,
             selectedPropId = selectedPropId,
-            selectionRange = null,
             onSurfaceColor = textColor,
             selectedColor = highlightColor
         )
@@ -168,7 +162,7 @@ fun ScriptBlockItem(
                 layoutResult?.let { result ->
                     val position = result.getOffsetForPosition(offset)
                     finalAnnotatedString.getStringAnnotations("PROP", position, position)
-                        .firstOrNull()?.let { onPropClick(it.item.toLong()) }
+                        .firstOrNull()?.let { onPropClick(it.item) }
                 }
             })
         }.pointerInput(block.text) {
@@ -177,6 +171,7 @@ fun ScriptBlockItem(
                     layoutResult?.let { layout ->
                         val offsetPos = layout.getOffsetForPosition(offset)
                         val wordBoundary = layout.getWordBoundary(offsetPos)
+                        initialOffset = offsetPos
                         selectionRange = wordBoundary.start..wordBoundary.end
                     }
                 },
@@ -184,9 +179,14 @@ fun ScriptBlockItem(
                     change.consume()
                     layoutResult?.let { layout ->
                         val currentOffset = layout.getOffsetForPosition(change.position)
-                        val currentWord = layout.getWordBoundary(currentOffset)
-                        selectionRange?.let { initial ->
-                            selectionRange = min(initial.first, currentWord.start)..max(initial.last, currentWord.end)
+                        initialOffset?.let { start ->
+                            // Вычисляем новый диапазон от начальной точки до текущей
+                            val wordAtStart = layout.getWordBoundary(start)
+                            val wordAtCurrent = layout.getWordBoundary(currentOffset)
+                            
+                            val newStart = min(wordAtStart.start, wordAtCurrent.start)
+                            val newEnd = max(wordAtStart.end, wordAtCurrent.end)
+                            selectionRange = newStart..newEnd
                         }
                     }
                 },
@@ -196,8 +196,12 @@ fun ScriptBlockItem(
                         if (selectedText.isNotEmpty()) onTextSelected(selectedText)
                     }
                     selectionRange = null
+                    initialOffset = null
                 },
-                onDragCancel = { selectionRange = null }
+                onDragCancel = { 
+                    selectionRange = null
+                    initialOffset = null
+                }
             )
         }
     )
@@ -206,8 +210,7 @@ fun ScriptBlockItem(
 fun buildAnnotatedStringWithProps(
     text: String,
     props: List<Prop>,
-    selectedPropId: Long?,
-    selectionRange: IntRange?,
+    selectedPropId: String?,
     onSurfaceColor: Color = Color.Unspecified,
     selectedColor: Color = Color(0xFF6200EE)
 ): AnnotatedString {
@@ -216,11 +219,11 @@ fun buildAnnotatedStringWithProps(
 
         props.forEach { prop ->
             val anchor = prop.anchor
-            if (!anchor.isNullOrEmpty()) {
+            if (anchor.isNotEmpty()) {
                 var index = text.indexOf(anchor, ignoreCase = true)
                 while (index != -1) {
                     val isSelected = prop.id == selectedPropId
-                    pushStringAnnotation("PROP", prop.id.toString())
+                    pushStringAnnotation("PROP", prop.id)
                     addStyle(
                         style = SpanStyle(
                             background = if (isSelected) selectedColor else Color(0xFFFFEB3B).copy(alpha = 0.5f),

@@ -8,6 +8,8 @@ import org.mosyagin.project.repository.ProjectRepository
 import org.mosyagin.project.DatabaseQueries
 import org.mosyagin.project.db.CinePropDatabase
 import org.mosyagin.project.db.createTestDriver
+import org.mosyagin.project.repository.FakeSyncRepository
+import org.mosyagin.project.repository.ProjectRepositoryImpl
 import org.mosyagin.project.repository.SceneRepositoryImpl
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -19,9 +21,9 @@ class ProjectRepositoryTest {
     private lateinit var repository: ProjectRepository
     private lateinit var queries: DatabaseQueries
     private lateinit var driver: SqlDriver
-    private var testProjectId: Long = 0
-    private var testScriptId: Long = 0
-    private var testUserDataId: Long = 0
+    private var testProjectId: String = ""
+    private var testScriptId: String = ""
+    private var testUserDataId: String = ""
 
     @BeforeTest
     fun setup() {
@@ -36,15 +38,15 @@ class ProjectRepositoryTest {
 
         val database = CinePropDatabase(driver)
         queries = database.databaseQueries
-        repository = SceneRepositoryImpl(queries)
+        repository = ProjectRepositoryImpl(queries, FakeSyncRepository())
 
         // СОЗДАЕМ ОБЯЗАТЕЛЬНУЮ ИЕРАРХИЮ
-        // 1. Проект
-        queries.insertProject("Test Project", "Director")
-        val projectId = queries.lastInsertRowId().executeAsOne()
+        val projectId = "test-project-id"
+        queries.insertProject(projectId, "Test Project", "Director", 0L)
 
-        // 2. Файл сценария (нужен для версий)
+        val scriptId = "test-script-id"
         queries.insertScriptFile(
+            id = scriptId,
             projectId = projectId,
             seriesNumber = 1L,
             title = "Version 1",
@@ -52,12 +54,13 @@ class ProjectRepositoryTest {
             createdAt = 123456789L,
             previousVersionId = null,
             revisionColor = "White",
-            uploadedBy = "Tester"
+            uploadedBy = "Tester",
+            updatedAt = 0L
         )
-        val scriptId = queries.lastInsertRowId().executeAsOne()
 
-        // 3. Якорь сцены (нужен для реквизита и актеров)
+        val userDataId = "test-user-data-id"
         queries.insertSceneUserData(
+            id = userDataId,
             projectId = projectId,
             seriesNumber = 1L,
             sceneNumber = "1",
@@ -65,9 +68,9 @@ class ProjectRepositoryTest {
             isInterior = 1L,
             timeOfDay = "Day",
             notes = null,
-            needsReview = 0L
+            needsReview = 0L,
+            updatedAt = 0L
         )
-        val userDataId = queries.lastInsertRowId().executeAsOne()
 
         // Сохраняем ID для использования в тестах
         this.testProjectId = projectId

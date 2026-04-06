@@ -23,7 +23,6 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import kotlinx.coroutines.launch
 import org.koin.core.parameter.parametersOf
-import org.mosyagin.project.models.versioning.RevisionColor
 import org.mosyagin.project.models.versioning.ScriptFile
 import org.mosyagin.project.parser.update.UpdateResult
 import org.mosyagin.project.ui.components.CineCard
@@ -31,7 +30,7 @@ import org.mosyagin.project.ui.components.CineTag
 import org.mosyagin.project.ui.components.UpdateReportDialog
 import org.mosyagin.project.util.rememberFilePickerLauncher
 
-data class ScriptVersionScreen(val projectId: Long, val seriesNumber: Int) : Screen {
+data class ScriptVersionScreen(val projectId: String, val seriesNumber: Int) : Screen {
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
@@ -156,7 +155,7 @@ data class ScriptVersionScreen(val projectId: Long, val seriesNumber: Int) : Scr
     @Composable
     private fun VersionList(
         versions: List<ScriptFile>,
-        activeId: Long?,
+        activeId: String?,
         viewModel: ScriptVersionViewModel,
         padding: PaddingValues
     ) {

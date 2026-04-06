@@ -1,7 +1,7 @@
+@file:OptIn(ExperimentalTime::class)
+
 package org.mosyagin.project.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,15 +26,14 @@ import org.mosyagin.project.util.rememberFilePickerLauncher
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-import kotlinx.coroutines.launch
+import kotlin.time.ExperimentalTime
 
-data class ScriptWorkspaceScreen(val projectId: Long) : Screen {
+data class ScriptWorkspaceScreen(val projectId: String) : Screen {
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     override fun Content() {
         val screenModel = koinScreenModel<ScriptWorkspaceViewModel> { parametersOf(projectId) }
-        val scope = rememberCoroutineScope()
         
         val scriptTree by screenModel.scriptTree.collectAsState()
         val expandedSeries by screenModel.expandedSeries.collectAsState()
@@ -49,7 +48,6 @@ data class ScriptWorkspaceScreen(val projectId: Long) : Screen {
         val filePicker = rememberFilePickerLauncher { platformFile ->
             platformFile?.let { file ->
                 val seriesNum = seriesNumberInput.toIntOrNull() ?: 1
-                // Используем новый метод обработки, который корректно извлекает текст из PDF
                 screenModel.processPdfFile(seriesNum, file.uriString ?: "")
             }
         }
@@ -119,7 +117,7 @@ data class ScriptWorkspaceScreen(val projectId: Long) : Screen {
                         Spacer(Modifier.height(32.dp))
                         
                         if (selectedFileDetails != null) {
-                            InfoItem("ID Версии", selectedFileDetails!!.id.toString())
+                            InfoItem("ID Версии", selectedFileDetails!!.id)
                             InfoItem("Номер серии", selectedFileDetails!!.seriesNumber.toString())
                             InfoItem("Дата загрузки", formatDate(selectedFileDetails!!.createdAt))
                             InfoItem("Цвет ревизии", selectedFileDetails!!.revisionColor ?: "White")
@@ -203,9 +201,9 @@ data class ScriptWorkspaceScreen(val projectId: Long) : Screen {
     private fun ScriptMasterPane(
         scriptTree: Map<Long, List<ScriptFile>>,
         expandedSeries: Set<Long>,
-        selectedId: Long?,
+        selectedId: String?,
         onSeriesClick: (Long) -> Unit,
-        onVersionClick: (Long) -> Unit,
+        onVersionClick: (String) -> Unit,
         onUploadNewVersion: (Long) -> Unit
     ) {
         Column(modifier = Modifier.fillMaxSize()) {

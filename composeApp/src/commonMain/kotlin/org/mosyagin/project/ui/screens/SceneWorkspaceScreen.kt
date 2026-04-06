@@ -1,6 +1,7 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package org.mosyagin.project.ui.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -36,9 +37,8 @@ import org.mosyagin.project.ui.components.ThreePaneLayout
 import org.mosyagin.project.ui.components.CineCard
 import org.mosyagin.project.ui.components.CineTag
 import org.mosyagin.project.parser.ScriptParser
-import org.mosyagin.project.ui.components.LocalAppLayoutType
 
-data class SceneWorkspaceScreen(val projectId: Long) : Screen {
+data class SceneWorkspaceScreen(val projectId: String) : Screen {
 
     @Composable
     override fun Content() {
@@ -154,7 +154,6 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
         }
     }
 
-    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     private fun AddPropDialog(
         anchor: String,
@@ -163,15 +162,15 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
         actors: List<Actor>,
         existingProps: List<PropWithScene>,
         onDismiss: () -> Unit,
-        onConfirm: (String, String, String, Int, Long?, String?, Long?) -> Unit
+        onConfirm: (String, String, String, Int, String?, String?, String?) -> Unit
     ) {
         var name by remember { mutableStateOf(anchor) }
         var quantity by remember { mutableStateOf("1") }
         var selectedCategory by remember { mutableStateOf("Прочее") }
         var selectedStatus by remember { mutableStateOf(PropStatus.PLANNED.displayName) }
-        var selectedActorId by remember { mutableStateOf<Long?>(null) }
+        var selectedActorId by remember { mutableStateOf<String?>(null) }
         var notes by remember { mutableStateOf("") }
-        var selectedExistingPropId by remember { mutableStateOf<Long?>(null) }
+        var selectedExistingPropId by remember { mutableStateOf<String?>(null) }
 
         AlertDialog(
             onDismissRequest = onDismiss,
@@ -259,7 +258,6 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
         )
     }
 
-    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     private fun SearchableExposedDropdown(
         label: String,
@@ -333,7 +331,6 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
         }
     }
 
-    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     private fun ExposedDropdown(
         label: String,
@@ -375,14 +372,13 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
         }
     }
 
-    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     private fun MasterPane(
         scenes: List<GetLatestScenesForProject>,
-        selectedId: Long?,
+        selectedId: String?,
         searchQuery: String,
         selectedFilter: SceneFilter,
-        onSceneClick: (Long) -> Unit,
+        onSceneClick: (String) -> Unit,
         onSearchChange: (String) -> Unit,
         onFilterClick: (SceneFilter) -> Unit
     ) {
@@ -441,7 +437,7 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
     }
 
     @Composable
-    private fun DetailPane(content: String?, props: List<Prop>, selectedPropId: Long?, onPropClick: (Long) -> Unit, onTextSelected: (String) -> Unit, listState: androidx.compose.foundation.lazy.LazyListState) {
+    private fun DetailPane(content: String?, props: List<Prop>, selectedPropId: String?, onPropClick: (String) -> Unit, onTextSelected: (String) -> Unit, listState: androidx.compose.foundation.lazy.LazyListState) {
         Box(modifier = Modifier.fillMaxSize()) {
             if (content != null) {
                 InteractiveScriptViewer(blocks = ScriptParser().parseBlocks(content), props = props, selectedPropId = selectedPropId, onPropClick = onPropClick, onTextSelected = onTextSelected, modifier = Modifier.fillMaxSize(), listState = listState)
@@ -452,7 +448,7 @@ data class SceneWorkspaceScreen(val projectId: Long) : Screen {
     }
 
     @Composable
-    private fun InspectorPane(data: SceneInspectorData?, onDeleteProp: (Long) -> Unit, onPropSelected: (Prop) -> Unit, onShowDiff: (Long) -> Unit) {
+    private fun InspectorPane(data: SceneInspectorData?, onDeleteProp: (String) -> Unit, onPropSelected: (Prop) -> Unit, onShowDiff: (String) -> Unit) {
         Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
             Text("Инспектор", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(bottom = 24.dp))
             

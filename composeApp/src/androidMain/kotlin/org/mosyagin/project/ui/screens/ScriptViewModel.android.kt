@@ -17,6 +17,7 @@ import org.mosyagin.project.parser.update.UpdateResult
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import org.mosyagin.project.util.extractTextFromPdf
+import org.mosyagin.project.util.currentTimestamp
 
 @Suppress("EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING")
 actual class ScriptViewModel actual constructor(actual val repository: ScriptRepository) : ScreenModel, KoinComponent {
@@ -29,7 +30,7 @@ actual class ScriptViewModel actual constructor(actual val repository: ScriptRep
     private val _updateResult = MutableStateFlow<UpdateResult?>(null)
     actual val updateResult: StateFlow<UpdateResult?> = _updateResult.asStateFlow()
 
-    actual suspend fun processPdfUri(projectId: Long, seriesNumber: Int, uriString: String) {
+    actual suspend fun processPdfUri(projectId: String, seriesNumber: Int, uriString: String) {
         _isLoading.value = true
         _updateResult.value = null
 
@@ -49,7 +50,7 @@ actual class ScriptViewModel actual constructor(actual val repository: ScriptRep
                     seriesNumber = seriesNumber,
                     filePath = uriString,
                     fullText = fullText,
-                    createdAt = System.currentTimeMillis()
+                    createdAt = currentTimestamp()
                 )
                 
                 _updateResult.value = result
@@ -62,6 +63,7 @@ actual class ScriptViewModel actual constructor(actual val repository: ScriptRep
         }
     }
 
+    // Заглушка для старого метода, если он где-то остался
     actual suspend fun processPdfUri(projectId: Long, uriString: String) { }
     
     /**
@@ -87,13 +89,13 @@ actual class ScriptViewModel actual constructor(actual val repository: ScriptRep
 
     actual fun deleteScriptFile(fileId: Long) {
         screenModelScope.launch(Dispatchers.IO) {
-            repository.deleteScriptFile(fileId)
+            repository.deleteScriptFile(fileId.toString())
         }
     }
 
     actual fun updateScriptTitle(fileId: Long, newTitle: String) {
         screenModelScope.launch(Dispatchers.IO) {
-            repository.updateScriptTitle(fileId, newTitle)
+            repository.updateScriptTitle(fileId.toString(), newTitle)
         }
     }
     

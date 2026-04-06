@@ -13,7 +13,7 @@ actual class ScriptViewModel actual constructor(actual val repository: ScriptRep
     private val _updateResult = MutableStateFlow<UpdateResult?>(null)
     actual val updateResult: StateFlow<UpdateResult?> = _updateResult
 
-    actual suspend fun processPdfUri(projectId: Long, seriesNumber: Int, uriString: String) {}
+    actual suspend fun processPdfUri(projectId: String, seriesNumber: Int, uriString: String) {}
     actual suspend fun processPdfUri(projectId: Long, uriString: String) {}
     
     actual suspend fun commitUpdate() {}

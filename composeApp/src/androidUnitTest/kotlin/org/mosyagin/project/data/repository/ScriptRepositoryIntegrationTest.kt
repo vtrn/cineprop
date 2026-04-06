@@ -5,8 +5,10 @@ import org.mosyagin.project.DatabaseQueries
 import org.mosyagin.project.db.CinePropDatabase
 import org.mosyagin.project.db.createTestDriver
 import org.mosyagin.project.parser.ScriptParser
+import org.mosyagin.project.repository.FakeSyncRepository
 import org.mosyagin.project.repository.ScriptRepository
 import org.mosyagin.project.repository.ScriptRepositoryImpl
+import org.mosyagin.project.crypto.PlainDataEncrypter
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import kotlin.test.BeforeTest
@@ -25,14 +27,13 @@ class ScriptRepositoryAndroidIntegrationTest {
         val driver = createTestDriver()
         val database = CinePropDatabase(driver)
         queries = database.databaseQueries
-        repository = ScriptRepositoryImpl(queries, parser)
+        repository = ScriptRepositoryImpl(queries, parser, FakeSyncRepository(), PlainDataEncrypter())
     }
 
     @Test
     fun testParseAndSaveIntegration() = runTest {
-        queries.insertProject("Интеграционный тест", "Режиссер")
-        val projects = queries.getAllProjects().executeAsList()
-        val projectId = projects.last().id
+        val projectId = "test-project-id"
+        queries.insertProject(projectId, "Интеграционный тест", "Режиссер", 0L)
 
         val scriptText = """
             1. ИНТ. ОФИС - ДЕНЬ
@@ -67,8 +68,8 @@ class ScriptRepositoryAndroidIntegrationTest {
 
     @Test
     fun testActorsAreLinkedDuringParsing() = runTest {
-        queries.insertProject("Актеры", "Режиссер")
-        val projectId = queries.lastInsertRowId().executeAsOne()
+        val projectId = "actors-test-project-id"
+        queries.insertProject(projectId, "Актеры", "Режиссер", 0L)
 
         val scriptText = """
             1. ИНТ. КУХНЯ - ДЕНЬ

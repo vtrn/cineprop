@@ -43,7 +43,7 @@ import org.mosyagin.project.parser.update.PropImpactType
 import org.mosyagin.project.ui.components.AppLayoutType
 import org.mosyagin.project.ui.components.LocalAppLayoutType
 
-data class SceneDiffScreen(val sceneUserDataId: Long) : Screen {
+data class SceneDiffScreen(val sceneUserDataId: String) : Screen {
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable

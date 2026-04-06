@@ -10,13 +10,13 @@ import org.mosyagin.project.models.versioning.toDomain
 
 sealed class ScriptVersionUiState {
     object Loading : ScriptVersionUiState()
-    data class Success(val versions: List<ScriptFile>, val activeVersionId: Long?) : ScriptVersionUiState()
+    data class Success(val versions: List<ScriptFile>, val activeVersionId: String?) : ScriptVersionUiState() // Изменено на String
     data class Error(val message: String) : ScriptVersionUiState()
 }
 
 class ScriptVersionViewModel(
     private val repository: ScriptRepository,
-    private val projectId: Long,
+    private val projectId: String, // Изменено на String
     private val seriesNumber: Int
 ) : ScreenModel {
 
@@ -46,7 +46,7 @@ class ScriptVersionViewModel(
 
     fun loadVersions() { }
 
-    fun deleteVersion(id: Long) {
+    fun deleteVersion(id: String) { // Изменено на String
         screenModelScope.launch {
             repository.deleteScriptFile(id)
         }

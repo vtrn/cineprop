@@ -61,8 +61,6 @@ class ScriptParser {
         val maxIndent = indents.maxOrNull() ?: 0
         val midPoint = (minIndent + maxIndent) / 2
 
-        println("DEBUG_PARSER: --- Scene Calibration: Min=$minIndent, Max=$maxIndent, Mid=$midPoint ---")
-
         var inDialogueMode = false
 
         for (line in normalizedLines) {
@@ -130,9 +128,6 @@ class ScriptParser {
                     }
                 }
 
-                // ЛОГ КАТЕГОРИЗАЦИИ ДЛЯ ДЕБАГА
-                println("DEBUG_PARSER: [Category: ${type.name.padEnd(13)}] | Indent: ${indent.toString().padEnd(2)} | Text: '${subLine.take(50)}...'")
-
                 // Склеиваем блоки (Action, Dialogue, Parenthetical)
                 val lastBlock = resultBlocks.lastOrNull()
                 if (lastBlock != null && lastBlock.type == type && (type == BlockType.DIALOGUE || type == BlockType.ACTION || type == BlockType.PARENTHETICAL)) {
@@ -186,11 +181,13 @@ class ScriptParser {
                else text.trim('-', ' ', '.') to "НЕ УКАЗАНО"
     }
 
-    private fun createParsedScene(header: HeaderInfo, content: String, series: Int) = ParsedScene(series.toString(), header.number, header.type, header.location, header.time, content, extractActors(content))
+    private fun createParsedScene(header: HeaderInfo, content: String, series: Int) = ParsedScene(series.toString(), header.number, header.type, header.location, header.time, content, extractActors(content, header.number))
 
-    private fun extractActors(text: String): List<String> = text.lines().map { it.trim() }.filter { it.isNotEmpty() }
-        .filter { isAllCaps(it) && it.length in 2..60 && !sceneTypeRegex.containsMatchIn(it) }
-        .map { it.replace(Regex("""\(.*?\)"""), "").trim() }.distinct()
+    private fun extractActors(text: String, sceneNum: String): List<String> {
+        return text.lines().map { it.trim() }.filter { it.isNotEmpty() }
+            .filter { isAllCaps(it) && it.length in 2..60 && !sceneTypeRegex.containsMatchIn(it) }
+            .map { it.replace(Regex("""\(.*?\)"""), "").trim() }.distinct()
+    }
 
     private data class HeaderInfo(val number: String, val type: String, val location: String, val time: String)
 }

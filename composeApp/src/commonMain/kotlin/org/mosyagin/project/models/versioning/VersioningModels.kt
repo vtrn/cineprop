@@ -40,20 +40,20 @@ enum class PropStatus(val displayName: String) {
 }
 
 data class ScriptFile(
-    val id: Long,
-    val projectId: Long,
+    val id: String, // Изменено на String
+    val projectId: String, // Изменено на String
     val seriesNumber: Long,
     val title: String,
     val filePath: String,
     val createdAt: Long,
-    val previousVersionId: Long?,
+    val previousVersionId: String?, // Изменено на String
     val revisionColor: RevisionColor,
     val uploadedBy: String?
 )
 
 data class SceneUserData(
-    val id: Long,
-    val projectId: Long,
+    val id: String, // Изменено на String
+    val projectId: String, // Изменено на String
     val seriesNumber: Long,
     val sceneNumber: String,
     val location: String,
@@ -64,17 +64,17 @@ data class SceneUserData(
 )
 
 data class SceneVersion(
-    val id: Long,
-    val scriptFileId: Long,
-    val sceneUserDataId: Long,
+    val id: String, // Изменено на String
+    val scriptFileId: String, // Изменено на String
+    val sceneUserDataId: String, // Изменено на String
     val content: String,
     val contentHash: String,
     val positionIndex: Long
 )
 
 data class Prop(
-    val id: Long,
-    val sceneUserDataId: Long,
+    val id: String, // Изменено на String
+    val sceneUserDataId: String, // Изменено на String
     val name: String,
     val anchor: String,
     val status: PropStatus,
@@ -84,16 +84,16 @@ data class Prop(
     val photoPath: String? = null,
     val isCrossCutting: Boolean = false,
     val quantity: Int = 1,
-    val actorId: Long? = null,
+    val actorId: String? = null, // Изменено на String
     val startOffset: Long,
     val endOffset: Long,
     val isOrphaned: Boolean,
-    val groupId: Long? = null // ДОБАВЛЕНО
+    val groupId: String? = null // Изменено на String
 )
 
 data class SceneCharacter(
-    val id: Long,
-    val projectId: Long,
+    val id: String, // Изменено на String
+    val projectId: String, // Изменено на String
     val name: String
 )
 

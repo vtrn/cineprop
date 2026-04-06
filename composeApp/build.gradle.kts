@@ -1,5 +1,7 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
+import com.codingfeline.buildkonfig.compiler.FieldSpec.Type.STRING
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -7,7 +9,28 @@ plugins {
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.composeHotReload)
+    alias(libs.plugins.buildkonfig)
     id("app.cash.sqldelight")
+    kotlin("plugin.serialization") version "2.1.0" 
+}
+
+// Загрузка секретов из local.properties
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(localPropertiesFile.inputStream())
+}
+
+buildkonfig {
+    packageName = "org.mosyagin.project"
+    
+    val supabaseUrl = localProperties.getProperty("SUPABASE_URL") ?: ""
+    val supabaseKey = localProperties.getProperty("SUPABASE_KEY") ?: ""
+
+    defaultConfigs {
+        buildConfigField(STRING, "SUPABASE_URL", supabaseUrl)
+        buildConfigField(STRING, "SUPABASE_KEY", supabaseKey)
+    }
 }
 
 sqldelight {
@@ -48,26 +71,36 @@ kotlin {
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
 
-            // Voyager for navigation
             implementation(libs.voyager.navigator)
             implementation(libs.voyager.screenModel)
             implementation(libs.voyager.transitions)
             implementation(libs.voyager.koin)
 
-            // Koin
             implementation(libs.koin.core)
             implementation(libs.koin.compose)
 
-            // Coroutines
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:${libs.versions.kotlinx.coroutines.get()}")
 
-            // SQLDelight
             implementation("app.cash.sqldelight:runtime:${libs.versions.sqldelight.get()}")
             implementation("app.cash.sqldelight:coroutines-extensions:${libs.versions.sqldelight.get()}")
-            implementation(compose.materialIconsExtended)
             
-            // Datetime
+            implementation(compose.materialIconsExtended) 
+            
             implementation(libs.kotlinx.datetime)
+
+            implementation(libs.supabase.postgrest)
+            implementation(libs.supabase.auth)
+            implementation(libs.supabase.storage)
+            implementation(libs.supabase.realtime) 
+            implementation(libs.ktor.client.core)
+            
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+        }
+
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+            implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.koin.test)
         }
         
         androidMain.dependencies {
@@ -77,18 +110,20 @@ kotlin {
             implementation(libs.pdfbox.android)
             implementation(libs.koin.android)
             
-            // Apache POI for Android
             implementation(libs.poi.ooxml)
+            // ИСПОЛЬЗУЕМ OKHTTP ДЛЯ ПОДДЕРЖКИ WEBSOCKETS НА ANDROID
+            implementation("io.ktor:ktor-client-okhttp:${libs.versions.ktor.get()}")
+        }
+
+        androidUnitTest.dependencies {
+            implementation(libs.robolectric)
+            implementation(libs.core.ktx)
         }
         
         iosMain.dependencies {
             implementation("app.cash.sqldelight:native-driver:${libs.versions.sqldelight.get()}")
-        }
-
-        commonTest.dependencies {
-            implementation(libs.kotlin.test)
-            implementation(libs.koin.test)
-            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:${libs.versions.kotlinx.coroutines.get()}")
+            // iOS движок Darwin поддерживает WebSockets из коробки
+            implementation("io.ktor:ktor-client-darwin:${libs.versions.ktor.get()}")
         }
 
         jvmMain.dependencies {
@@ -97,18 +132,8 @@ kotlin {
             implementation("app.cash.sqldelight:sqlite-driver:${libs.versions.sqldelight.get()}")
             implementation("org.apache.pdfbox:pdfbox:2.0.30")
             
-            // Apache POI for Desktop
             implementation(libs.poi.ooxml)
-        }
-        
-        jvmTest.dependencies {
-            implementation("app.cash.sqldelight:sqlite-driver:${libs.versions.sqldelight.get()}")
-        }
-
-        androidUnitTest.dependencies {
-            implementation("androidx.test:core:1.6.1")
-            implementation("org.robolectric:robolectric:4.12.2")
-            implementation(libs.koin.test)
+            implementation(libs.ktor.client.cio)
         }
     }
 }
@@ -150,21 +175,8 @@ compose.desktop {
         mainClass = "org.mosyagin.project.MainKt"
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Exe)
-
             packageName = "CineApp"
-            packageVersion = "1.0.0"
-            description = "CineApp Professional Production Tool"
-
-            macOS {
-                bundleID = "org.mosyagin.cineapp"
-            }
-
-            windows {
-                packageName = "CineApp"
-                shortcut = true
-                menu = true
-                upgradeUuid = "80f86641-3b7c-474c-b9b5-6f9a0c0f993d"
-            }
+            macOS { bundleID = "org.mosyagin.cineapp" }
         }
     }
 }

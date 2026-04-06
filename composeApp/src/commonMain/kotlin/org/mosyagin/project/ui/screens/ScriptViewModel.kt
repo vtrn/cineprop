@@ -11,7 +11,7 @@ expect class ScriptViewModel(repository: ScriptRepository) : ScreenModel {
     val isLoading: StateFlow<Boolean>
     val updateResult: StateFlow<UpdateResult?>
 
-    suspend fun processPdfUri(projectId: Long, seriesNumber: Int, uriString: String)
+    suspend fun processPdfUri(projectId: String, seriesNumber: Int, uriString: String)
     suspend fun processPdfUri(projectId: Long, uriString: String)
     suspend fun commitUpdate()
     

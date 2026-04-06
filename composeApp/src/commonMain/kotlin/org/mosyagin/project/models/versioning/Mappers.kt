@@ -49,7 +49,9 @@ fun DbProp.toDomain(): Prop = Prop(
     status = PropStatus.fromString(status),
     startOffset = startOffset,
     endOffset = endOffset,
-    isOrphaned = orphaned == 1L
+    isOrphaned = orphaned == 1L,
+    actorId = actorId,
+    groupId = groupId
 )
 
 fun DbActor.toDomain(): SceneCharacter = SceneCharacter(
@@ -74,8 +76,8 @@ fun GetSceneById.toSceneWithUserData(props: List<Prop>, characters: List<SceneCh
             needsReview = needsReview == 1L
         ),
         version = SceneVersion(
-            id = 0, // ID версии не всегда доступен в плоских запросах, если нужно - добавим в SQL
-            scriptFileId = 0, 
+            id = "", // ID версии
+            scriptFileId = "",
             sceneUserDataId = id,
             content = content,
             contentHash = contentHash,

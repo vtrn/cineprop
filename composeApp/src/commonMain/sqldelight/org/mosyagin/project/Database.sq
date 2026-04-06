@@ -1,17 +1,17 @@
-/**
- * Описание структуры базы данных и SQL-запросов (SQLDelight).
- */
-
 -- ТАБЛИЦА ПРОЕКТОВ
 CREATE TABLE Project (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    director TEXT NOT NULL
+    director TEXT NOT NULL,
+    updatedAt INTEGER NOT NULL DEFAULT 0
 );
 
 -- Запросы для проектов
 insertProject:
-INSERT INTO Project(name, director) VALUES (?, ?);
+INSERT INTO Project(id, name, director, updatedAt) VALUES (?, ?, ?, ?);
+
+upsertProject:
+INSERT OR REPLACE INTO Project(id, name, director, updatedAt) VALUES (?, ?, ?, ?);
 
 getAllProjects:
 SELECT * FROM Project;
@@ -20,30 +20,38 @@ deleteProject:
 DELETE FROM Project WHERE id = ?;
 
 updateProject:
-UPDATE Project SET name = ?, director = ? WHERE id = ?;
+UPDATE Project SET name = ?, director = ?, updatedAt = ? WHERE id = ?;
 
 getProjectById:
 SELECT * FROM Project WHERE id = ?;
 
+getProjectsByIds:
+SELECT * FROM Project WHERE id IN ?;
+
 
 -- ТАБЛИЦА ФАЙЛОВ СЦЕНАРИЕВ
 CREATE TABLE ScriptFile (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    projectId INTEGER NOT NULL,
-    seriesNumber INTEGER NOT NULL DEFAULT 1, -- Номер серии для группировки версий
+    id TEXT PRIMARY KEY,
+    projectId TEXT NOT NULL,
+    seriesNumber INTEGER NOT NULL DEFAULT 1,
     title TEXT NOT NULL,
     filePath TEXT NOT NULL,
     createdAt INTEGER NOT NULL,
-    previousVersionId INTEGER,
+    previousVersionId TEXT,
     revisionColor TEXT DEFAULT 'White',
     uploadedBy TEXT,
+    updatedAt INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE,
     FOREIGN KEY(previousVersionId) REFERENCES ScriptFile(id) ON DELETE SET NULL
 );
 
 insertScriptFile:
-INSERT INTO ScriptFile(projectId, seriesNumber, title, filePath, createdAt, previousVersionId, revisionColor, uploadedBy)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO ScriptFile(id, projectId, seriesNumber, title, filePath, createdAt, previousVersionId, revisionColor, uploadedBy, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+upsertScriptFile:
+INSERT OR REPLACE INTO ScriptFile(id, projectId, seriesNumber, title, filePath, createdAt, previousVersionId, revisionColor, uploadedBy, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 getScriptsForProject:
 SELECT * FROM ScriptFile WHERE projectId = ? ORDER BY createdAt ASC;
@@ -57,61 +65,73 @@ deleteScriptFile:
 DELETE FROM ScriptFile WHERE id = ?;
 
 updateScriptFileTitle:
-UPDATE ScriptFile SET title = ? WHERE id = ?;
+UPDATE ScriptFile SET title = ?, updatedAt = ? WHERE id = ?;
 
 getScriptFileById:
 SELECT * FROM ScriptFile WHERE id = ?;
 
+getScriptFilesByIds:
+SELECT * FROM ScriptFile WHERE id IN ?;
 
--- ТАБЛИЦА СЦЕН (Якорь для пользовательских данных)
+
+-- ТАБЛИЦА СЦЕН
 CREATE TABLE SceneUserData (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    projectId INTEGER NOT NULL,
-    seriesNumber INTEGER NOT NULL, -- Изменил с TEXT на INTEGER
+    id TEXT PRIMARY KEY,
+    projectId TEXT NOT NULL,
+    seriesNumber INTEGER NOT NULL,
     sceneNumber TEXT NOT NULL,
     location TEXT NOT NULL,
     isInterior INTEGER NOT NULL,
     timeOfDay TEXT NOT NULL,
     notes TEXT,
     needsReview INTEGER NOT NULL DEFAULT 0,
+    updatedAt INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE
 );
 
 -- ТАБЛИЦА ВЕРСИЙ СЦЕН
 CREATE TABLE SceneVersion (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    scriptFileId INTEGER NOT NULL,
-    sceneUserDataId INTEGER NOT NULL,
+    id TEXT PRIMARY KEY,
+    scriptFileId TEXT NOT NULL,
+    sceneUserDataId TEXT NOT NULL,
     content TEXT NOT NULL,
     contentHash TEXT NOT NULL,
     positionIndex INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY(scriptFileId) REFERENCES ScriptFile(id) ON DELETE CASCADE,
     FOREIGN KEY(sceneUserDataId) REFERENCES SceneUserData(id) ON DELETE CASCADE
 );
 
 updateSceneUserDataReviewStatus:
-UPDATE SceneUserData SET needsReview = ? WHERE id = ?;
+UPDATE SceneUserData SET needsReview = ?, updatedAt = ? WHERE id = ?;
 
 updateSceneUserDataHeader:
 UPDATE SceneUserData
-SET location = ?, isInterior = ?, timeOfDay = ?
+SET location = ?, isInterior = ?, timeOfDay = ?, updatedAt = ?
 WHERE id = ?;
 
--- Новые запросы для сцн
 insertSceneUserData:
-INSERT INTO SceneUserData(projectId, seriesNumber, sceneNumber, location, isInterior, timeOfDay, notes, needsReview)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO SceneUserData(id, projectId, seriesNumber, sceneNumber, location, isInterior, timeOfDay, notes, needsReview, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+upsertSceneUserData:
+INSERT OR REPLACE INTO SceneUserData(id, projectId, seriesNumber, sceneNumber, location, isInterior, timeOfDay, notes, needsReview, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 insertSceneVersion:
-INSERT INTO SceneVersion(scriptFileId, sceneUserDataId, content, contentHash, positionIndex)
-VALUES (?, ?, ?, ?, ?);
+INSERT INTO SceneVersion(id, scriptFileId, sceneUserDataId, content, contentHash, positionIndex, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+upsertSceneVersion:
+INSERT OR REPLACE INTO SceneVersion(id, scriptFileId, sceneUserDataId, content, contentHash, positionIndex, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?);
 
 getScenesBySeries:
 SELECT ud.*, v.content, v.contentHash
 FROM SceneUserData ud
 JOIN SceneVersion v ON ud.id = v.sceneUserDataId
 WHERE ud.projectId = ? AND ud.seriesNumber = ? AND v.scriptFileId = ?
-ORDER BY v.positionIndex ASC; -- Сортируем по индексу позиции
+ORDER BY v.positionIndex ASC;
 
 getScenesByProject:
 SELECT ud.*, v.content, v.contentHash
@@ -148,6 +168,9 @@ SELECT * FROM SceneVersion WHERE sceneUserDataId = ? ORDER BY id DESC;
 getSceneUserDataById:
 SELECT * FROM SceneUserData WHERE id = ?;
 
+getSceneUserDataByIds:
+SELECT * FROM SceneUserData WHERE id IN ?;
+
 getSceneUserDataBySeriesAndNumber:
 SELECT * FROM SceneUserData WHERE projectId = ? AND seriesNumber = ? AND sceneNumber = ? LIMIT 1;
 
@@ -168,18 +191,31 @@ ORDER BY ud.location ASC;
 deleteScenesByScriptFile:
 DELETE FROM SceneVersion WHERE scriptFileId = ?;
 
+getSceneVersionsByIds:
+SELECT * FROM SceneVersion WHERE id IN ?;
+
+deleteSceneUserData:
+DELETE FROM SceneUserData WHERE id = ?;
+
+deleteSceneVersion:
+DELETE FROM SceneVersion WHERE id = ?;
+
 
 -- ТАБЛИЦА ПЕРСОНАЖЕЙ
 CREATE TABLE Actor (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    projectId INTEGER NOT NULL,
+    id TEXT PRIMARY KEY,
+    projectId TEXT NOT NULL,
     name TEXT NOT NULL,
+    updatedAt INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE,
     UNIQUE(projectId, name)
 );
 
 insertActor:
-INSERT OR IGNORE INTO Actor(projectId, name) VALUES (?, ?);
+INSERT OR IGNORE INTO Actor(id, projectId, name, updatedAt) VALUES (?, ?, ?, ?);
+
+upsertActor:
+INSERT OR REPLACE INTO Actor(id, projectId, name, updatedAt) VALUES (?, ?, ?, ?);
 
 getActorByName:
 SELECT * FROM Actor WHERE projectId = ? AND name = ? LIMIT 1;
@@ -187,11 +223,17 @@ SELECT * FROM Actor WHERE projectId = ? AND name = ? LIMIT 1;
 getActorsByProject:
 SELECT * FROM Actor WHERE projectId = ? ORDER BY name ASC;
 
+getActorsByIds:
+SELECT * FROM Actor WHERE id IN ?;
 
--- СВЯЗЬ СМЕНА-СЦЕНА
+deleteActor:
+DELETE FROM Actor WHERE id = ?;
+
+
+-- СВЯЗЬ СЦЕНА-АКТЕР
 CREATE TABLE SceneActor (
-    sceneUserDataId INTEGER NOT NULL,
-    actorId INTEGER NOT NULL,
+    sceneUserDataId TEXT NOT NULL,
+    actorId TEXT NOT NULL,
     PRIMARY KEY(sceneUserDataId, actorId),
     FOREIGN KEY(sceneUserDataId) REFERENCES SceneUserData(id) ON DELETE CASCADE,
     FOREIGN KEY(actorId) REFERENCES Actor(id) ON DELETE CASCADE
@@ -211,10 +253,10 @@ WHERE sa.sceneUserDataId = ?;
 
 -- ТАБЛИЦА РЕКВИЗИТА
 CREATE TABLE Prop (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    sceneUserDataId INTEGER NOT NULL,
-    name TEXT NOT NULL,         -- То, что ввел юзер (например, "Клетки")
-    anchor TEXT NOT NULL,       -- То, что было в тексте ("клеток с домашними зверюшками")
+    id TEXT PRIMARY KEY,
+    sceneUserDataId TEXT NOT NULL,
+    name TEXT NOT NULL,
+    anchor TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'Найти',
     category TEXT NOT NULL DEFAULT 'Прочее',
     propType TEXT NOT NULL DEFAULT 'Обстановочный',
@@ -222,24 +264,28 @@ CREATE TABLE Prop (
     photoPath TEXT,
     isCrossCutting INTEGER NOT NULL DEFAULT 0,
     quantity INTEGER NOT NULL DEFAULT 1,
-    actorId INTEGER,
+    actorId TEXT,
     startOffset INTEGER NOT NULL,
     endOffset INTEGER NOT NULL,
     orphaned INTEGER NOT NULL DEFAULT 0,
-    groupId INTEGER,            -- ID группы для сквозного реквизита
+    groupId TEXT,
+    updatedAt INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY(sceneUserDataId) REFERENCES SceneUserData(id) ON DELETE CASCADE,
     FOREIGN KEY(actorId) REFERENCES Actor(id) ON DELETE SET NULL,
     FOREIGN KEY(groupId) REFERENCES Prop(id) ON DELETE SET NULL
 );
 
--- ПРАВИЛЬНАЯ ВСТАВКА ВСЕХ ПОЛЕЙ СРАЗУ
 insertFullProp:
 INSERT INTO Prop(
-    sceneUserDataId, name, anchor, status, category, propType,
+    id, sceneUserDataId, name, anchor, status, category, propType,
     note, photoPath, isCrossCutting, quantity, actorId,
-    startOffset, endOffset, orphaned, groupId
+    startOffset, endOffset, orphaned, groupId, updatedAt
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+upsertProp:
+INSERT OR REPLACE INTO Prop(id, sceneUserDataId, name, anchor, status, category, propType, note, photoPath, isCrossCutting, quantity, actorId, startOffset, endOffset, orphaned, groupId, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 getPropsForScene:
 SELECT * FROM Prop WHERE sceneUserDataId = ? ORDER BY id DESC;
@@ -251,78 +297,92 @@ JOIN SceneUserData ud ON p.sceneUserDataId = ud.id
 WHERE ud.projectId = ?
 ORDER BY p.status ASC, p.name ASC;
 
--- НОВОЕ: Получение реквизита с привязкой к сменам
-getPropsWithShiftByProject:
-SELECT p.*, ud.seriesNumber, ud.sceneNumber, s.shiftNumber, s.date AS shiftDate, s.id AS shiftId
-FROM Prop p
-JOIN SceneUserData ud ON p.sceneUserDataId = ud.id
-JOIN ShiftScene ss ON ud.id = ss.sceneUserDataId
-JOIN Shift s ON ss.shiftId = s.id
-WHERE ud.projectId = ?
-ORDER BY s.shiftNumber ASC, ss.position ASC, p.name ASC;
-
 deleteProp:
 DELETE FROM Prop WHERE id = ?;
 
 updatePropStatus:
-UPDATE Prop SET status = ? WHERE id = ?;
+UPDATE Prop SET status = ?, updatedAt = ? WHERE id = ?;
 
-updatePropOrphanedStatus:
-UPDATE Prop SET orphaned = ? WHERE id = ?;
+getPropsByIds:
+SELECT * FROM Prop WHERE id IN ?;
 
 updatePropCategory:
-UPDATE Prop SET category = ? WHERE id = ?;
+UPDATE Prop SET category = ?, updatedAt = ? WHERE id = ?;
 
 updatePropNote:
-UPDATE Prop SET note = ? WHERE id = ?;
+UPDATE Prop SET note = ?, updatedAt = ? WHERE id = ?;
 
 updatePropQuantity:
-UPDATE Prop SET quantity = ? WHERE id = ?;
-
-updatePropPhoto:
-UPDATE Prop SET photoPath = ? WHERE id = ?;
+UPDATE Prop SET quantity = ?, updatedAt = ? WHERE id = ?;
 
 updatePropCrossCutting:
-UPDATE Prop SET isCrossCutting = ? WHERE id = ?;
+UPDATE Prop SET isCrossCutting = ?, updatedAt = ? WHERE id = ?;
 
 updatePropActor:
-UPDATE Prop SET actorId = ? WHERE id = ?;
+UPDATE Prop SET actorId = ?, updatedAt = ? WHERE id = ?;
 
 updatePropType:
-UPDATE Prop SET propType = ? WHERE id = ?;
+UPDATE Prop SET propType = ?, updatedAt = ? WHERE id = ?;
 
 updatePropGroupId:
-UPDATE Prop SET groupId = ? WHERE id = ?;
+UPDATE Prop SET groupId = ?, updatedAt = ? WHERE id = ?;
+
+
+-- ТАБЛИЦА НАСТРОЕК
+CREATE TABLE AppSettings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+getSetting:
+SELECT value FROM AppSettings WHERE key = ?;
+
+upsertSetting:
+INSERT OR REPLACE INTO AppSettings (key, value) VALUES (?, ?);
 
 
 -- ТАБЛИЦА ФАЙЛОВ КПП
 CREATE TABLE KppFile (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    projectId INTEGER NOT NULL,
+    id TEXT PRIMARY KEY,
+    projectId TEXT NOT NULL,
     fileName TEXT NOT NULL,
     filePath TEXT NOT NULL,
     version INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE
 );
 
 insertKppFile:
-INSERT INTO KppFile(projectId, fileName, filePath, version) VALUES (?, ?, ?, ?);
+INSERT INTO KppFile(id, projectId, fileName, filePath, version, updatedAt) VALUES (?, ?, ?, ?, ?, ?);
+
+upsertKppFile:
+INSERT OR REPLACE INTO KppFile(id, projectId, fileName, filePath, version, updatedAt) VALUES (?, ?, ?, ?, ?, ?);
 
 getKppFilesByProject:
 SELECT * FROM KppFile WHERE projectId = ? ORDER BY version DESC;
 
+getKppFileById:
+SELECT * FROM KppFile WHERE id = ?;
 
--- ТАБЛИЦА СМЕН
+getKppFilesByIds:
+SELECT * FROM KppFile WHERE id IN ?;
+
+
+-- ТАБЛИЦА СМЕНА
 CREATE TABLE Shift (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    projectId INTEGER NOT NULL,
+    id TEXT PRIMARY KEY,
+    projectId TEXT NOT NULL,
     shiftNumber INTEGER NOT NULL,
     date TEXT NOT NULL,
+    updatedAt INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE
 );
 
 insertShift:
-INSERT INTO Shift(projectId, shiftNumber, date) VALUES (?, ?, ?);
+INSERT INTO Shift(id, projectId, shiftNumber, date, updatedAt) VALUES (?, ?, ?, ?, ?);
+
+upsertShift:
+INSERT OR REPLACE INTO Shift(id, projectId, shiftNumber, date, updatedAt) VALUES (?, ?, ?, ?, ?);
 
 getShiftsByProject:
 SELECT * FROM Shift WHERE projectId = ? ORDER BY shiftNumber ASC;
@@ -333,11 +393,14 @@ SELECT * FROM Shift WHERE projectId = ? AND shiftNumber = ? LIMIT 1;
 getShiftById:
 SELECT * FROM Shift WHERE id = ?;
 
+getShiftsByIds:
+SELECT * FROM Shift WHERE id IN ?;
+
 
 -- СВЯЗЬ СМЕНА-СЦЕНА
 CREATE TABLE ShiftScene (
-    shiftId INTEGER NOT NULL,
-    sceneUserDataId INTEGER NOT NULL,
+    shiftId TEXT NOT NULL,
+    sceneUserDataId TEXT NOT NULL,
     position INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY(shiftId, sceneUserDataId),
     FOREIGN KEY(shiftId) REFERENCES Shift(id) ON DELETE CASCADE,
@@ -362,17 +425,44 @@ LEFT JOIN SceneVersion v ON v.id = (
 WHERE ss.shiftId = ?
 ORDER BY ss.position ASC;
 
--- ТАБЛИЦА НАСТРОЕК
-CREATE TABLE AppSettings (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
+getShiftScenesByShiftId:
+SELECT * FROM ShiftScene WHERE shiftId = ?;
+
+
+-- ==========================================
+-- ОЧЕРЕДЬ СИНХРОНИЗАЦИИ
+-- ==========================================
+
+CREATE TABLE SyncQueue (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    operation TEXT NOT NULL,
+    tableName TEXT NOT NULL,
+    recordId TEXT NOT NULL,  -- Здесь тоже ID теперь TEXT
+    dataJson TEXT,
+    updatedAt INTEGER NOT NULL,
+    synced INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(tableName, recordId) ON CONFLICT REPLACE
 );
 
-getSetting:
-SELECT value FROM AppSettings WHERE key = ?;
+enqueue:
+INSERT INTO SyncQueue(operation, tableName, recordId, dataJson, updatedAt, synced)
+VALUES (?, ?, ?, ?, ?, 0);
 
-upsertSetting:
-INSERT OR REPLACE INTO AppSettings (key, value) VALUES (?, ?);
+getPending:
+SELECT * FROM SyncQueue WHERE synced = 0 ORDER BY updatedAt ASC;
+
+markSynced:
+UPDATE SyncQueue SET synced = 1 WHERE id IN ?;
+
+deleteInvalidSyncRecords:
+DELETE FROM SyncQueue WHERE recordId = '0';
+
+requeueAllProjects:
+INSERT OR REPLACE INTO SyncQueue(operation, tableName, recordId, updatedAt, synced)
+SELECT 'INSERT', 'Project', id, ?, 0 FROM Project;
 
 lastInsertRowId:
 SELECT last_insert_rowid();
+
+deleteShiftScene:
+DELETE FROM ShiftScene WHERE shiftId = ? AND sceneUserDataId = ?;

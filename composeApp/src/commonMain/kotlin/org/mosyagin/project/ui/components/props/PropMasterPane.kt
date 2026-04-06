@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AllInclusive
@@ -22,14 +23,14 @@ import org.mosyagin.project.repository.PropWithScene
  * Панель управления категориями (Левая панель).
  * Позволяет фильтровать список реквизита по его типу.
  *
- * @param propsByCategory Словарь, где ключ - название категории, а значение - список объектов в ней.
+ * @param categories Список названий категорий.
  * @param selectedCategoryFilter Текущая выбранная категория для фильтрации.
  * @param onCategoryFilterSelected Обработчик выбора категории.
  * @param onExportClick Обработчик нажатия на кнопку экспорта.
  */
 @Composable
 fun PropMasterPane(
-    propsByCategory: Map<String, List<PropWithScene>>,
+    categories: List<String>,
     selectedCategoryFilter: String?,
     onCategoryFilterSelected: (String?) -> Unit,
     onExportClick: () -> Unit = {}
@@ -70,16 +71,13 @@ fun PropMasterPane(
 
         // Список доступных категорий
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            propsByCategory.forEach { (category, props) ->
-                item {
-                    CategoryItem(
-                        title = category,
-                        icon = PropUiUtils.getCategoryIcon(category),
-                        isSelected = selectedCategoryFilter == category,
-                        count = props.size,
-                        color = PropUiUtils.getCategoryColor(category)
-                    ) { onCategoryFilterSelected(category) }
-                }
+            items(categories) { category ->
+                CategoryItem(
+                    title = category,
+                    icon = PropUiUtils.getCategoryIcon(category),
+                    isSelected = selectedCategoryFilter == category,
+                    color = PropUiUtils.getCategoryColor(category)
+                ) { onCategoryFilterSelected(category) }
             }
         }
     }

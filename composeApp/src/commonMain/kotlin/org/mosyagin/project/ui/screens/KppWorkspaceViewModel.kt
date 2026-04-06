@@ -1,3 +1,5 @@
+@file:OptIn(kotlin.time.ExperimentalTime::class)
+
 package org.mosyagin.project.ui.screens
 
 import cafe.adriel.voyager.core.model.ScreenModel
@@ -11,7 +13,7 @@ import org.mosyagin.project.parser.KppParser
 import org.mosyagin.project.repository.KppRepository
 
 class KppWorkspaceViewModel(
-    private val projectId: Long,
+    private val projectId: String,
     private val kppRepository: KppRepository
 ) : ScreenModel, KoinComponent {
 
@@ -21,13 +23,13 @@ class KppWorkspaceViewModel(
     val kppFiles: StateFlow<List<KppFile>> = kppRepository.getKppFilesByProject(projectId)
         .stateIn(screenModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _selectedFileId = MutableStateFlow<Long?>(null)
-    val selectedFileId: StateFlow<Long?> = _selectedFileId.asStateFlow()
+    private val _selectedFileId = MutableStateFlow<String?>(null)
+    val selectedFileId: StateFlow<String?> = _selectedFileId.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    fun onFileSelected(id: Long) {
+    fun onFileSelected(id: String) {
         _selectedFileId.value = id
     }
 

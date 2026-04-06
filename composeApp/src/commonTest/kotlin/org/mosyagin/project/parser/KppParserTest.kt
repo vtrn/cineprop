@@ -17,8 +17,13 @@ class KppParserTest {
         val projectId = 1L
         
         // 1. Предварительно добавляем сцены в "базу"
-        sceneRepo.addFakeScene(GetScenesByProject(101, projectId, 1L, "1", "КУХНЯ", 1, "ДЕНЬ", null, 0, "Текст", "hash"))
-        sceneRepo.addFakeScene(GetScenesByProject(102, projectId, 1L, "2", "ДВОР", 0, "НОЧЬ", null, 0, "Текст", "hash"))
+        // Добавлен updatedAt = 0L в конструктор GetScenesByProject
+        sceneRepo.addFakeScene(GetScenesByProject(
+            101.toString(),
+            projectId.toString(), 1L, "1", "КУХНЯ", 1, "ДЕНЬ", null, 0, 0L, "Текст", "hash"))
+        sceneRepo.addFakeScene(GetScenesByProject(
+            102.toString(),
+            projectId.toString(), 1L, "2", "ДВОР", 0, "НОЧЬ", null, 0, 0L, "Текст", "hash"))
 
         // 2. CSV текст КПП (Серия; Сцена; ...)
         val csvText = """
@@ -29,7 +34,7 @@ class KppParserTest {
         """.trimIndent()
 
         // 3. Запускаем парсинг
-        parser.parseAndSaveKpp(projectId, csvText)
+        parser.parseAndSaveKpp(projectId.toString(), csvText)
 
         // 4. Проверяем результаты
         // Должно быть создано 2 связи (ShiftScene)
@@ -38,10 +43,10 @@ class KppParserTest {
 
     @Test
     fun testMultipleShiftsInOneCsv() {
-        val projectId = 1L
+        val projectId: String = 1L.toString()
         
-        sceneRepo.addFakeScene(GetScenesByProject(101, projectId, 1L, "1", "КУХНЯ", 1, "ДЕНЬ", null, 0, "Текст", "hash"))
-        sceneRepo.addFakeScene(GetScenesByProject(102, projectId, 1L, "2", "ДВОР", 0, "НОЧЬ", null, 0, "Текст", "hash"))
+        sceneRepo.addFakeScene(GetScenesByProject(101.toString(), projectId, 1L, "1", "КУХНЯ", 1, "ДЕНЬ", null, 0, 0L, "Текст", "hash"))
+        sceneRepo.addFakeScene(GetScenesByProject(102.toString(), projectId, 1L, "2", "ДВОР", 0, "НОЧЬ", null, 0, 0L, "Текст", "hash"))
 
         val csvText = """
             15.03.2024;;;;;
@@ -52,7 +57,7 @@ class KppParserTest {
             1; 2; ДВОР; НАТ; НОЧЬ
         """.trimIndent()
 
-        parser.parseAndSaveKpp(projectId, csvText)
+        parser.parseAndSaveKpp(projectId.toString(), csvText)
 
         assertEquals(2, shiftRepo.getLinksCount())
     }

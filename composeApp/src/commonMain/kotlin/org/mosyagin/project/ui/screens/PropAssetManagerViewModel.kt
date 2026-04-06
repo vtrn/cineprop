@@ -2,11 +2,14 @@ package org.mosyagin.project.ui.screens
 
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import org.mosyagin.project.models.versioning.PropStatus
 import org.mosyagin.project.repository.PropWithScene
 import org.mosyagin.project.repository.SceneRepository
+import org.mosyagin.project.repository.SyncEvent
+import org.mosyagin.project.repository.SyncRepository
 
 data class PropAssetManagerUiState(
     val isLoading: Boolean = true,
@@ -15,20 +18,31 @@ data class PropAssetManagerUiState(
     val searchQuery: String = "",
     val selectedCategory: String? = null,
     val selectedStatus: PropStatus? = null,
-    val selectedPropIds: Set<Long> = emptySet(),
+    val selectedPropIds: Set<String> = emptySet(), // Изменено на String
     val categories: List<String> = emptyList(),
     val error: String? = null
 )
 
+@OptIn(FlowPreview::class)
 class PropAssetManagerViewModel(
     private val repository: SceneRepository,
-    private val projectId: Long
+    private val syncRepository: SyncRepository,
+    private val projectId: String // Изменено на String
 ) : ScreenModel {
 
     private val _uiState = MutableStateFlow(PropAssetManagerUiState())
     val uiState: StateFlow<PropAssetManagerUiState> = _uiState.asStateFlow()
 
+    private val syncEvents = MutableSharedFlow<SyncEvent>()
+
     init {
+        syncEvents
+            .debounce(1500L)
+            .onEach { event ->
+                syncRepository.enqueue(event.operation, event.tableName, event.recordId, event.dataJson)
+            }
+            .launchIn(screenModelScope)
+            
         loadProps()
     }
 
@@ -93,7 +107,7 @@ class PropAssetManagerViewModel(
         }
     }
 
-    fun togglePropSelection(propId: Long) {
+    fun togglePropSelection(propId: String) { // Изменено на String
         _uiState.update { state ->
             val newSelection = if (state.selectedPropIds.contains(propId)) {
                 state.selectedPropIds - propId
@@ -114,45 +128,38 @@ class PropAssetManagerViewModel(
         _uiState.update { it.copy(selectedPropIds = emptySet()) }
     }
 
-    // Update operations
-    fun updatePropStatus(propId: Long, status: PropStatus) {
+    fun updatePropStatus(propId: String, status: PropStatus) { // Изменено на String
         screenModelScope.launch {
             repository.updatePropStatus(propId, status.displayName)
+            syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 
-    fun updatePropCategory(propId: Long, category: String) {
+    fun updatePropCategory(propId: String, category: String) { // Изменено на String
         screenModelScope.launch {
             repository.updatePropCategory(propId, category)
+            syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 
-    fun updatePropQuantity(propId: Long, quantity: Int) {
+    fun updatePropQuantity(propId: String, quantity: Int) { // Изменено на String
         screenModelScope.launch {
             repository.updatePropQuantity(propId, quantity)
+            syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 
-    fun updatePropCrossCutting(propId: Long, isCrossCutting: Boolean) {
+    fun updatePropCrossCutting(propId: String, isCrossCutting: Boolean) { // Изменено на String
         screenModelScope.launch {
             repository.updatePropCrossCutting(propId, isCrossCutting)
+            syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 
-    fun updatePropNote(propId: Long, note: String?) {
+    fun updatePropNote(propId: String, note: String?) { // Изменено на String
         screenModelScope.launch {
             repository.updatePropNote(propId, note)
-        }
-    }
-
-    // Bulk actions
-    fun bulkUpdateStatus(status: PropStatus) {
-        val selectedIds = _uiState.value.selectedPropIds.toList()
-        if (selectedIds.isNotEmpty()) {
-            screenModelScope.launch {
-                repository.bulkUpdatePropStatus(selectedIds, status.displayName)
-                clearSelection()
-            }
+            syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 }

@@ -12,6 +12,9 @@ import org.mosyagin.project.DatabaseQueries
 interface SettingsRepository {
     fun getThemeMode(): Flow<String>
     suspend fun setThemeMode(mode: String)
+    
+    fun isEncryptionEnabled(): Flow<Boolean>
+    suspend fun setEncryptionEnabled(enabled: Boolean)
 }
 
 class SettingsRepositoryImpl(private val queries: DatabaseQueries) : SettingsRepository {
@@ -24,5 +27,16 @@ class SettingsRepositoryImpl(private val queries: DatabaseQueries) : SettingsRep
 
     override suspend fun setThemeMode(mode: String) {
         queries.upsertSetting("theme_mode", mode)
+    }
+
+    override fun isEncryptionEnabled(): Flow<Boolean> {
+        return queries.getSetting("encryption_enabled")
+            .asFlow()
+            .mapToOneOrNull<String>(Dispatchers.IO)
+            .map { it == "true" }
+    }
+
+    override suspend fun setEncryptionEnabled(enabled: Boolean) {
+        queries.upsertSetting("encryption_enabled", enabled.toString())
     }
 }

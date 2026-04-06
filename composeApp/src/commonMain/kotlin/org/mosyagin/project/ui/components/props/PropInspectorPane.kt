@@ -40,13 +40,13 @@ import org.mosyagin.project.repository.PropWithScene
  */
 @Composable
 fun PropInspectorPane(
-    propId: Long?, 
-    props: List<PropWithScene>, 
+    propId: String?,
+    props: List<PropWithScene>,
     actors: List<Actor> = emptyList(),
-    onNoteChange: (Long, String) -> Unit, 
-    onConfirm: (Long) -> Unit, 
-    onDelete: (Long) -> Unit,
-    onActorClick: (Long) -> Unit = {}
+    onNoteChange: (String, String) -> Unit,
+    onConfirm: (String) -> Unit,
+    onDelete: (String) -> Unit,
+    onActorClick: (String) -> Unit = {}
 ) {
     val prop = props.find { it.id == propId }
     val ownerActor = remember(prop, actors) { 

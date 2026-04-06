@@ -9,6 +9,8 @@ import org.mosyagin.project.repository.SceneRepositoryImpl
 import org.mosyagin.project.DatabaseQueries
 import org.mosyagin.project.db.CinePropDatabase
 import org.mosyagin.project.db.createTestDriver
+import org.mosyagin.project.repository.FakeSyncRepository
+import org.mosyagin.project.crypto.PlainDataEncrypter
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -19,9 +21,9 @@ class SceneRepositoryTest {
     private lateinit var repository: SceneRepository
     private lateinit var queries: DatabaseQueries
     private lateinit var driver: SqlDriver
-    private var testProjectId: Long = 0
-    private var testScriptId: Long = 0
-    private var testUserDataId: Long = 0
+    private var testProjectId: String = ""
+    private var testScriptId: String = ""
+    private var testUserDataId: String = ""
 
     @BeforeTest
     fun setup() {
@@ -36,13 +38,16 @@ class SceneRepositoryTest {
 
         val database = CinePropDatabase(driver)
         queries = database.databaseQueries
-        repository = SceneRepositoryImpl(queries)
+        repository = SceneRepositoryImpl(queries, FakeSyncRepository(), PlainDataEncrypter())
 
-        // Создаем базовую структуру для тестов
-        queries.insertProject("Проект", "Реж")
-        testProjectId = queries.lastInsertRowId().executeAsOne()
+        // Создаем базовую структуру для тестов (добавлен updatedAt = 0)
+        val projectId = "test-project-id"
+        queries.insertProject(projectId, "Проект", "Реж", 0L)
+        testProjectId = projectId
 
+        val scriptId = "test-script-id"
         queries.insertScriptFile(
+            id = scriptId,
             projectId = testProjectId,
             seriesNumber = 1L,
             title = "Сценарий",
@@ -50,11 +55,14 @@ class SceneRepositoryTest {
             createdAt = 123456789L,
             previousVersionId = null,
             revisionColor = "White",
-            uploadedBy = "User"
+            uploadedBy = "User",
+            updatedAt = 0L
         )
-        testScriptId = queries.lastInsertRowId().executeAsOne()
+        testScriptId = scriptId
 
+        val userDataId = "test-user-data-id"
         queries.insertSceneUserData(
+            id = userDataId,
             projectId = testProjectId,
             seriesNumber = 1L,
             sceneNumber = "1",
@@ -62,9 +70,10 @@ class SceneRepositoryTest {
             isInterior = 1L,
             timeOfDay = "ДЕНЬ",
             notes = null,
-            needsReview = 0L
+            needsReview = 0L,
+            updatedAt = 0L
         )
-        testUserDataId = queries.lastInsertRowId().executeAsOne()
+        testUserDataId = userDataId
     }
 
     @AfterTest
@@ -75,7 +84,15 @@ class SceneRepositoryTest {
 
     @Test
     fun testAddAndGetProp() = runTest {
-        queries.insertSceneVersion(testScriptId, testUserDataId, "Текст сцены", "hash", 0)
+        queries.insertSceneVersion(
+            id = "version-id",
+            scriptFileId = testScriptId,
+            sceneUserDataId = testUserDataId,
+            content = "Текст сцены",
+            contentHash = "hash",
+            positionIndex = 0,
+            updatedAt = 0L
+        )
 
         repository.addProp(testUserDataId, "Меч", "в руках меч", "Найти", 0, 10)
 
@@ -96,6 +113,6 @@ class SceneRepositoryTest {
 
         val updatedProps = repository.getPropsByProject(testProjectId).first()
         assertTrue(updatedProps.isNotEmpty(), "Props should exist")
-        assertEquals("Готово", updatedProps[0].status)
+        assertEquals("Готово", updatedProps[0].status.toString()) // Преобразуем статус в строку для сравнения
     }
 }

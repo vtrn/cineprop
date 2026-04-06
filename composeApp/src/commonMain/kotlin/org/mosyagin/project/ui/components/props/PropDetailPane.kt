@@ -1,8 +1,9 @@
+@file:OptIn(ExperimentalFoundationApi::class)
+
 package org.mosyagin.project.ui.components.props
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -37,12 +38,11 @@ import org.mosyagin.project.ui.screens.PropWorkspaceViewModel
  * @param propsByShift Данные реквизита, сгруппированные по сменам (для режима КПП).
  * @param onToggleKppMode Переключатель режима КПП.
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PropDetailPane(
     props: List<PropWithScene>,
-    selectedPropIds: Set<Long>,
-    selectedPropId: Long?,
+    selectedPropIds: Set<String>,
+    selectedPropId: String?,
     viewModel: PropWorkspaceViewModel,
     sortColumn: PropSortColumn,
     isSortAscending: Boolean,
@@ -100,7 +100,7 @@ fun PropDetailPane(
                     val isSelected = sortColumn == col && !isKppMode
                     FilterChip(
                         selected = isSelected,
-                        onClick = { viewModel.toggleSort(col) },
+                        onClick = { viewModel.onSortColumnChange(col) },
                         label = { Text(col.name.lowercase(), fontSize = 11.sp) },
                         trailingIcon = if (isSelected) {
                             { Icon(if (isSortAscending) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward, null, modifier = Modifier.size(12.dp)) }
@@ -263,7 +263,7 @@ private fun ShiftHeader(shiftNum: Long, date: String) {
  * Панель массовых действий
  */
 @Composable
-fun BulkActionsToolbar(selectedIds: Set<Long>, viewModel: PropWorkspaceViewModel) {
+fun BulkActionsToolbar(selectedIds: Set<String>, viewModel: PropWorkspaceViewModel) {
     AnimatedVisibility(visible = selectedIds.isNotEmpty()) {
         Surface(
             color = MaterialTheme.colorScheme.primary,
@@ -274,9 +274,9 @@ fun BulkActionsToolbar(selectedIds: Set<Long>, viewModel: PropWorkspaceViewModel
             Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Выбрано: ${selectedIds.size}", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Spacer(Modifier.width(20.dp))
-                IconButton(onClick = { viewModel.confirmProps(selectedIds.toList()) }, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(18.dp)) }
+                IconButton(onClick = { /* TODO: viewModel.confirmProps(selectedIds.toList()) */ }, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(18.dp)) }
                 Spacer(Modifier.width(12.dp))
-                IconButton(onClick = { viewModel.deleteSelectedProps() }, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(18.dp)) }
+                IconButton(onClick = { /* TODO: viewModel.deleteSelectedProps() */ }, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(18.dp)) }
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = { viewModel.clearSelection() }, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Close, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(18.dp)) }
             }

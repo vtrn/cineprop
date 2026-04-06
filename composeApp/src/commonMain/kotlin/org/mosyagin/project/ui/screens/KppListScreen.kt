@@ -34,7 +34,7 @@ import org.mosyagin.project.ui.components.AppLayoutType
 import org.mosyagin.project.ui.components.LocalAppLayoutType
 import org.mosyagin.project.util.rememberFilePickerLauncher
 
-data class KppListScreen(val projectId: Long) : Screen {
+data class KppListScreen(val projectId: String) : Screen {
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
@@ -107,7 +107,9 @@ data class KppListScreen(val projectId: Long) : Screen {
                                 Icon(Icons.Default.Event, tint = MaterialTheme.colorScheme.primary, contentDescription = null)
                             },
                             colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                            modifier = Modifier.clickable { }
+                            modifier = Modifier.clickable { 
+                                navigator.push(KppWorkspaceScreen(projectId))
+                            }
                         )
                     }
                 }

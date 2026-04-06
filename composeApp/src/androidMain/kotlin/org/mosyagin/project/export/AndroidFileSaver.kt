@@ -18,7 +18,7 @@ class AndroidFileSaver(private val context: Context) : FileSaver {
 
     private var pendingBytes: ByteArray? = null
 
-    override fun saveFile(fileName: String, mimeType: String, bytes: ByteArray) {
+    override suspend fun saveFile(fileName: String, mimeType: String, bytes: ByteArray) {
         pendingBytes = bytes
         
         // В реальном приложении здесь должен быть вызов ActivityResultLauncher.

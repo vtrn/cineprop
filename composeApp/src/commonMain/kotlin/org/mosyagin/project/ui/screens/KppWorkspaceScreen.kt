@@ -20,7 +20,7 @@ import org.mosyagin.project.ui.components.ThreePaneLayout
 import org.mosyagin.project.ui.components.CineCard
 import org.mosyagin.project.util.rememberFilePickerLauncher
 
-data class KppWorkspaceScreen(val projectId: Long) : Screen {
+data class KppWorkspaceScreen(val projectId: String) : Screen {
 
     @Composable
     override fun Content() {

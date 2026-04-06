@@ -40,7 +40,7 @@ import org.mosyagin.project.ui.components.LocalAppLayoutType
 /**
  * Главный экран Библии персонажей.
  */
-data class CharacterBibleScreen(val projectId: Long) : Screen {
+data class CharacterBibleScreen(val projectId: String) : Screen {
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
@@ -91,13 +91,15 @@ data class CharacterBibleScreen(val projectId: Long) : Screen {
  * Раскрывающаяся карточка персонажа.
  */
 @Composable
-fun ExpandableCharacterCard(actor: Actor, scriptFileId: Long?) {
+fun ExpandableCharacterCard(actor: Actor, scriptFileId: String?) {
     val repository = koinInject<SceneRepository>()
     var expanded by remember { mutableStateOf(false) }
 
     // Загружаем сцены и локации только если карточка развернута и есть ID сценария
     val actorScenes by remember(actor.id, expanded, scriptFileId) {
-        if (expanded && scriptFileId != null) repository.getScenesByActor(actor.id, scriptFileId)
+        if (expanded && scriptFileId != null) repository.getScenesByActor(actor.id,
+            scriptFileId.toString()
+        )
         else kotlinx.coroutines.flow.flowOf(emptyList())
     }.collectAsState(initial = emptyList())
 

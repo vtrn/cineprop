@@ -11,7 +11,7 @@ sealed class SceneMatch {
      * Полное совпадение текста и метаданных.
      */
     data class Exact(
-        val oldSceneUserDataId: Long,
+        val oldSceneUserDataId: String, // Изменено на String
         val scene: ParsedScene
     ) : SceneMatch()
 
@@ -19,7 +19,7 @@ sealed class SceneMatch {
      * Частичное совпадение (Fuzzy). Текст изменен, но сцена узнаваема.
      */
     data class Fuzzy(
-        val oldSceneUserDataId: Long,
+        val oldSceneUserDataId: String, // Изменено на String
         val scene: ParsedScene,
         val score: Double
     ) : SceneMatch()
@@ -35,7 +35,7 @@ sealed class SceneMatch {
      * Сцена, которая присутствовала в старой версии, но отсутствует в новой.
      */
     data class Deleted(
-        val oldSceneUserDataId: Long,
+        val oldSceneUserDataId: String, // Изменено на String
         val oldSceneNumber: String,
         val oldSceneTitle: String
     ) : SceneMatch()
@@ -44,7 +44,7 @@ sealed class SceneMatch {
      * Сложный случай: одна старая сцена была разделена на несколько новых.
      */
     data class Split(
-        val oldSceneUserDataId: Long,
+        val oldSceneUserDataId: String, // Изменено на String
         val newScenes: List<ParsedScene>
     ) : SceneMatch()
 
@@ -52,7 +52,7 @@ sealed class SceneMatch {
      * Сложный случай: несколько старых сцен были объединены в одну новую.
      */
     data class Merged(
-        val oldSceneUserIds: List<Long>,
+        val oldSceneUserIds: List<String>, // Изменено на String
         val newScene: ParsedScene
     ) : SceneMatch()
 }
