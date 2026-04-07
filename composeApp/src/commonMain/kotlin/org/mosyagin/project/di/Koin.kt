@@ -43,7 +43,8 @@ val databaseModule = module {
  * Модуль для ScreenModels (ViewModels).
  */
 val screenModelModule = module {
-    factory { ProjectListScreenModel(get(), get(), get()) }
+    factory { ProjectListScreenModel(get(), get(), get(), get()) }
+    factory { AuthScreenModel(get()) }
     
     factory { (sceneUserDataId: String, scriptFileId: String) -> 
         SceneDetailScreenModel(get(), sceneUserDataId, scriptFileId)
@@ -136,4 +137,7 @@ val appModule = module {
     single<ShiftRepository> { ShiftRepositoryImpl(get(), get()) }
     
     single<SettingsRepository> { SettingsRepositoryImpl(get()) }
+    
+    // Auth - ДЕЛАЕМ EAGER, чтобы он сразу начал слушать сессию
+    single<AuthRepository>(createdAtStart = true) { AuthRepositoryImpl(get()) }
 }

@@ -6,6 +6,7 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import org.mosyagin.project.Project
+import org.mosyagin.project.repository.AuthRepository
 import org.mosyagin.project.repository.ProjectRepository
 import org.mosyagin.project.repository.SyncEvent
 import org.mosyagin.project.repository.SyncManager
@@ -15,10 +16,14 @@ import org.mosyagin.project.repository.SyncRepository
 class ProjectListScreenModel(
     private val repository: ProjectRepository,
     private val syncRepository: SyncRepository,
-    private val syncManager: SyncManager
+    private val syncManager: SyncManager,
+    private val authRepository: AuthRepository
 ) : ScreenModel {
 
     private val syncEvents = MutableSharedFlow<SyncEvent>()
+
+    val currentUser = authRepository.currentUser
+        .stateIn(screenModelScope, SharingStarted.WhileSubscribed(5000), authRepository.getCurrentUserSync())
 
     init {
         syncEvents
@@ -44,16 +49,22 @@ class ProjectListScreenModel(
         }
     }
 
-    fun deleteProject(id: String) { // Изменено на String
+    fun deleteProject(id: String) {
         screenModelScope.launch {
             repository.deleteProject(id)
         }
     }
 
-    fun updateProject(id: String, name: String, director: String) { // Изменено на String
+    fun updateProject(id: String, name: String, director: String) {
         screenModelScope.launch {
             repository.updateProject(id, name, director)
             syncEvents.emit(SyncEvent("UPDATE", "Project", id))
+        }
+    }
+
+    fun signOut() {
+        screenModelScope.launch {
+            authRepository.signOut()
         }
     }
 }

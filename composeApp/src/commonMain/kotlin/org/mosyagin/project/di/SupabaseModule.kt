@@ -21,7 +21,11 @@ val supabaseModule = module {
         ) {
             httpEngine = engine
             install(Postgrest)
-            install(Auth)
+            install(Auth) {
+                // Добавьте эти строки:
+                scheme = "cineprop"
+                host = "auth"
+            }
             install(Storage)
             install(Realtime)
         }
