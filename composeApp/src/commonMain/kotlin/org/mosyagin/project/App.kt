@@ -29,6 +29,13 @@ fun App() {
         // Состояние для пропуска авторизации (локальный режим)
         var skipAuth by remember { mutableStateOf(false) }
         
+        // Сбрасываем skipAuth, если пользователь успешно авторизовался
+        LaunchedEffect(currentUser) {
+            if (currentUser != null) {
+                skipAuth = false
+            }
+        }
+        
         val isDarkTheme = when (themeMode) {
             "light" -> false
             "dark" -> true

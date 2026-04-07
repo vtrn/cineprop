@@ -3,6 +3,9 @@ package org.mosyagin.project.repository
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.OTP
+import io.github.jan.supabase.auth.providers.builtin.Email
+import io.github.jan.supabase.auth.providers.Google
+import io.github.jan.supabase.auth.providers.Apple
 import io.github.jan.supabase.auth.user.UserInfo
 import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.CoroutineScope
@@ -17,6 +20,11 @@ import kotlinx.coroutines.launch
 interface AuthRepository {
     val currentUser: Flow<UserInfo?>
     suspend fun sendMagicLink(email: String)
+    suspend fun signInWithPassword(email: String, password: String)
+    suspend fun signUpWithPassword(email: String, password: String)
+    suspend fun signInWithGoogle()
+    suspend fun signInWithApple()
+    suspend fun resetPassword(email: String)
     suspend fun signOut()
     fun getCurrentUserSync(): UserInfo?
 }
@@ -29,34 +37,24 @@ class AuthRepositoryImpl(
     override val currentUser: Flow<UserInfo?> = _currentUser.asStateFlow()
 
     init {
-        // Подписываемся на изменения состояния сессии
         supabase.auth.sessionStatus.onEach { status ->
-            println("AuthRepository: Session status changed to $status")
-            
             when (status) {
                 is SessionStatus.Authenticated -> {
-                    // Пытаемся взять пользователя из сессии
                     val user = status.session.user ?: supabase.auth.currentUserOrNull()
-                    
                     if (user != null) {
-                        println("AuthRepository: User found: ${user.email}")
                         _currentUser.value = user
                     } else {
-                        // Если статус Authenticated, но пользователя нет - запрашиваем его
-                        println("AuthRepository: Authenticated but no user info. Fetching...")
                         scope.launch {
                             try {
                                 val fetchedUser = supabase.auth.retrieveUserForCurrentSession()
-                                println("AuthRepository: User fetched successfully: ${fetchedUser.email}")
                                 _currentUser.value = fetchedUser
                             } catch (e: Exception) {
-                                println("AuthRepository: Failed to fetch user: ${e.message}")
+                                e.printStackTrace()
                             }
                         }
                     }
                 }
                 else -> {
-                    println("AuthRepository: Not authenticated. Setting user to null")
                     _currentUser.value = null
                 }
             }
@@ -67,6 +65,32 @@ class AuthRepositoryImpl(
         supabase.auth.signInWith(OTP, redirectUrl = "cineprop://auth") {
             this.email = email
         }
+    }
+
+    override suspend fun signInWithPassword(email: String, password: String) {
+        supabase.auth.signInWith(Email) {
+            this.email = email
+            this.password = password
+        }
+    }
+
+    override suspend fun signUpWithPassword(email: String, password: String) {
+        supabase.auth.signUpWith(Email) {
+            this.email = email
+            this.password = password
+        }
+    }
+
+    override suspend fun signInWithGoogle() {
+        supabase.auth.signInWith(Google, redirectUrl = "cineprop://auth")
+    }
+
+    override suspend fun signInWithApple() {
+        supabase.auth.signInWith(Apple, redirectUrl = "cineprop://auth")
+    }
+
+    override suspend fun resetPassword(email: String) {
+        supabase.auth.resetPasswordForEmail(email, redirectUrl = "cineprop://auth")
     }
 
     override suspend fun signOut() {
