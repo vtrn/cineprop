@@ -21,11 +21,13 @@ interface ProjectRepository {
     suspend fun addProject(name: String, director: String)
     suspend fun deleteProject(id: String)
     suspend fun updateProject(id: String, name: String, director: String)
+    suspend fun markProjectAsRemote(id: String)
 }
 
 class ProjectRepositoryImpl(
     private val queries: DatabaseQueries,
-    private val syncRepository: SyncRepository
+    private val syncRepository: SyncRepository,
+    private val authRepository: AuthRepository
 ) : ProjectRepository {
     override fun getAllProjects(): Flow<List<Project>> =
         queries.getAllProjects()
@@ -39,20 +41,41 @@ class ProjectRepositoryImpl(
 
     override suspend fun addProject(name: String, director: String) {
         val now = Clock.System.now().toEpochMilliseconds()
-        val id = generateUUID() // Генерируем уникальный ID на клиенте
+        val id = generateUUID()
+        val creatorEmail = authRepository.getCurrentUserSync()?.email
         
-        queries.insertProject(id, name, director, now)
-        syncRepository.enqueue("INSERT", "Project", id, null)
+        // Новые проекты по умолчанию локальные (isRemote = 0)
+        queries.insertProject(
+            id = id, 
+            name = name, 
+            director = director, 
+            updatedAt = now, 
+            isRemote = 0L, 
+            created_by = creatorEmail
+        )
+    }
+
+    override suspend fun markProjectAsRemote(id: String) {
+        queries.markProjectAsRemote(id)
     }
 
     override suspend fun deleteProject(id: String) {
+        val project = queries.getProjectById(id).executeAsOneOrNull()
         queries.deleteProject(id)
-        syncRepository.enqueue("DELETE", "Project", id, null)
+        
+        if (project?.isRemote == 1L) {
+            syncRepository.enqueue("DELETE", "Project", id, id, null)
+        }
     }
 
     override suspend fun updateProject(id: String, name: String, director: String) {
         val now = Clock.System.now().toEpochMilliseconds()
+        val project = queries.getProjectById(id).executeAsOneOrNull()
+        
         queries.updateProject(name, director, now, id)
-        syncRepository.enqueue("UPDATE", "Project", id, null)
+        
+        if (project?.isRemote == 1L) {
+            syncRepository.enqueue("UPDATE", "Project", id, id, null)
+        }
     }
 }

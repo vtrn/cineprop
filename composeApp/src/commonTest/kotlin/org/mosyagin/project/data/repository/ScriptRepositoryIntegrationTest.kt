@@ -67,7 +67,8 @@ class ScriptRepositoryIntegrationTest : KoinTest {
     @Test
     fun testParseAndSaveIntegration() = runTest {
         val projectId = "test-project-id"
-        queries.insertProject(projectId, "Интеграционный тест", "Режиссер", 0L)
+        // Добавлен created_by
+        queries.insertProject(projectId, "Интеграционный тест", "Режиссер", 0L, 0L, "test@example.com")
 
         val scriptText = """
             1. ИНТ. ОФИС - ДЕНЬ
@@ -101,7 +102,8 @@ class ScriptRepositoryIntegrationTest : KoinTest {
     @Test
     fun testActorsAreLinkedDuringParsing() = runTest {
         val projectId = "actors-test-id"
-        queries.insertProject(projectId, "Актеры", "Режиссер", 0L)
+        // Добавлен created_by
+        queries.insertProject(projectId, "Актеры", "Режиссер", 0L, 0L, "test@example.com")
 
         val scriptText = """
             1. ИНТ. КУХНЯ - ДЕНЬ
@@ -122,7 +124,7 @@ class ScriptRepositoryIntegrationTest : KoinTest {
         updateManager.executeUpdate(result.previewData)
 
         val scriptFiles = queries.getScriptsForProject(projectId).executeAsList()
-        val scriptFileId = scriptFiles.first().id
+        val scriptFileId = scriptFiles.last().id
         val scenes = queries.getScenesByProject(projectId, scriptFileId).executeAsList()
         
         assertTrue(scenes.isNotEmpty(), "Scenes should not be empty")

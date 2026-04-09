@@ -74,7 +74,7 @@ data class ShiftDetailScreen(val shiftId: String) : Screen {
                             modifier = Modifier.fillMaxWidth().clickable {
                                 navigator.push(SceneDetailScreen(
                                     sceneUserDataId = scene.id, 
-                                    projectId = scene.projectId,
+                                    projectId = scene.project_id,
                                     scriptFileId = scene.scriptFileId
                                 ))
                             },

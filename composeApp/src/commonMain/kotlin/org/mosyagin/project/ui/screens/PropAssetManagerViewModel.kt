@@ -18,7 +18,7 @@ data class PropAssetManagerUiState(
     val searchQuery: String = "",
     val selectedCategory: String? = null,
     val selectedStatus: PropStatus? = null,
-    val selectedPropIds: Set<String> = emptySet(), // Изменено на String
+    val selectedPropIds: Set<String> = emptySet(), 
     val categories: List<String> = emptyList(),
     val error: String? = null
 )
@@ -27,7 +27,7 @@ data class PropAssetManagerUiState(
 class PropAssetManagerViewModel(
     private val repository: SceneRepository,
     private val syncRepository: SyncRepository,
-    private val projectId: String // Изменено на String
+    private val projectId: String 
 ) : ScreenModel {
 
     private val _uiState = MutableStateFlow(PropAssetManagerUiState())
@@ -39,7 +39,7 @@ class PropAssetManagerViewModel(
         syncEvents
             .debounce(1500L)
             .onEach { event ->
-                syncRepository.enqueue(event.operation, event.tableName, event.recordId, event.dataJson)
+                syncRepository.enqueue(event.operation, event.tableName, event.recordId, projectId, event.dataJson)
             }
             .launchIn(screenModelScope)
             
@@ -107,7 +107,7 @@ class PropAssetManagerViewModel(
         }
     }
 
-    fun togglePropSelection(propId: String) { // Изменено на String
+    fun togglePropSelection(propId: String) { 
         _uiState.update { state ->
             val newSelection = if (state.selectedPropIds.contains(propId)) {
                 state.selectedPropIds - propId
@@ -128,35 +128,35 @@ class PropAssetManagerViewModel(
         _uiState.update { it.copy(selectedPropIds = emptySet()) }
     }
 
-    fun updatePropStatus(propId: String, status: PropStatus) { // Изменено на String
+    fun updatePropStatus(propId: String, status: PropStatus) { 
         screenModelScope.launch {
             repository.updatePropStatus(propId, status.displayName)
             syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 
-    fun updatePropCategory(propId: String, category: String) { // Изменено на String
+    fun updatePropCategory(propId: String, category: String) { 
         screenModelScope.launch {
             repository.updatePropCategory(propId, category)
             syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 
-    fun updatePropQuantity(propId: String, quantity: Int) { // Изменено на String
+    fun updatePropQuantity(propId: String, quantity: Int) { 
         screenModelScope.launch {
             repository.updatePropQuantity(propId, quantity)
             syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 
-    fun updatePropCrossCutting(propId: String, isCrossCutting: Boolean) { // Изменено на String
+    fun updatePropCrossCutting(propId: String, isCrossCutting: Boolean) { 
         screenModelScope.launch {
             repository.updatePropCrossCutting(propId, isCrossCutting)
             syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))
         }
     }
 
-    fun updatePropNote(propId: String, note: String?) { // Изменено на String
+    fun updatePropNote(propId: String, note: String?) {
         screenModelScope.launch {
             repository.updatePropNote(propId, note)
             syncEvents.emit(SyncEvent("UPDATE", "Prop", propId))

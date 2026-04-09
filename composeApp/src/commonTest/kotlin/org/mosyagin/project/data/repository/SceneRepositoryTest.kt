@@ -40,15 +40,23 @@ class SceneRepositoryTest {
         queries = database.databaseQueries
         repository = SceneRepositoryImpl(queries, FakeSyncRepository(), PlainDataEncrypter())
 
-        // Создаем базовую структуру для тестов (добавлен updatedAt = 0)
+        // Создаем базовую структуру для тестов
         val projectId = "test-project-id"
-        queries.insertProject(projectId, "Проект", "Реж", 0L)
+        // Добавлен 6-й параметр created_by
+        queries.insertProject(
+            id = projectId, 
+            name = "Проект", 
+            director = "Реж", 
+            updatedAt = 0L, 
+            isRemote = 0L, 
+            created_by = "test@example.com"
+        )
         testProjectId = projectId
 
         val scriptId = "test-script-id"
         queries.insertScriptFile(
             id = scriptId,
-            projectId = testProjectId,
+            project_id = testProjectId, // Изменено с projectId на project_id
             seriesNumber = 1L,
             title = "Сценарий",
             filePath = "path/to/file",
@@ -63,7 +71,7 @@ class SceneRepositoryTest {
         val userDataId = "test-user-data-id"
         queries.insertSceneUserData(
             id = userDataId,
-            projectId = testProjectId,
+            project_id = testProjectId, // Изменено с projectId на project_id
             seriesNumber = 1L,
             sceneNumber = "1",
             location = "ЛОКАЦИЯ",

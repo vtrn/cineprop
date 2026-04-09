@@ -83,9 +83,9 @@ kotlin {
 
             implementation("app.cash.sqldelight:runtime:${libs.versions.sqldelight.get()}")
             implementation("app.cash.sqldelight:coroutines-extensions:${libs.versions.sqldelight.get()}")
-            
-            implementation(compose.materialIconsExtended) 
-            
+
+            implementation(compose.materialIconsExtended)
+
             implementation(libs.kotlinx.datetime)
 
             implementation(libs.supabase.postgrest)
@@ -176,7 +176,29 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Exe)
             packageName = "CineApp"
-            macOS { bundleID = "org.mosyagin.cineapp" }
+            
+            // Добавляем модуль java.sql для работы JDBC драйверов (SQLite)
+            modules("java.sql")
+
+            macOS { 
+                bundleID = "org.mosyagin.cineapp"
+                infoPlist {
+                    // ИСПРАВЛЕНО: extraKeysRawXml вместо extraKeys
+                    extraKeysRawXml = """
+                        <key>CFBundleURLTypes</key>
+                        <array>
+                            <dict>
+                                <key>CFBundleURLName</key>
+                                <string>CineProp Auth</string>
+                                <key>CFBundleURLSchemes</key>
+                                <array>
+                                    <string>cineprop</string>
+                                </array>
+                            </dict>
+                        </array>
+                    """.trimIndent()
+                }
+            }
         }
     }
 }

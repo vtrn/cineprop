@@ -48,34 +48,30 @@ class DebounceSyncTest {
             fileSaver = MockFileSaver()
         )
 
-        // 1. Делаем 10 быстрых изменений статуса реквизита
+        // Изменяем статус 10 раз
         repeat(10) {
             viewModel.updatePropStatus("1", PropStatus.READY)
             delay(100) 
         }
 
-        // 2. Проверяем сразу — в очереди должно быть 0 записей
         runCurrent()
-        assertEquals(0, syncRepository.getSyncCount(), "Should be 0 records before debounce timeout")
+        assertEquals(0, syncRepository.getSyncCount())
 
-        // 3. Продвигаем время вперед на 2 секунды (debounce 1500ms)
         advanceTimeBy(2000)
         runCurrent()
 
-        // 4. Теперь должна появиться ровно 1 запись в SyncQueue
-        assertEquals(1, syncRepository.getSyncCount(), "Should be exactly 1 record in SyncQueue after 10 rapid changes")
+        assertEquals(1, syncRepository.getSyncCount())
     }
 }
 
-// Mock/Fake классы для теста
 class FakeSyncRepositoryLocal : SyncRepository {
     private val queue = MutableStateFlow<List<SyncQueue>>(emptyList())
     
-    override suspend fun enqueue(operation: String, tableName: String, recordId: String, dataJson: String?) {
-        enqueueSync(operation, tableName, recordId, dataJson)
+    override suspend fun enqueue(operation: String, tableName: String, recordId: String, projectId: String?, dataJson: String?) {
+        enqueueSync(operation, tableName, recordId, projectId, dataJson)
     }
 
-    override fun enqueueSync(operation: String, tableName: String, recordId: String, dataJson: String?) {
+    override fun enqueueSync(operation: String, tableName: String, recordId: String, projectId: String?, dataJson: String?) {
         val newQueue = queue.value.toMutableList()
         newQueue.add(
             SyncQueue(
@@ -83,6 +79,7 @@ class FakeSyncRepositoryLocal : SyncRepository {
                 operation = operation,
                 tableName = tableName,
                 recordId = recordId,
+                project_id = projectId,
                 dataJson = dataJson,
                 updatedAt = 0L,
                 synced = 0L

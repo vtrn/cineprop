@@ -1,10 +1,13 @@
 package org.mosyagin.project.di
 
+import io.ktor.client.engine.*
 import io.ktor.client.engine.okhttp.*
 import org.koin.core.module.Module
 import org.koin.dsl.module
 import org.mosyagin.project.export.*
 import org.mosyagin.project.crypto.*
+import org.mosyagin.project.util.NetworkObserver
+import org.mosyagin.project.util.AndroidNetworkObserver
 import java.util.concurrent.TimeUnit
 
 /**
@@ -17,8 +20,11 @@ actual val platformModule: Module = module {
     // Провайдер ключей для Android (использует KeyStore)
     single<KeyProvider> { AndroidKeyProvider(get()) }
 
+    // Наблюдатель за сетью для Android
+    single<NetworkObserver> { AndroidNetworkObserver(get()) }
+
     // Конфигурация OkHttp для Supabase Realtime (WebSockets)
-    single {
+    single<HttpClientEngine> {
         OkHttp.create {
             config {
                 pingInterval(30, TimeUnit.SECONDS) // Поддерживаем соединение живым

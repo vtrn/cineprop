@@ -1,0 +1,10 @@
+-- Миграция для добавления таблицы участников проекта
+CREATE TABLE ProjectMember (
+    id TEXT PRIMARY KEY,
+    projectId TEXT NOT NULL,
+    email TEXT NOT NULL,
+    role TEXT NOT NULL, -- 'owner', 'editor', 'viewer'
+    updatedAt INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE,
+    UNIQUE(projectId, email)
+);

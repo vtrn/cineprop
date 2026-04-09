@@ -17,7 +17,7 @@ import org.mosyagin.project.repository.SyncRepository
 
 // Модель данных инспектора
 data class SceneInspectorData(
-    val sceneId: String, // Изменено на String
+    val sceneId: String, 
     val props: List<Prop>,
     val actors: List<Actor>,
     val needsReview: Boolean,
@@ -29,7 +29,7 @@ enum class SceneFilter { ALL, MODIFIED, NEW }
 
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 class SceneWorkspaceViewModel(
-    private val projectId: String, // Изменено на String
+    private val projectId: String, 
     private val sceneRepository: SceneRepository,
     private val syncRepository: SyncRepository
 ) : ScreenModel {
@@ -40,12 +40,12 @@ class SceneWorkspaceViewModel(
         syncEvents
             .debounce(1500L)
             .onEach { event ->
-                syncRepository.enqueue(event.operation, event.tableName, event.recordId, event.dataJson)
+                syncRepository.enqueue(event.operation, event.tableName, event.recordId, projectId, event.dataJson)
             }
             .launchIn(screenModelScope)
     }
 
-    private val _selectedSceneId = MutableStateFlow<String?>(null) // Изменено на String
+    private val _selectedSceneId = MutableStateFlow<String?>(null) 
     val selectedSceneId: StateFlow<String?> = _selectedSceneId.asStateFlow()
 
     private val _searchQuery = MutableStateFlow("")
@@ -106,7 +106,7 @@ class SceneWorkspaceViewModel(
         }
     }.stateIn(screenModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    fun onSceneSelected(id: String) { // Изменено на String
+    fun onSceneSelected(id: String) { 
         _selectedSceneId.value = id
     }
 
@@ -124,13 +124,13 @@ class SceneWorkspaceViewModel(
         category: String,
         status: String,
         quantity: Int,
-        actorId: String?, // Изменено на String
+        actorId: String?, 
         note: String?,
-        existingPropId: String? = null // Изменено на String
+        existingPropId: String? = null 
     ) {
         val sceneId = _selectedSceneId.value ?: return
         screenModelScope.launch {
-            var targetGroupId: String? = null // Изменено на String
+            var targetGroupId: String? = null 
             if (existingPropId != null) {
                 val existingProp = allProjectProps.value.find { it.id == existingPropId }
                 targetGroupId = existingProp?.groupId ?: existingPropId
@@ -167,7 +167,7 @@ class SceneWorkspaceViewModel(
         }
     }
 
-    fun deleteProp(propId: String) { // Изменено на String
+    fun deleteProp(propId: String) {
         screenModelScope.launch {
             sceneRepository.deleteProp(propId)
         }
