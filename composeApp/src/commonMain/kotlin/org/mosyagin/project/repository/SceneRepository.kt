@@ -93,6 +93,16 @@ class SceneRepositoryImpl(
     private val syncRepository: SyncRepository,
     private val encrypter: DataEncrypter
 ) : SceneRepository {
+    
+    private fun getProjectIdForScene(sceneId: String): String? {
+        return queries.getSceneUserDataById(sceneId).executeAsOneOrNull()?.project_id
+    }
+
+    private fun getProjectIdForProp(propId: String): String? {
+        val prop = queries.getPropsByIds(listOf(propId)).executeAsOneOrNull() ?: return null
+        return getProjectIdForScene(prop.sceneUserDataId)
+    }
+
     override fun getSceneById(sceneId: String, scriptFileId: String): Flow<GetSceneById?> =
         queries.getSceneById(sceneId, scriptFileId)
             .asFlow()
@@ -112,13 +122,13 @@ class SceneRepositoryImpl(
             .map { list -> list.map { it.copy(content = encrypter.decrypt(it.content) ?: "") } }
 
     override fun getScenesByProject(projectId: String, scriptFileId: String): Flow<List<GetScenesByProject>> =
-        queries.getScenesByProject(projectId, scriptFileId)
+        queries.getScenesByProject(project_id = projectId, scriptFileId = scriptFileId)
             .asFlow()
             .mapToList(Dispatchers.IO)
             .map { list -> list.map { it.copy(content = encrypter.decrypt(it.content) ?: "", notes = encrypter.decrypt(it.notes)) } }
 
     override fun getLatestScenesForProject(projectId: String): Flow<List<GetLatestScenesForProject>> =
-        queries.getLatestScenesForProject(projectId)
+        queries.getLatestScenesForProject(projectId = projectId)
             .asFlow()
             .mapToList(Dispatchers.IO)
             .map { list -> list.map { it.copy(content = encrypter.decrypt(it.content) ?: "", notes = encrypter.decrypt(it.notes)) } }
@@ -129,7 +139,7 @@ class SceneRepositoryImpl(
             .mapToList(Dispatchers.IO)
 
     override fun getActorsByProject(projectId: String): Flow<List<Actor>> =
-        queries.getActorsByProject(projectId)
+        queries.getActorsByProject(project_id = projectId)
             .asFlow()
             .mapToList(Dispatchers.IO)
 
@@ -172,11 +182,10 @@ class SceneRepositoryImpl(
             }
 
     override fun getPropsByProject(projectId: String): Flow<List<PropWithScene>> =
-        queries.getPropsByProject(projectId)
+        queries.getPropsByProject(project_id = projectId)
             .asFlow()
             .mapToList(Dispatchers.IO)
             .map { list ->
-                // Группируем по groupId, а если его нет (это родитель) - по его собственному id
                 val groupScenes = list.groupBy { it.groupId ?: it.id }
                     .mapValues { entry -> 
                         entry.value.map { "${it.seriesNumber}-${it.sceneNumber}" }.distinct() 
@@ -202,19 +211,18 @@ class SceneRepositoryImpl(
                         sceneNumber = prop.sceneNumber,
                         isOrphaned = prop.orphaned == 1L,
                         groupId = prop.groupId,
-                        // Стек показываем только если сцен в группе больше одной
                         allSceneNumbers = if (allScenes.size > 1) allScenes else emptyList()
                     )
                 }
             }
 
     override fun getShiftsByProject(projectId: String): Flow<List<Shift>> =
-        queries.getShiftsByProject(projectId)
+        queries.getShiftsByProject(project_id = projectId)
             .asFlow()
             .mapToList(Dispatchers.IO)
 
     override suspend fun getSceneUserDataIdBySeriesAndNumber(projectId: String, series: Long, sceneNumber: String): String? {
-        return queries.getSceneUserDataBySeriesAndNumber(projectId, series, sceneNumber).executeAsOneOrNull()?.id
+        return queries.getSceneUserDataBySeriesAndNumber(project_id = projectId, seriesNumber = series, sceneNumber = sceneNumber).executeAsOneOrNull()?.id
     }
 
     override suspend fun addPropFull(
@@ -232,83 +240,95 @@ class SceneRepositoryImpl(
         val id = generateUUID()
         val now = Clock.System.now().toEpochMilliseconds()
         val encryptedNote = encrypter.encrypt(note)
+        val projectId = getProjectIdForScene(sceneUserDataId)
         queries.insertFullProp(
             id, sceneUserDataId, name, anchor, status, category, "Обстановочный",
             encryptedNote, null, if (isCrossCutting) 1L else 0L, quantity.toLong(), actorId,
             0, 0, 0, groupId, now
         )
-        syncRepository.enqueue("INSERT", "Prop", id, null)
+        syncRepository.enqueue("INSERT", "Prop", id, projectId, null)
         return id
     }
 
     override suspend fun addProp(sceneUserDataId: String, name: String, anchor: String, status: String, startOffset: Long, endOffset: Long): String {
         val id = generateUUID()
         val now = Clock.System.now().toEpochMilliseconds()
+        val projectId = getProjectIdForScene(sceneUserDataId)
         queries.insertFullProp(
             id, sceneUserDataId, name, anchor, status, "Прочее", "Обстановочный",
             null, null, 0, 1, null, startOffset, endOffset, 0, null, now
         )
-        syncRepository.enqueue("INSERT", "Prop", id, null)
+        syncRepository.enqueue("INSERT", "Prop", id, projectId, null)
         return id
     }
 
     override suspend fun updatePropStatus(propId: String, newStatus: String) {
         val now = Clock.System.now().toEpochMilliseconds()
+        val projectId = getProjectIdForProp(propId)
         queries.updatePropStatus(newStatus, now, propId)
-        syncRepository.enqueue("UPDATE", "Prop", propId, null)
+        syncRepository.enqueue("UPDATE", "Prop", propId, projectId, null)
     }
 
     override suspend fun deleteProp(propId: String) {
+        val projectId = getProjectIdForProp(propId)
         queries.deleteProp(propId)
-        syncRepository.enqueue("DELETE", "Prop", propId, null)
+        syncRepository.enqueue("DELETE", "Prop", propId, projectId, null)
     }
 
     override suspend fun updateSceneUserDataReviewStatus(needsReview: Long, id: String) {
         val now = Clock.System.now().toEpochMilliseconds()
+        val projectId = getProjectIdForScene(id)
         queries.updateSceneUserDataReviewStatus(needsReview, now, id)
-        syncRepository.enqueue("UPDATE", "SceneUserData", id, null)
+        syncRepository.enqueue("UPDATE", "SceneUserData", id, projectId, null)
     }
 
     override suspend fun updatePropCategory(propId: String, category: String) {
         val now = Clock.System.now().toEpochMilliseconds()
+        val projectId = getProjectIdForProp(propId)
         queries.updatePropCategory(category, now, propId)
-        syncRepository.enqueue("UPDATE", "Prop", propId, null)
+        syncRepository.enqueue("UPDATE", "Prop", propId, projectId, null)
     }
 
     override suspend fun updatePropNote(propId: String, note: String?) {
         val now = Clock.System.now().toEpochMilliseconds()
         val encryptedNote = encrypter.encrypt(note)
+        val projectId = getProjectIdForProp(propId)
         queries.updatePropNote(encryptedNote, now, propId)
-        syncRepository.enqueue("UPDATE", "Prop", propId, null)
+        syncRepository.enqueue("UPDATE", "Prop", propId, projectId, null)
     }
 
     override suspend fun updatePropQuantity(propId: String, quantity: Int) {
         val now = Clock.System.now().toEpochMilliseconds()
+        val projectId = getProjectIdForProp(propId)
         queries.updatePropQuantity(quantity.toLong(), now, propId)
-        syncRepository.enqueue("UPDATE", "Prop", propId, null)
+        syncRepository.enqueue("UPDATE", "Prop", propId, projectId, null)
     }
 
     override suspend fun updatePropCrossCutting(propId: String, isCrossCutting: Boolean) {
         val now = Clock.System.now().toEpochMilliseconds()
+        val projectId = getProjectIdForProp(propId)
         queries.updatePropCrossCutting(if (isCrossCutting) 1L else 0L, now, propId)
-        syncRepository.enqueue("UPDATE", "Prop", propId, null)
+        syncRepository.enqueue("UPDATE", "Prop", propId, projectId, null)
     }
 
     override suspend fun updatePropActor(propId: String, actorId: String?) {
         val now = Clock.System.now().toEpochMilliseconds()
+        val projectId = getProjectIdForProp(propId)
         queries.updatePropActor(actorId, now, propId)
-        syncRepository.enqueue("UPDATE", "Prop", propId, null)
+        syncRepository.enqueue("UPDATE", "Prop", propId, projectId, null)
     }
 
     override suspend fun updatePropType(propId: String, propType: String) {
         val now = Clock.System.now().toEpochMilliseconds()
+        val projectId = getProjectIdForProp(propId)
         queries.updatePropType(propType, now, propId)
-        syncRepository.enqueue("UPDATE", "Prop", propId, null)
+        syncRepository.enqueue("UPDATE", "Prop", propId, projectId, null)
     }
 
     override suspend fun updatePropGroupId(propId: String, groupId: String?) {
         val now = Clock.System.now().toEpochMilliseconds()
+        val projectId = getProjectIdForProp(propId)
         queries.updatePropGroupId(groupId, now, propId)
-        syncRepository.enqueue("UPDATE", "Prop", propId, null)
+        syncRepository.enqueue("UPDATE", "Prop", propId, projectId, null)
     }
 }

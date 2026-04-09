@@ -12,9 +12,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -88,10 +86,13 @@ private fun NavIcon(
 fun AdaptiveScaffold(
     isInProject: Boolean = false,
     currentSection: String = "projects",
+    projectId: String? = null,
     onBackToProjects: () -> Unit = {},
     onSectionSelect: (String) -> Unit = {},
     content: @Composable (AppLayoutType) -> Unit
 ) {
+    var isTeamPanelOpen by remember { mutableStateOf(false) }
+
     BoxWithConstraints {
         val isDesktop = maxWidth > 800.dp
         val layoutType = if (isDesktop) AppLayoutType.DESKTOP else AppLayoutType.MOBILE
@@ -100,7 +101,7 @@ fun AdaptiveScaffold(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surface) // Фон всей подложки
+                    .background(MaterialTheme.colorScheme.surface)
             ) {
                 if (isDesktop) {
                     Row(modifier = Modifier.fillMaxSize()) {
@@ -182,6 +183,14 @@ fun AdaptiveScaffold(
                                     isSelected = currentSection == "bible",
                                     onClick = { onSectionSelect("bible") }
                                 )
+                                
+                                // НОВАЯ ИКОНКА: Команда
+                                NavIcon(
+                                    imageVector = Icons.Default.Group,
+                                    label = "Команда",
+                                    isSelected = isTeamPanelOpen,
+                                    onClick = { isTeamPanelOpen = !isTeamPanelOpen }
+                                )
 
                                 Spacer(modifier = Modifier.weight(1f))
 
@@ -204,12 +213,20 @@ fun AdaptiveScaffold(
                                     clip = false
                                 )
                                 .clip(RoundedCornerShape(16.dp))
-                                .background(MaterialTheme.colorScheme.background) // Основной цвет контента
+                                .background(MaterialTheme.colorScheme.background)
                                 .border(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
                         ) {
                             content(layoutType)
                         }
                     }
+
+                    // ВЫЕЗЖАЮЩАЯ ПАНЕЛЬ КОМАНДЫ
+                    TeamPanel(
+                        isOpen = isTeamPanelOpen,
+                        projectId = projectId,
+                        onClose = { isTeamPanelOpen = false }
+                    )
+
                 } else {
                     Box(modifier = Modifier.fillMaxSize()) {
                         content(layoutType)

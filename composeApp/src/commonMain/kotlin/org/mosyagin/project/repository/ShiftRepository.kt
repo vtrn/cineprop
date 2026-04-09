@@ -25,7 +25,7 @@ class ShiftRepositoryImpl(
     private val syncRepository: SyncRepository
 ) : ShiftRepository {
     override fun getShiftsByProject(projectId: String): Flow<List<Shift>> =
-        queries.getShiftsByProject(projectId)
+        queries.getShiftsByProject(project_id = projectId)
             .asFlow()
             .mapToList(Dispatchers.Default)
 
@@ -46,18 +46,18 @@ class ShiftRepositoryImpl(
         
         val existing = queries.getShiftById(id).executeAsOneOrNull()
         if (existing == null) {
-            queries.insertShift(id, projectId, shiftNumber, date, now)
-            syncRepository.enqueue("INSERT", "Shift", id, null)
+            queries.insertShift(id = id, project_id = projectId, shiftNumber = shiftNumber, date = date, updatedAt = now)
+            syncRepository.enqueue("INSERT", "Shift", id, projectId, null)
         }
         return id
     }
 
     override suspend fun linkSceneToShift(shiftId: String, sceneUserDataId: String, position: Long) {
+        val shift = queries.getShiftById(shiftId).executeAsOneOrNull()
         queries.linkShiftToScene(shiftId, sceneUserDataId, position)
-        // Синхронизируем связь. Используем составной ID для очереди
-        syncRepository.enqueue("INSERT", "ShiftScene", "${shiftId}|${sceneUserDataId}", null)
+        syncRepository.enqueue("INSERT", "ShiftScene", "${shiftId}|${sceneUserDataId}", shift?.project_id, null)
     }
 
     override suspend fun getShiftByNumber(projectId: String, shiftNumber: Long): Shift? =
-        queries.getShiftByNumber(projectId, shiftNumber).executeAsOneOrNull()
+        queries.getShiftByNumber(project_id = projectId, shiftNumber = shiftNumber).executeAsOneOrNull()
 }

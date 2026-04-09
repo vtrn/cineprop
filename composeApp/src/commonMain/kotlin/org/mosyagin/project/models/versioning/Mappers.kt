@@ -10,7 +10,7 @@ import org.mosyagin.project.GetScenesByProject
 
 fun DbScriptFile.toDomain(): ScriptFile = ScriptFile(
     id = id,
-    projectId = projectId,
+    projectId = project_id,
     seriesNumber = seriesNumber,
     title = title,
     filePath = filePath,
@@ -22,7 +22,7 @@ fun DbScriptFile.toDomain(): ScriptFile = ScriptFile(
 
 fun DbSceneUserData.toDomain(): SceneUserData = SceneUserData(
     id = id,
-    projectId = projectId,
+    projectId = project_id,
     seriesNumber = seriesNumber,
     sceneNumber = sceneNumber,
     location = location,
@@ -56,7 +56,7 @@ fun DbProp.toDomain(): Prop = Prop(
 
 fun DbActor.toDomain(): SceneCharacter = SceneCharacter(
     id = id,
-    projectId = projectId,
+    projectId = project_id,
     name = name
 )
 
@@ -66,7 +66,7 @@ fun GetSceneById.toSceneWithUserData(props: List<Prop>, characters: List<SceneCh
     SceneWithUserData(
         userData = SceneUserData(
             id = id,
-            projectId = projectId,
+            projectId = project_id,
             seriesNumber = seriesNumber,
             sceneNumber = sceneNumber,
             location = location,
@@ -89,7 +89,7 @@ fun GetSceneById.toSceneWithUserData(props: List<Prop>, characters: List<SceneCh
 
 fun GetScenesByProject.toUserData(): SceneUserData = SceneUserData(
     id = id,
-    projectId = projectId,
+    projectId = project_id,
     seriesNumber = seriesNumber,
     sceneNumber = sceneNumber,
     location = location,

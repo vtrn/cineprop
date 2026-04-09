@@ -10,7 +10,8 @@ import org.mosyagin.project.db.CinePropDatabase
 import org.mosyagin.project.db.createTestDriver
 import org.mosyagin.project.repository.FakeSyncRepository
 import org.mosyagin.project.repository.ProjectRepositoryImpl
-import org.mosyagin.project.repository.SceneRepositoryImpl
+import org.mosyagin.project.repository.AuthRepository
+import org.mosyagin.project.repository.FakeAuthRepository
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -38,16 +39,18 @@ class ProjectRepositoryTest {
 
         val database = CinePropDatabase(driver)
         queries = database.databaseQueries
-        repository = ProjectRepositoryImpl(queries, FakeSyncRepository())
+        val authRepo = FakeAuthRepository()
+        repository = ProjectRepositoryImpl(queries, FakeSyncRepository(), authRepo)
 
         // СОЗДАЕМ ОБЯЗАТЕЛЬНУЮ ИЕРАРХИЮ
         val projectId = "test-project-id"
-        queries.insertProject(projectId, "Test Project", "Director", 0L)
+        // Добавлен 6-й параметр created_by
+        queries.insertProject(projectId, "Test Project", "Director", 0L, 0L, "test@example.com")
 
         val scriptId = "test-script-id"
         queries.insertScriptFile(
             id = scriptId,
-            projectId = projectId,
+            project_id = projectId,
             seriesNumber = 1L,
             title = "Version 1",
             filePath = "/mock/path",
@@ -61,7 +64,7 @@ class ProjectRepositoryTest {
         val userDataId = "test-user-data-id"
         queries.insertSceneUserData(
             id = userDataId,
-            projectId = projectId,
+            project_id = projectId,
             seriesNumber = 1L,
             sceneNumber = "1",
             location = "Lobby",

@@ -43,7 +43,7 @@ val databaseModule = module {
  * Модуль для ScreenModels (ViewModels).
  */
 val screenModelModule = module {
-    factory { ProjectListScreenModel(get(), get(), get(), get()) }
+    factory { ProjectListScreenModel(get(), get(), get(), get(), get(), get()) }
     factory { AuthScreenModel(get()) }
     
     factory { (sceneUserDataId: String, scriptFileId: String) -> 
@@ -103,21 +103,17 @@ val appModule = module {
     single { ScriptParser() }
     single { KppParser(get(), get()) }
     
-    // ScriptUpdateManager (queries, parser, syncRepository, encrypter)
     single { ScriptUpdateManager(get(), get(), get(), get()) }
     
-    // 1. Очередь синхронизации
     single<SyncRepository> { SyncRepositoryImpl(get()) }
     
-    // 2. Менеджер синхронизации
-    single { SyncManager(get(), get(), get()) }
+    // Обновлено: теперь SyncManager принимает 5 параметров, включая AuthRepository
+    single { SyncManager(get(), get(), get(), get(), get()) }
     
-    // 3. Шифрование данных (keyProvider, settingsRepository)
     single<DataEncrypter> {
         AesEncrypter(get(), get())
     }
     
-    // 4. Инициализируем связь один раз при старте
     single(createdAtStart = true) {
         val repo = get<SyncRepository>()
         val manager = get<SyncManager>()
@@ -125,12 +121,10 @@ val appModule = module {
         "SyncLinkInitialized"
     }
     
-    single<ProjectRepository> { ProjectRepositoryImpl(get(), get()) }
+    single<ProjectRepository> { ProjectRepositoryImpl(get(), get(), get()) }
     
-    // SceneRepository (queries, syncRepository, encrypter)
     single<SceneRepository> { SceneRepositoryImpl(get(), get(), get()) }
 
-    // ScriptRepository (queries, parser, syncRepository, encrypter)
     single<ScriptRepository> { ScriptRepositoryImpl(get(), get(), get(), get()) }
 
     single<KppRepository> { KppRepositoryImpl(get(), get()) }
@@ -138,6 +132,7 @@ val appModule = module {
     
     single<SettingsRepository> { SettingsRepositoryImpl(get()) }
     
-    // Auth - ДЕЛАЕМ EAGER, чтобы он сразу начал слушать сессию
     single<AuthRepository>(createdAtStart = true) { AuthRepositoryImpl(get()) }
+
+    single<MemberRepository> { MemberRepositoryImpl(get(), get()) }
 }

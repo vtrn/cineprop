@@ -1,0 +1,6 @@
+-- Миграция для добавления projectId в SyncQueue
+ALTER TABLE SyncQueue ADD COLUMN projectId TEXT;
+
+-- Обновляем существующие записи в очереди, если это возможно.
+-- Для проектов recordId и есть projectId.
+UPDATE SyncQueue SET projectId = recordId WHERE tableName = 'Project';

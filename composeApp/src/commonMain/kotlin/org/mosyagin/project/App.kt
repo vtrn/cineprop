@@ -26,10 +26,8 @@ fun App() {
         val themeMode by settingsRepository.getThemeMode().collectAsState("system")
         val currentUser by authRepository.currentUser.collectAsState(null)
         
-        // Состояние для пропуска авторизации (локальный режим)
         var skipAuth by remember { mutableStateOf(false) }
         
-        // Сбрасываем skipAuth, если пользователь успешно авторизовался
         LaunchedEffect(currentUser) {
             if (currentUser != null) {
                 skipAuth = false
@@ -47,7 +45,6 @@ fun App() {
                 modifier = Modifier.fillMaxSize(),
                 color = MaterialTheme.colorScheme.background
             ) {
-                // Если пользователь не залогинен и не нажал "работать локально"
                 if (currentUser == null && !skipAuth) {
                     Navigator(AuthScreen(onSkipAuth = { skipAuth = true })) { navigator ->
                         SlideTransition(navigator)
@@ -137,6 +134,7 @@ fun App() {
                         AdaptiveScaffold(
                             isInProject = isInProject,
                             currentSection = currentSection,
+                            projectId = activeProjectId, // Передаем активный ID проекта
                             onBackToProjects = {
                                 navigator.popUntilRoot()
                             },

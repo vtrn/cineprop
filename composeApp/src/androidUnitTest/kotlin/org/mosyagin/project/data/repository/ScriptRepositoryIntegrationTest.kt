@@ -33,7 +33,8 @@ class ScriptRepositoryAndroidIntegrationTest {
     @Test
     fun testParseAndSaveIntegration() = runTest {
         val projectId = "test-project-id"
-        queries.insertProject(projectId, "Интеграционный тест", "Режиссер", 0L)
+        // Добавлен 6-й параметр created_by (null для тестов)
+        queries.insertProject(projectId, "Интеграционный тест", "Режиссер", 0L, 0L, null)
 
         val scriptText = """
             1. ИНТ. ОФИС - ДЕНЬ
@@ -69,7 +70,8 @@ class ScriptRepositoryAndroidIntegrationTest {
     @Test
     fun testActorsAreLinkedDuringParsing() = runTest {
         val projectId = "actors-test-project-id"
-        queries.insertProject(projectId, "Актеры", "Режиссер", 0L)
+        // Добавлен 6-й параметр created_by (null для тестов)
+        queries.insertProject(projectId, "Актеры", "Режиссер", 0L, 0L, null)
 
         val scriptText = """
             1. ИНТ. КУХНЯ - ДЕНЬ

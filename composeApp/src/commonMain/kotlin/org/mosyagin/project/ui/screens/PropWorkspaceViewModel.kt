@@ -14,18 +14,13 @@ import org.mosyagin.project.repository.ProjectRepository
 import org.mosyagin.project.repository.PropWithScene
 import org.mosyagin.project.repository.SceneRepository
 import org.mosyagin.project.repository.SyncRepository
+import org.mosyagin.project.repository.SyncEvent
 import org.mosyagin.project.ui.components.props.ExportFormat
 import org.mosyagin.project.ui.components.props.ExportGrouping
 
 enum class PropSortColumn {
     NAME, CATEGORY, SCENE, QUANTITY, STATUS
 }
-
-data class SyncEvent(
-    val operation: String,
-    val tableName: String,
-    val recordId: String 
-)
 
 class PropWorkspaceViewModel(
     private val projectId: String,
@@ -55,7 +50,7 @@ class PropWorkspaceViewModel(
         syncEvents
             .debounce(1500L)
             .onEach { event ->
-                syncRepository.enqueue(event.operation, event.tableName, event.recordId, null)
+                syncRepository.enqueue(event.operation, event.tableName, event.recordId, projectId, null)
             }
             .launchIn(screenModelScope)
     }
@@ -112,7 +107,6 @@ class PropWorkspaceViewModel(
             matchesQuery && matchesCategory
         }
 
-        // Создаем карту для группировки. Ключ - effectiveGroupId, значение - имя "родителя" (первого в группе)
         val groupNames = props.groupBy { it.groupId ?: it.id }.mapValues { it.value.first().name }
 
         val sorted = when (sortCol) {

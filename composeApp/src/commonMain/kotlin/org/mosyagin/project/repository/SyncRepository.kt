@@ -14,12 +14,12 @@ import kotlin.time.ExperimentalTime
 
 
 interface SyncRepository {
-    suspend fun enqueue(operation: String, tableName: String, recordId: String, dataJson: String?)
-    fun enqueueSync(operation: String, tableName: String, recordId: String, dataJson: String?)
+    suspend fun enqueue(operation: String, tableName: String, recordId: String, projectId: String?, dataJson: String?)
+    fun enqueueSync(operation: String, tableName: String, recordId: String, projectId: String?, dataJson: String?)
     fun getPending(): Flow<List<SyncQueue>>
     suspend fun markSynced(ids: List<Long>)
     fun setSyncManager(manager: SyncManager)
-    fun triggerPush() // Новый метод для ручного запуска синхронизации
+    fun triggerPush()
 }
 
 class SyncRepositoryImpl(private val queries: DatabaseQueries) : SyncRepository {
@@ -29,21 +29,21 @@ class SyncRepositoryImpl(private val queries: DatabaseQueries) : SyncRepository 
         this.syncManager = manager
     }
 
-    override suspend fun enqueue(operation: String, tableName: String, recordId: String, dataJson: String?) {
-        enqueueSync(operation, tableName, recordId, dataJson)
+    override suspend fun enqueue(operation: String, tableName: String, recordId: String, projectId: String?, dataJson: String?) {
+        enqueueSync(operation, tableName, recordId, projectId, dataJson)
         triggerPush()
     }
 
-    override fun enqueueSync(operation: String, tableName: String, recordId: String, dataJson: String?) {
+    override fun enqueueSync(operation: String, tableName: String, recordId: String, projectId: String?, dataJson: String?) {
         val now = currentTimestamp()
         queries.enqueue(
             operation = operation,
             tableName = tableName,
             recordId = recordId,
+            project_id = projectId, // Теперь соответствует Database.sq
             dataJson = dataJson,
             updatedAt = now
         )
-        // УДАЛЕНО: Автоматический push() на каждый чих. Это вызывало deadlock в больших транзакциях.
     }
 
     override fun triggerPush() {

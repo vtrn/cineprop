@@ -21,20 +21,19 @@ class KppRepositoryImpl(
     private val syncRepository: SyncRepository
 ) : KppRepository {
     override fun getKppFilesByProject(projectId: String): Flow<List<KppFile>> =
-        queries.getKppFilesByProject(projectId)
+        queries.getKppFilesByProject(project_id = projectId)
             .asFlow()
             .mapToList(Dispatchers.Default)
 
     @OptIn(ExperimentalTime::class)
     override suspend fun addKppFile(projectId: String, fileName: String, filePath: String, version: Long) {
-        // Стабильный ID для файла КПП (префикс + проект + версия)
         val id = "kpp_${projectId}_$version"
         val now = Clock.System.now().toEpochMilliseconds()
         
         val existing = queries.getKppFileById(id).executeAsOneOrNull()
         if (existing == null) {
-            queries.insertKppFile(id, projectId, fileName, filePath, version, now)
-            syncRepository.enqueue("INSERT", "KppFile", id, null)
+            queries.insertKppFile(id = id, project_id = projectId, fileName = fileName, filePath = filePath, version = version, updatedAt = now)
+            syncRepository.enqueue("INSERT", "KppFile", id, projectId, null)
         }
     }
 }

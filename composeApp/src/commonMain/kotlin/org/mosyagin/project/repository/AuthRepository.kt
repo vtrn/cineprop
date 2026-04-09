@@ -38,43 +38,57 @@ class AuthRepositoryImpl(
 
     init {
         supabase.auth.sessionStatus.onEach { status ->
+            println("AuthRepository: Session status changed to $status")
             when (status) {
                 is SessionStatus.Authenticated -> {
                     val user = status.session.user ?: supabase.auth.currentUserOrNull()
                     if (user != null) {
+                        println("AuthRepository: User found in status: ${user.email}")
                         _currentUser.value = user
                     } else {
+                        println("AuthRepository: Authenticated but no user info. Fetching manually...")
                         scope.launch {
                             try {
                                 val fetchedUser = supabase.auth.retrieveUserForCurrentSession()
+                                println("AuthRepository: User fetched manually: ${fetchedUser.email}")
                                 _currentUser.value = fetchedUser
                             } catch (e: Exception) {
-                                e.printStackTrace()
+                                println("AuthRepository: Manual fetch failed: ${e.message}")
                             }
                         }
                     }
                 }
                 else -> {
-                    _currentUser.value = null
+                    if (status !is SessionStatus.Initializing) {
+                        println("AuthRepository: Status is $status, setting user to null")
+                        _currentUser.value = null
+                    }
                 }
             }
         }.launchIn(scope)
     }
 
     override suspend fun sendMagicLink(email: String) {
+        println("AuthRepository: Sending magic link to $email")
         supabase.auth.signInWith(OTP, redirectUrl = "cineprop://auth") {
             this.email = email
         }
     }
 
     override suspend fun signInWithPassword(email: String, password: String) {
+        println("AuthRepository: Attempting sign in with password for $email")
         supabase.auth.signInWith(Email) {
             this.email = email
             this.password = password
         }
+        // Принудительно проверяем пользователя сразу после успешного вызова
+        val user = supabase.auth.currentUserOrNull()
+        println("AuthRepository: Post-login user check: ${user?.email}")
+        if (user != null) _currentUser.value = user
     }
 
     override suspend fun signUpWithPassword(email: String, password: String) {
+        println("AuthRepository: Attempting sign up for $email")
         supabase.auth.signUpWith(Email) {
             this.email = email
             this.password = password
@@ -94,7 +108,9 @@ class AuthRepositoryImpl(
     }
 
     override suspend fun signOut() {
+        println("AuthRepository: Signing out...")
         supabase.auth.signOut()
+        _currentUser.value = null
     }
 
     override fun getCurrentUserSync(): UserInfo? = supabase.auth.currentUserOrNull()

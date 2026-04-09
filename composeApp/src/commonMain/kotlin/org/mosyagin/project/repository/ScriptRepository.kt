@@ -40,7 +40,7 @@ class ScriptRepositoryImpl(
 ) : ScriptRepository {
 
     override fun getScriptsForProject(projectId: String): Flow<List<ScriptFile>> =
-        queries.getScriptsForProject(projectId)
+        queries.getScriptsForProject(project_id = projectId)
             .asFlow()
             .mapToList(Dispatchers.IO)
 
@@ -64,7 +64,7 @@ class ScriptRepositoryImpl(
                 val scriptFileId = generateUUID()
                 queries.insertScriptFile(
                     id = scriptFileId,
-                    projectId = projectId,
+                    project_id = projectId,
                     seriesNumber = seriesNumber.toLong(),
                     title = "Серия $seriesNumber",
                     filePath = filePath,
@@ -75,13 +75,13 @@ class ScriptRepositoryImpl(
                     updatedAt = now
                 )
 
-                syncRepository.enqueueSync("INSERT", "ScriptFile", scriptFileId, null)
+                syncRepository.enqueueSync("INSERT", "ScriptFile", scriptFileId, projectId, null)
 
                 parsedScenes.forEachIndexed { index, scene ->
                     val sceneUserDataId = generateUUID()
                     queries.insertSceneUserData(
                         id = sceneUserDataId,
-                        projectId = projectId,
+                        project_id = projectId,
                         seriesNumber = seriesNumber.toLong(),
                         sceneNumber = scene.sceneNumber,
                         location = scene.location,
@@ -92,7 +92,7 @@ class ScriptRepositoryImpl(
                         updatedAt = now
                     )
 
-                    syncRepository.enqueueSync("INSERT", "SceneUserData", sceneUserDataId, null)
+                    syncRepository.enqueueSync("INSERT", "SceneUserData", sceneUserDataId, projectId, null)
 
                     val sceneVersionId = generateUUID()
                     val encryptedContent = encrypter.encrypt(scene.content) ?: ""
@@ -106,22 +106,22 @@ class ScriptRepositoryImpl(
                         updatedAt = now
                     )
                     
-                    syncRepository.enqueueSync("INSERT", "SceneVersion", sceneVersionId, null)
+                    syncRepository.enqueueSync("INSERT", "SceneVersion", sceneVersionId, projectId, null)
 
                     scene.actors.forEach { actorName ->
                         val cleanName = actorName.trim()
                         if (cleanName.isNotEmpty()) {
-                            var actor = queries.getActorByName(projectId, cleanName).executeAsOneOrNull()
+                            var actor = queries.getActorByName(project_id = projectId, name = cleanName).executeAsOneOrNull()
                             if (actor == null) {
                                 val newActorId = generateUUID()
-                                queries.insertActor(newActorId, projectId, cleanName, now)
-                                syncRepository.enqueueSync("INSERT", "Actor", newActorId, null)
-                                actor = queries.getActorByName(projectId, cleanName).executeAsOneOrNull()
+                                queries.insertActor(id = newActorId, project_id = projectId, name = cleanName, updatedAt = now)
+                                syncRepository.enqueueSync("INSERT", "Actor", newActorId, projectId, null)
+                                actor = queries.getActorByName(project_id = projectId, name = cleanName).executeAsOneOrNull()
                             }
                             
                             if (actor != null) {
                                 queries.linkActorToScene(sceneUserDataId, actor.id)
-                                syncRepository.enqueueSync("INSERT", "SceneActor", "${sceneUserDataId}|${actor.id}", null)
+                                syncRepository.enqueueSync("INSERT", "SceneActor", "${sceneUserDataId}|${actor.id}", projectId, null)
                             }
                         }
                     }
@@ -133,10 +133,12 @@ class ScriptRepositoryImpl(
 
     override suspend fun deleteScriptFile(fileId: String) {
         withContext(Dispatchers.IO) {
+            val file = queries.getScriptFileById(fileId).executeAsOneOrNull() ?: return@withContext
+            val projectId = file.project_id
             queries.transaction {
                 queries.deleteScenesByScriptFile(fileId)
                 queries.deleteScriptFile(fileId)
-                syncRepository.enqueueSync("DELETE", "ScriptFile", fileId, null)
+                syncRepository.enqueueSync("DELETE", "ScriptFile", fileId, projectId, null)
             }
             syncRepository.triggerPush()
         }
@@ -144,9 +146,10 @@ class ScriptRepositoryImpl(
 
     override suspend fun updateScriptTitle(fileId: String, newTitle: String) {
         withContext(Dispatchers.IO) {
+            val file = queries.getScriptFileById(fileId).executeAsOneOrNull() ?: return@withContext
             val now = currentTimestamp()
             queries.updateScriptFileTitle(newTitle, now, fileId)
-            syncRepository.enqueueSync("UPDATE", "ScriptFile", fileId, null)
+            syncRepository.enqueueSync("UPDATE", "ScriptFile", fileId, file.project_id, null)
             syncRepository.triggerPush()
         }
     }
