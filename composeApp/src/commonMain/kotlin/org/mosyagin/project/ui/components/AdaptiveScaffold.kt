@@ -184,7 +184,6 @@ fun AdaptiveScaffold(
                                     onClick = { onSectionSelect("bible") }
                                 )
                                 
-                                // НОВАЯ ИКОНКА: Команда
                                 NavIcon(
                                     imageVector = Icons.Default.Group,
                                     label = "Команда",
@@ -220,7 +219,6 @@ fun AdaptiveScaffold(
                         }
                     }
 
-                    // ВЫЕЗЖАЮЩАЯ ПАНЕЛЬ КОМАНДЫ
                     TeamPanel(
                         isOpen = isTeamPanelOpen,
                         projectId = projectId,
