@@ -134,7 +134,7 @@ fun App() {
                         AdaptiveScaffold(
                             isInProject = isInProject,
                             currentSection = currentSection,
-                            projectId = activeProjectId, // Передаем активный ID проекта
+                            projectId = activeProjectId,
                             onBackToProjects = {
                                 navigator.popUntilRoot()
                             },
@@ -168,11 +168,8 @@ fun App() {
                                     }
                                     "tracker" -> activeProjectId?.let { navigator.replace(TrackerScreen(it)) }
                                     "inventory" -> activeProjectId?.let { id ->
-                                        if (lastLayoutType == AppLayoutType.DESKTOP) {
-                                            navigator.replace(PropWorkspaceScreen(id))
-                                        } else {
-                                            navigator.replace(PropListScreen(id))
-                                        }
+                                        // ИСПРАВЛЕНО: Теперь и на мобилках открываем WorkspaceScreen
+                                        navigator.replace(PropWorkspaceScreen(id))
                                     }
                                     "bible" -> activeProjectId?.let { id ->
                                         if (lastLayoutType == AppLayoutType.DESKTOP) {

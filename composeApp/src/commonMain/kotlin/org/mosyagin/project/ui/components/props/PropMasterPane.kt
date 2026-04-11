@@ -2,6 +2,10 @@ package org.mosyagin.project.ui.components.props
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,117 +21,137 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import org.mosyagin.project.repository.PropWithScene
 
 /**
  * Панель управления категориями (Левая панель).
- * Позволяет фильтровать список реквизита по его типу.
- *
- * @param categories Список названий категорий.
- * @param selectedCategoryFilter Текущая выбранная категория для фильтрации.
- * @param onCategoryFilterSelected Обработчик выбора категории.
- * @param onExportClick Обработчик нажатия на кнопку экспорта.
+ * Адаптивна: умеет сворачиваться до одних иконок.
  */
 @Composable
 fun PropMasterPane(
     categories: List<String>,
     selectedCategoryFilter: String?,
+    isCollapsed: Boolean = false,
     onCategoryFilterSelected: (String?) -> Unit,
+    onToggleExpand: () -> Unit = {},
     onExportClick: () -> Unit = {}
 ) {
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+    // Ширина видимой зоны в свернутом состоянии (должна совпадать с PropMobileLayout)
+    val collapsedVisibleWidth = 56.dp
+    
+    Column(
+        modifier = Modifier
+            .fillMaxHeight()
+            .width(if (isCollapsed) 260.dp else 260.dp) // Сама панель всегда широкая для анимации
+    ) {
+        if (!isCollapsed) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 24.dp, bottom = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "Категории", 
+                    style = MaterialTheme.typography.headlineSmall, 
+                    fontWeight = FontWeight.Bold
+                )
+                
+                IconButton(onClick = onExportClick) {
+                    Icon(Icons.Default.FileUpload, null, tint = MaterialTheme.colorScheme.primary)
+                }
+            }
+        } else {
+            Spacer(Modifier.height(24.dp))
+        }
+
+        // Список категорий
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(horizontal = if (isCollapsed) 0.dp else 16.dp)
         ) {
-            Text(
-                "Категории", 
-                style = MaterialTheme.typography.headlineSmall, 
-                fontWeight = FontWeight.Bold, 
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            
-            IconButton(onClick = onExportClick) {
-                Icon(
-                    imageVector = Icons.Default.FileUpload, 
-                    contentDescription = "Экспорт реквизита",
-                    tint = MaterialTheme.colorScheme.primary
+            item {
+                CategoryItem(
+                    title = "Все", 
+                    icon = Icons.Default.AllInclusive, 
+                    isSelected = selectedCategoryFilter == null,
+                    color = MaterialTheme.colorScheme.primary,
+                    isCollapsed = isCollapsed,
+                    collapsedWidth = collapsedVisibleWidth,
+                    onDoubleClick = onToggleExpand,
+                    onClick = { onCategoryFilterSelected(null) }
                 )
             }
-        }
 
-        // Кнопка сброса фильтра (показать всё)
-        CategoryItem(
-            title = "Весь реквизит", 
-            icon = Icons.Default.AllInclusive, 
-            isSelected = selectedCategoryFilter == null,
-            color = MaterialTheme.colorScheme.primary
-        ) {
-            onCategoryFilterSelected(null)
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        // Список доступных категорий
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(categories) { category ->
                 CategoryItem(
                     title = category,
                     icon = PropUiUtils.getCategoryIcon(category),
                     isSelected = selectedCategoryFilter == category,
-                    color = PropUiUtils.getCategoryColor(category)
-                ) { onCategoryFilterSelected(category) }
+                    color = PropUiUtils.getCategoryColor(category),
+                    isCollapsed = isCollapsed,
+                    collapsedWidth = collapsedVisibleWidth,
+                    onDoubleClick = onToggleExpand,
+                    onClick = { onCategoryFilterSelected(category) }
+                )
             }
         }
     }
 }
 
-/**
- * Индивидуальный элемент списка категорий.
- */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CategoryItem(
     title: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     isSelected: Boolean,
-    count: Int? = null,
     color: Color,
+    isCollapsed: Boolean,
+    collapsedWidth: androidx.compose.ui.unit.Dp,
+    onDoubleClick: () -> Unit,
     onClick: () -> Unit
 ) {
     val bgColor by animateColorAsState(if (isSelected) color.copy(alpha = 0.15f) else Color.Transparent)
-    val contentColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-    val border = if (isSelected) BorderStroke(1.dp, color.copy(alpha = 0.3f)) else null
-
-    Surface(
-        onClick = onClick,
-        color = bgColor,
-        shape = RoundedCornerShape(10.dp),
-        border = border,
-        modifier = Modifier.fillMaxWidth()
+    
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(if (isCollapsed) 56.dp else 48.dp)
+            .combinedClickable(
+                onClick = onClick,
+                onDoubleClick = onDoubleClick
+            )
+            .background(bgColor, RoundedCornerShape(12.dp))
+            .then(if (isSelected) Modifier.border(BorderStroke(1.dp, color.copy(alpha = 0.3f)), RoundedCornerShape(12.dp)) else Modifier),
+        contentAlignment = Alignment.CenterStart // Выравниваем по левому краю!
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier.fillMaxHeight(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                icon, 
-                contentDescription = null, 
-                modifier = Modifier.size(18.dp), 
-                tint = if (isSelected) color else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-            )
-            Spacer(Modifier.width(12.dp))
-            Text(
-                text = title.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }, 
-                modifier = Modifier.weight(1f), 
-                style = MaterialTheme.typography.bodyMedium, 
-                color = contentColor
-            )
-            if (count != null) {
+            // Контейнер для иконки - всегда фиксированной ширины, чтобы быть видимым в узкой полосе
+            Box(
+                modifier = Modifier.width(collapsedWidth),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    icon, 
+                    contentDescription = null, 
+                    modifier = Modifier.size(22.dp), 
+                    tint = if (isSelected) color else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+            }
+            
+            // Название категории (уходит под правую панель при сворачивании)
+            if (!isCollapsed) {
                 Text(
-                    text = count.toString(), 
-                    style = MaterialTheme.typography.labelSmall, 
-                    color = if (isSelected) color else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    text = title.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }, 
+                    style = MaterialTheme.typography.bodyMedium, 
+                    maxLines = 1,
+                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(end = 12.dp)
                 )
             }
         }

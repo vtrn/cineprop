@@ -27,7 +27,7 @@ import org.mosyagin.project.ui.components.AppLayoutType
 import org.mosyagin.project.ui.components.CineCard
 import org.mosyagin.project.ui.components.LocalAppLayoutType
 
-data class ProjectDashboardScreen(val projectId: String) : Screen { // Изменено на String
+data class ProjectDashboardScreen(val projectId: String) : Screen {
 
     @Composable
     override fun Content() {
@@ -175,11 +175,8 @@ data class ProjectDashboardScreen(val projectId: String) : Screen { // Изме�
                             "Реквизит", 
                             Icons.Default.Inventory,
                             onClick = { 
-                                if (layoutType == AppLayoutType.DESKTOP) {
-                                    navigator.push(PropWorkspaceScreen(projectId))
-                                } else {
-                                    navigator.push(PropListScreen(projectId))
-                                }
+                                // ИСПРАВЛЕНО: Теперь всегда на PropWorkspaceScreen
+                                navigator.push(PropWorkspaceScreen(projectId))
                             }
                         )
                     }

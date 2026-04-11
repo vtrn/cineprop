@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Notes
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
@@ -28,16 +29,8 @@ import org.mosyagin.project.repository.PropWithScene
 
 /**
  * Правая панель рабочего пространства: детальный просмотр и редактирование объекта.
- * Позволяет управлять заметками, подтверждать готовность и видеть контекст из сценария.
- *
- * @param propId ID выбранного объекта.
- * @param props Список всех доступных объектов (для поиска текущего).
- * @param actors Список актеров проекта для поиска владельца реквизита.
- * @param onNoteChange Обработчик сохранения заметки.
- * @param onConfirm Обработчик кнопки готовности.
- * @param onDelete Обработчик удаления из инспектора.
- * @param onActorClick Обработчик нажатия на имя персонажа (переход в библию).
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PropInspectorPane(
     propId: String?,
@@ -46,41 +39,57 @@ fun PropInspectorPane(
     onNoteChange: (String, String) -> Unit,
     onConfirm: (String) -> Unit,
     onDelete: (String) -> Unit,
-    onActorClick: (String) -> Unit = {}
+    onActorClick: (String) -> Unit = {},
+    onClose: (() -> Unit)? = null // Добавлен параметр закрытия
 ) {
     val prop = props.find { it.id == propId }
     val ownerActor = remember(prop, actors) { 
         actors.find { it.id == prop?.actorId } 
     }
     
-    // Локальное состояние поля ввода заметок, обновляется при смене выбранного объекта
     var noteValue by remember(propId) { 
         mutableStateOf(TextFieldValue(prop?.note ?: "")) 
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
         if (prop == null) {
-            // Состояние "Ничего не выбрано"
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { 
                 Text("Выберите объект", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)) 
             }
         } else {
             Column(modifier = Modifier.padding(horizontal = 16.dp).fillMaxHeight()) {
+                // Шапка инспектора с кнопкой закрытия (для мобилок)
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Детали", 
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    if (onClose != null) {
+                        IconButton(onClick = onClose) {
+                            Icon(Icons.Default.Close, contentDescription = "Закрыть")
+                        }
+                    }
+                }
+
                 // Заголовок объекта
                 Text(
                     prop.name, 
                     style = MaterialTheme.typography.headlineSmall, 
                     fontWeight = FontWeight.ExtraBold, 
                     color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(top = 24.dp, bottom = 16.dp)
+                    modifier = Modifier.padding(top = 8.dp, bottom = 16.dp)
                 )
                 
-                // Бейджи категории, персонажа и сцены
+                // Бейджи
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    maxItemsInEachRow = 3
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     // Категория
                     Surface(
@@ -94,49 +103,35 @@ fun PropInspectorPane(
                         ) {
                             Icon(
                                 PropUiUtils.getCategoryIcon(prop.category), 
-                                contentDescription = null, 
-                                modifier = Modifier.size(14.dp), 
+                                null, modifier = Modifier.size(14.dp), 
                                 tint = PropUiUtils.getCategoryColor(prop.category)
                             )
                             Spacer(Modifier.width(6.dp))
-                            Text(prop.category, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
+                            Text(prop.category, style = MaterialTheme.typography.labelMedium)
                         }
                     }
 
-                    // ПЕРСОНАЖ (Если реквизит персонажный)
                     if (ownerActor != null) {
                         Surface(
                             color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
                             shape = CircleShape,
-                            border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f)),
                             modifier = Modifier.clickable { onActorClick(ownerActor.id) }
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    Icons.Default.Person, 
-                                    contentDescription = null, 
-                                    modifier = Modifier.size(14.dp), 
-                                    tint = MaterialTheme.colorScheme.secondary
-                                )
+                            Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
+                                Icon(Icons.Default.Person, null, modifier = Modifier.size(14.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text(ownerActor.name, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                                Text(ownerActor.name, style = MaterialTheme.typography.labelMedium)
                             }
                         }
                     }
 
-                    // Сцена
                     Surface(
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f),
-                        shape = CircleShape,
-                        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                        shape = CircleShape
                     ) {
                         Text(
                             "Сцена ${prop.seriesNumber}-${prop.sceneNumber}",
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                         )
                     }
@@ -144,99 +139,55 @@ fun PropInspectorPane(
 
                 Spacer(Modifier.height(24.dp))
 
-                // Секция: Контекст из сценария (Anchor)
-                Text(
-                    "Контекст из сценария", 
-                    style = MaterialTheme.typography.labelSmall, 
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), 
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
+                // Контекст
+                Text("Контекст", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                        .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)), RoundedCornerShape(12.dp))
-                        .padding(16.dp)
+                        .padding(12.dp)
                 ) {
-                    Text(
-                        prop.anchor, 
-                        style = MaterialTheme.typography.bodyMedium, 
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                        lineHeight = 20.sp
+                    Text(prop.anchor, style = MaterialTheme.typography.bodyMedium)
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                // Заметки
+                Text("Заметки", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(120.dp).padding(top = 4.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                        .padding(12.dp)
+                ) {
+                    BasicTextField(
+                        value = noteValue,
+                        onValueChange = { 
+                            noteValue = it
+                            onNoteChange(prop.id, it.text) 
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                        textStyle = TextStyle(fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
                     )
                 }
-
-                Spacer(Modifier.height(24.dp))
-
-                // Секция: Заметки
-                Text(
-                    "Заметки", 
-                    style = MaterialTheme.typography.labelSmall, 
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), 
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(160.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                        .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)), RoundedCornerShape(12.dp))
-                        .padding(16.dp)
-                ) {
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.Notes, 
-                                contentDescription = null, 
-                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f), 
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                "Напишите что-нибудь...", 
-                                style = MaterialTheme.typography.labelSmall, 
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
-                            )
-                        }
-                        Spacer(Modifier.height(12.dp))
-                        BasicTextField(
-                            value = noteValue,
-                            onValueChange = { 
-                                noteValue = it
-                                onNoteChange(prop.id, it.text) 
-                            },
-                            modifier = Modifier.fillMaxSize(),
-                            textStyle = TextStyle(fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface, lineHeight = 22.sp),
-                            cursorBrush = Brush.verticalGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primary))
-                        )
-                    }
-                }
                 
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.weight(1f))
                 
-                // Кнопки управления готовностью и удалением
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                // Кнопки
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Button(
                         onClick = { onConfirm(prop.id) },
                         modifier = Modifier.weight(1f).height(50.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Готовность", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Text("Готовность")
                     }
 
-                    Button(
+                    IconButton(
                         onClick = { onDelete(prop.id) },
-                        modifier = Modifier.height(50.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.1f), 
-                            contentColor = MaterialTheme.colorScheme.error
-                        )
+                        modifier = Modifier.height(50.dp).width(50.dp).background(MaterialTheme.colorScheme.errorContainer, RoundedCornerShape(12.dp))
                     ) {
-                        Icon(Icons.Default.Delete, contentDescription = "Удалить")
+                        Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.onErrorContainer)
                     }
                 }
             }
