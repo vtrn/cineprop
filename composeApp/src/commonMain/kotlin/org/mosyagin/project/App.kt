@@ -14,6 +14,7 @@ import org.mosyagin.project.repository.AuthRepository
 import org.mosyagin.project.repository.SettingsRepository
 import org.mosyagin.project.ui.components.AdaptiveScaffold
 import org.mosyagin.project.ui.components.AppLayoutType
+import org.mosyagin.project.ui.components.LocalAppLayoutType
 import org.mosyagin.project.ui.screens.*
 import org.mosyagin.project.ui.theme.CinePropTheme
 
@@ -60,42 +61,25 @@ fun App() {
                             val item = navigator.lastItem
                             
                             when (item) {
-                                is SettingsScreen -> {
-                                    currentSection = "settings"
-                                }
+                                is SettingsScreen -> { currentSection = "settings" }
                                 is ProjectDashboardScreen -> {
                                     isInProject = true
                                     activeProjectId = item.projectId
                                     currentSection = "dashboard"
                                 }
-                                is ScriptListScreen -> {
-                                    isInProject = true
-                                    activeProjectId = item.projectId
-                                    currentSection = "script"
-                                }
                                 is ScriptWorkspaceScreen -> {
                                     isInProject = true
-                                    activeProjectId = item.projectId.toString()
-                                    currentSection = "script"
-                                }
-                                is SceneListScreen -> {
-                                    isInProject = true
                                     activeProjectId = item.projectId
-                                    currentSection = "scenes"
+                                    currentSection = "script"
                                 }
                                 is SceneWorkspaceScreen -> {
                                     isInProject = true
-                                    activeProjectId = item.projectId.toString()
+                                    activeProjectId = item.projectId
                                     currentSection = "scenes"
-                                }
-                                is KppListScreen -> {
-                                    isInProject = true
-                                    activeProjectId = item.projectId.toString()
-                                    currentSection = "schedule"
                                 }
                                 is KppWorkspaceScreen -> {
                                     isInProject = true
-                                    activeProjectId = item.projectId.toString()
+                                    activeProjectId = item.projectId
                                     currentSection = "schedule"
                                 }
                                 is TrackerScreen -> {
@@ -103,25 +87,20 @@ fun App() {
                                     activeProjectId = item.projectId
                                     currentSection = "tracker"
                                 }
-                                is PropListScreen -> {
-                                    isInProject = true
-                                    activeProjectId = item.projectId.toString()
-                                    currentSection = "inventory"
-                                }
                                 is PropWorkspaceScreen -> {
                                     isInProject = true
-                                    activeProjectId = item.projectId.toString()
+                                    activeProjectId = item.projectId
                                     currentSection = "inventory"
-                                }
-                                is CharacterBibleScreen -> {
-                                    isInProject = true
-                                    activeProjectId = item.projectId.toString()
-                                    currentSection = "bible"
                                 }
                                 is CharacterWorkspaceScreen -> {
                                     isInProject = true
-                                    activeProjectId = item.projectId.toString()
+                                    activeProjectId = item.projectId
                                     currentSection = "bible"
+                                }
+                                is TeamScreen -> {
+                                    isInProject = true
+                                    activeProjectId = item.projectId
+                                    currentSection = "team"
                                 }
                                 is ProjectListScreen -> {
                                     isInProject = false
@@ -145,39 +124,13 @@ fun App() {
                                     "projects" -> navigator.popUntilRoot()
                                     "settings" -> navigator.push(SettingsScreen())
                                     "dashboard" -> activeProjectId?.let { navigator.replace(ProjectDashboardScreen(it)) }
-                                    "script" -> activeProjectId?.let { id ->
-                                        if (lastLayoutType == AppLayoutType.DESKTOP) {
-                                            navigator.replace(ScriptWorkspaceScreen(id))
-                                        } else {
-                                            navigator.replace(ScriptListScreen(id))
-                                        }
-                                    }
-                                    "scenes" -> activeProjectId?.let { id ->
-                                        if (lastLayoutType == AppLayoutType.DESKTOP) {
-                                            navigator.replace(SceneWorkspaceScreen(id))
-                                        } else {
-                                            navigator.replace(SceneListScreen(id, "Проект"))
-                                        }
-                                    }
-                                    "schedule" -> activeProjectId?.let { id ->
-                                        if (lastLayoutType == AppLayoutType.DESKTOP) {
-                                            navigator.replace(KppWorkspaceScreen(id))
-                                        } else {
-                                            navigator.replace(KppListScreen(id))
-                                        }
-                                    }
+                                    "script" -> activeProjectId?.let { navigator.replace(ScriptWorkspaceScreen(it)) }
+                                    "scenes" -> activeProjectId?.let { navigator.replace(SceneWorkspaceScreen(it)) }
+                                    "schedule" -> activeProjectId?.let { navigator.replace(KppWorkspaceScreen(it)) }
                                     "tracker" -> activeProjectId?.let { navigator.replace(TrackerScreen(it)) }
-                                    "inventory" -> activeProjectId?.let { id ->
-                                        // ИСПРАВЛЕНО: Теперь и на мобилках открываем WorkspaceScreen
-                                        navigator.replace(PropWorkspaceScreen(id))
-                                    }
-                                    "bible" -> activeProjectId?.let { id ->
-                                        if (lastLayoutType == AppLayoutType.DESKTOP) {
-                                            navigator.replace(CharacterWorkspaceScreen(id))
-                                        } else {
-                                            navigator.replace(CharacterBibleScreen(id))
-                                        }
-                                    }
+                                    "inventory" -> activeProjectId?.let { navigator.replace(PropWorkspaceScreen(it)) }
+                                    "bible" -> activeProjectId?.let { navigator.replace(CharacterWorkspaceScreen(it)) }
+                                    "team" -> activeProjectId?.let { navigator.replace(TeamScreen(it)) }
                                 }
                             }
                         ) { layoutType ->
