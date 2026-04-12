@@ -93,6 +93,11 @@ val screenModelModule = module {
         CharacterWorkspaceViewModel(projectId, get())
     }
     
+    // НОВАЯ VIEWMODEL: Команда
+    factory { (projectId: String) -> 
+        TeamViewModel(projectId, get())
+    }
+    
     factory { SettingsViewModel(get()) }
 }
 

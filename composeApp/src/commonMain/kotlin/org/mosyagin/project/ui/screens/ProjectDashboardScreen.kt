@@ -76,6 +76,7 @@ data class ProjectDashboardScreen(val projectId: String) : Screen {
                         }
                     }
 
+                    // Календарь
                     item(span = { GridItemSpan(2) }) {
                         CineCard(
                             onClick = { navigator.push(KppCalendarScreen(projectId)) },
@@ -130,30 +131,19 @@ data class ProjectDashboardScreen(val projectId: String) : Screen {
                         )
                     }
 
+                    // Плитки разделов
                     item {
                         DashboardActionTile(
                             "Сценарий", 
                             Icons.Default.Description,
-                            onClick = { 
-                                if (layoutType == AppLayoutType.DESKTOP) {
-                                    navigator.push(ScriptWorkspaceScreen(projectId))
-                                } else {
-                                    navigator.push(ScriptListScreen(projectId))
-                                }
-                            }
+                            onClick = { navigator.push(ScriptWorkspaceScreen(projectId)) }
                         )
                     }
                     item {
                         DashboardActionTile(
                             "Сцены",
                             Icons.AutoMirrored.Filled.List,
-                            onClick = { 
-                                if (layoutType == AppLayoutType.DESKTOP) {
-                                    navigator.push(SceneWorkspaceScreen(projectId))
-                                } else {
-                                    navigator.push(SceneListScreen(currentProject.id, currentProject.name))
-                                }
-                            }
+                            onClick = { navigator.push(SceneWorkspaceScreen(projectId)) }
                         )
                     }
                     item {
@@ -174,10 +164,7 @@ data class ProjectDashboardScreen(val projectId: String) : Screen {
                         DashboardActionTile(
                             "Реквизит", 
                             Icons.Default.Inventory,
-                            onClick = { 
-                                // ИСПРАВЛЕНО: Теперь всегда на PropWorkspaceScreen
-                                navigator.push(PropWorkspaceScreen(projectId))
-                            }
+                            onClick = { navigator.push(PropWorkspaceScreen(projectId)) }
                         )
                     }
                     item {
@@ -185,6 +172,15 @@ data class ProjectDashboardScreen(val projectId: String) : Screen {
                             "Библия", 
                             Icons.Default.AutoStories,
                             onClick = { navigator.push(CharacterBibleScreen(projectId)) }
+                        )
+                    }
+                    
+                    // НОВАЯ ПЛИТКА: Команда
+                    item {
+                        DashboardActionTile(
+                            "Команда", 
+                            Icons.Default.Group,
+                            onClick = { navigator.push(TeamScreen(projectId)) }
                         )
                     }
                 }
