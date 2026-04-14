@@ -153,7 +153,8 @@ class ScriptUpdateManager(
                             timeOfDay = match.scene.time, 
                             notes = null, 
                             needsReview = 0L, 
-                            updatedAt = now
+                            updatedAt = now,
+                            isDecrypted = 1L
                         )
                         syncRepository.enqueueSync("INSERT", "SceneUserData", userDataId, data.projectId, null)
 
@@ -188,7 +189,8 @@ class ScriptUpdateManager(
             content = content, 
             contentHash = "", 
             positionIndex = index, 
-            updatedAt = now
+            updatedAt = now,
+            isDecrypted = 1L
         )
         syncRepository.enqueueSync("INSERT", "SceneVersion", versionId, projectId, null)
     }

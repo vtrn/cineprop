@@ -20,10 +20,10 @@ class KppParserTest {
         // Добавлен updatedAt = 0L в конструктор GetScenesByProject
         sceneRepo.addFakeScene(GetScenesByProject(
             101.toString(),
-            projectId.toString(), 1L, "1", "КУХНЯ", 1, "ДЕНЬ", null, 0, 0L, "Текст", "hash"))
+            projectId.toString(), 1L, "1", "КУХНЯ", 1L, "ДЕНЬ", null, 0L, 0L, 1L, "Текст", "hash"))
         sceneRepo.addFakeScene(GetScenesByProject(
             102.toString(),
-            projectId.toString(), 1L, "2", "ДВОР", 0, "НОЧЬ", null, 0, 0L, "Текст", "hash"))
+            projectId.toString(), 1L, "2", "ДВОР", 0L, "НОЧЬ", null, 0L, 0L, 1L, "Текст", "hash"))
 
         // 2. CSV текст КПП (Серия; Сцена; ...)
         val csvText = """
@@ -45,8 +45,8 @@ class KppParserTest {
     fun testMultipleShiftsInOneCsv() {
         val projectId: String = 1L.toString()
         
-        sceneRepo.addFakeScene(GetScenesByProject(101.toString(), projectId, 1L, "1", "КУХНЯ", 1, "ДЕНЬ", null, 0, 0L, "Текст", "hash"))
-        sceneRepo.addFakeScene(GetScenesByProject(102.toString(), projectId, 1L, "2", "ДВОР", 0, "НОЧЬ", null, 0, 0L, "Текст", "hash"))
+        sceneRepo.addFakeScene(GetScenesByProject(101.toString(), projectId, 1L, "1", "КУХНЯ", 1L, "ДЕНЬ", null, 0L, 0L, 1L, "Текст", "hash"))
+        sceneRepo.addFakeScene(GetScenesByProject(102.toString(), projectId, 1L, "2", "ДВОР", 0L, "НОЧЬ", null, 0L, 0L, 1L, "Текст", "hash"))
 
         val csvText = """
             15.03.2024;;;;;
@@ -57,7 +57,7 @@ class KppParserTest {
             1; 2; ДВОР; НАТ; НОЧЬ
         """.trimIndent()
 
-        parser.parseAndSaveKpp(projectId.toString(), csvText)
+        parser.parseAndSaveKpp(projectId, csvText)
 
         assertEquals(2, shiftRepo.getLinksCount())
     }

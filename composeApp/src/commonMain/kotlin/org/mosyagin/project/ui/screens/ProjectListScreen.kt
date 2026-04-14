@@ -43,11 +43,9 @@ class ProjectListScreen : Screen {
         var searchQuery by remember { mutableStateOf("") }
         var showUserMenu by remember { mutableStateOf(false) }
         
-        // Состояния для попапов
         var localProjectToConnect by remember { mutableStateOf<Project?>(null) }
         var authExpiredProject by remember { mutableStateOf<Project?>(null) }
 
-        // 1. Попап "Только локально"
         localProjectToConnect?.let { project ->
             AlertDialog(
                 onDismissRequest = { localProjectToConnect = null },
@@ -93,7 +91,6 @@ class ProjectListScreen : Screen {
             )
         }
 
-        // 2. Попап "Сессия истекла"
         authExpiredProject?.let { _ ->
             AlertDialog(
                 onDismissRequest = { authExpiredProject = null },
@@ -341,23 +338,35 @@ class ProjectListScreen : Screen {
                 Surface(
                     modifier = Modifier.size(44.dp),
                     shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                    color = if (project.isRemote == 1L) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) 
+                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
                 ) {
                     Icon(
-                        Icons.Default.BusinessCenter, 
+                        imageVector = if (project.isRemote == 1L) Icons.Default.Lock else Icons.Default.BusinessCenter, 
                         contentDescription = null, 
                         modifier = Modifier.padding(10.dp),
-                        tint = MaterialTheme.colorScheme.primary
+                        tint = if (project.isRemote == 1L) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 
                 Spacer(Modifier.width(16.dp))
                 
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = project.name,
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = project.name,
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                        if (project.isRemote == 1L) {
+                            Spacer(Modifier.width(6.dp))
+                            Icon(
+                                Icons.Default.VerifiedUser, 
+                                "Зашифровано", 
+                                modifier = Modifier.size(14.dp), 
+                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
                     Text(
                         text = project.director.ifEmpty { "Режиссер не указан" },
                         style = MaterialTheme.typography.bodySmall,

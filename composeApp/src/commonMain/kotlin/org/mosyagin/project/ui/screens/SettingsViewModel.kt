@@ -18,6 +18,12 @@ class SettingsViewModel(
     val isEncryptionEnabled: StateFlow<Boolean> = repository.isEncryptionEnabled()
         .stateIn(screenModelScope, SharingStarted.Eagerly, false)
 
+    val isCloudKeySyncEnabled: StateFlow<Boolean> = repository.isCloudKeySyncEnabled()
+        .stateIn(screenModelScope, SharingStarted.Eagerly, true)
+
+    val isRecoveryPinEnabled: StateFlow<Boolean> = repository.isRecoveryPinEnabled()
+        .stateIn(screenModelScope, SharingStarted.Eagerly, false)
+
     fun setThemeMode(mode: String) {
         screenModelScope.launch {
             repository.setThemeMode(mode)
@@ -27,6 +33,18 @@ class SettingsViewModel(
     fun setEncryptionEnabled(enabled: Boolean) {
         screenModelScope.launch {
             repository.setEncryptionEnabled(enabled)
+        }
+    }
+
+    fun setCloudKeySyncEnabled(enabled: Boolean) {
+        screenModelScope.launch {
+            repository.setCloudKeySyncEnabled(enabled)
+        }
+    }
+
+    fun setRecoveryPinEnabled(enabled: Boolean) {
+        screenModelScope.launch {
+            repository.setRecoveryPinEnabled(enabled)
         }
     }
 }

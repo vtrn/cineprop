@@ -79,7 +79,8 @@ class SceneRepositoryTest {
             timeOfDay = "ДЕНЬ",
             notes = null,
             needsReview = 0L,
-            updatedAt = 0L
+            updatedAt = 0L,
+            isDecrypted = 0L
         )
         testUserDataId = userDataId
     }
@@ -99,7 +100,8 @@ class SceneRepositoryTest {
             content = "Текст сцены",
             contentHash = "hash",
             positionIndex = 0,
-            updatedAt = 0L
+            updatedAt = 0L,
+            isDecrypted = 0L
         )
 
         repository.addProp(testUserDataId, "Меч", "в руках меч", "Найти", 0, 10)

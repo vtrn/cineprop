@@ -32,7 +32,7 @@ class KppRepositoryImpl(
         
         val existing = queries.getKppFileById(id).executeAsOneOrNull()
         if (existing == null) {
-            queries.insertKppFile(id = id, project_id = projectId, fileName = fileName, filePath = filePath, version = version, updatedAt = now)
+            queries.upsertKppFile(id = id, project_id = projectId, fileName = fileName, filePath = filePath, version = version, updatedAt = now)
             syncRepository.enqueue("INSERT", "KppFile", id, projectId, null)
         }
     }

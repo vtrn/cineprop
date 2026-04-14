@@ -43,7 +43,8 @@ data class PropWithScene(
     val groupId: String? = null,
     val allSceneNumbers: List<String> = emptyList(),
     val shiftNumber: Long? = null,
-    val shiftDate: String? = null
+    val shiftDate: String? = null,
+    val isDecrypted: Boolean = true
 )
 
 interface SceneRepository {
@@ -75,7 +76,15 @@ interface SceneRepository {
         groupId: String?
     ): String
 
-    suspend fun addProp(sceneUserDataId: String, name: String, anchor: String, status: String = "Найти", startOffset: Long = 0, endOffset: Long = 0): String
+    suspend fun addProp(
+        sceneUserDataId: String, 
+        name: String, 
+        anchor: String, 
+        status: String = "Найти", 
+        startOffset: Long = 0, 
+        endOffset: Long = 0
+    ): String
+    
     suspend fun updatePropStatus(propId: String, newStatus: String)
     suspend fun deleteProp(propId: String)
     suspend fun updateSceneUserDataReviewStatus(needsReview: Long, id: String)
@@ -211,7 +220,8 @@ class SceneRepositoryImpl(
                         sceneNumber = prop.sceneNumber,
                         isOrphaned = prop.orphaned == 1L,
                         groupId = prop.groupId,
-                        allSceneNumbers = if (allScenes.size > 1) allScenes else emptyList()
+                        allSceneNumbers = if (allScenes.size > 1) allScenes else emptyList(),
+                        isDecrypted = prop.isDecrypted == 1L
                     )
                 }
             }
@@ -244,19 +254,26 @@ class SceneRepositoryImpl(
         queries.insertFullProp(
             id, sceneUserDataId, name, anchor, status, category, "Обстановочный",
             encryptedNote, null, if (isCrossCutting) 1L else 0L, quantity.toLong(), actorId,
-            0, 0, 0, groupId, now
+            0, 0, 0, groupId, now, 1L
         )
         syncRepository.enqueue("INSERT", "Prop", id, projectId, null)
         return id
     }
 
-    override suspend fun addProp(sceneUserDataId: String, name: String, anchor: String, status: String, startOffset: Long, endOffset: Long): String {
+    override suspend fun addProp(
+        sceneUserDataId: String, 
+        name: String, 
+        anchor: String, 
+        status: String, 
+        startOffset: Long, 
+        endOffset: Long
+    ): String {
         val id = generateUUID()
         val now = Clock.System.now().toEpochMilliseconds()
         val projectId = getProjectIdForScene(sceneUserDataId)
         queries.insertFullProp(
             id, sceneUserDataId, name, anchor, status, "Прочее", "Обстановочный",
-            null, null, 0, 1, null, startOffset, endOffset, 0, null, now
+            null, null, 0, 1, null, startOffset, endOffset, 0, null, now, 1L
         )
         syncRepository.enqueue("INSERT", "Prop", id, projectId, null)
         return id

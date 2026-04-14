@@ -92,15 +92,16 @@ class VersioningLogicTest {
     private fun mockDbScene(id: Long, num: String, loc: String, content: String) = 
         org.mosyagin.project.GetScenesBySeries(
             id = id.toString(),
-            project_id = 1.toString(), // Обновлено с projectId на project_id
+            project_id = 1.toString(),
             seriesNumber = 1L,
             sceneNumber = num,
             location = loc,
-            isInterior = 1,
+            isInterior = 1L,
             timeOfDay = "ДЕНЬ",
             notes = null,
-            needsReview = 0,
+            needsReview = 0L,
             updatedAt = 0L,
+            isDecrypted = 1L,
             content = content,
             contentHash = ""
         )

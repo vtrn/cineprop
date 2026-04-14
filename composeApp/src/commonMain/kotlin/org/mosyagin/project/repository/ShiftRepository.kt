@@ -46,7 +46,7 @@ class ShiftRepositoryImpl(
         
         val existing = queries.getShiftById(id).executeAsOneOrNull()
         if (existing == null) {
-            queries.insertShift(id = id, project_id = projectId, shiftNumber = shiftNumber, date = date, updatedAt = now)
+            queries.upsertShift(id = id, project_id = projectId, shiftNumber = shiftNumber, date = date, updatedAt = now)
             syncRepository.enqueue("INSERT", "Shift", id, projectId, null)
         }
         return id
@@ -54,7 +54,7 @@ class ShiftRepositoryImpl(
 
     override suspend fun linkSceneToShift(shiftId: String, sceneUserDataId: String, position: Long) {
         val shift = queries.getShiftById(shiftId).executeAsOneOrNull()
-        queries.linkShiftToScene(shiftId, sceneUserDataId, position)
+        queries.upsertShiftScene(shiftId, sceneUserDataId, position)
         syncRepository.enqueue("INSERT", "ShiftScene", "${shiftId}|${sceneUserDataId}", shift?.project_id, null)
     }
 

@@ -1,22 +1,18 @@
-@file:OptIn(ExperimentalTime::class)
+@file:OptIn(ExperimentalTime::class, FlowPreview::class)
 
 package org.mosyagin.project.repository
 
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
-import io.github.jan.supabase.postgrest.query.filter.FilterOperator
 import io.github.jan.supabase.realtime.PostgresAction
-import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.realtime.realtime
 import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.realtime.postgresChangeFlow
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.IO
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -24,10 +20,18 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonPrimitive
 import org.mosyagin.project.DatabaseQueries
+import org.mosyagin.project.crypto.CryptoManager
+import org.mosyagin.project.crypto.KeyVault
 import org.mosyagin.project.logSync
 import org.mosyagin.project.util.NetworkObserver
 import org.mosyagin.project.util.currentTimestamp
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.time.ExperimentalTime
+
+// ─────────────────────────────────────────────
+// DTOs
+// ─────────────────────────────────────────────
 
 @Serializable
 data class ProjectDto(
@@ -39,10 +43,32 @@ data class ProjectDto(
 )
 
 @Serializable
+data class ProjectMemberDto(
+    @SerialName("id") val id: String,
+    @SerialName("project_id") val projectId: String,
+    @SerialName("user_id") val userId: String? = null,
+    @SerialName("email") val email: String,
+    @SerialName("role") val role: String,
+    @SerialName("updated_at") val updatedAt: String,
+    @SerialName("wrapped_master_key") val wrappedMasterKey: String? = null
+)
+
+@Serializable
 data class ActorDto(
     @SerialName("id") val id: String,
     @SerialName("project_id") val projectId: String,
     @SerialName("name") val name: String,
+    @SerialName("updated_at") val updatedAt: String
+)
+
+@Serializable
+data class ScriptFileDto(
+    @SerialName("id") val id: String,
+    @SerialName("project_id") val projectId: String,
+    @SerialName("series_number") val seriesNumber: Int,
+    @SerialName("title") val title: String,
+    @SerialName("file_path") val filePath: String?,
+    @SerialName("created_at") val createdAt: Long,
     @SerialName("updated_at") val updatedAt: String
 )
 
@@ -57,17 +83,6 @@ data class SceneDto(
     @SerialName("time_of_day") val timeOfDay: String,
     @SerialName("notes") val notes: String?,
     @SerialName("needs_review") val needsReview: Int? = 0,
-    @SerialName("updated_at") val updatedAt: String
-)
-
-@Serializable
-data class ScriptFileDto(
-    @SerialName("id") val id: String,
-    @SerialName("project_id") val projectId: String,
-    @SerialName("series_number") val seriesNumber: Int,
-    @SerialName("title") val title: String,
-    @SerialName("file_path") val filePath: String?,
-    @SerialName("created_at") val createdAt: Long,
     @SerialName("updated_at") val updatedAt: String
 )
 
@@ -130,418 +145,347 @@ data class SceneActorDto(
     @SerialName("actor_id") val actorId: String
 )
 
-@Serializable
-data class ProjectMemberDto(
-    @SerialName("id") val id: String,
-    @SerialName("project_id") val projectId: String,
-    @SerialName("email") val email: String,
-    @SerialName("role") val role: String,
-    @SerialName("updated_at") val updatedAt: String
-)
+// ─────────────────────────────────────────────
+// SyncManager
+// ─────────────────────────────────────────────
 
 class SyncManager(
     private val syncRepository: SyncRepository,
     private val queries: DatabaseQueries,
     private val supabase: SupabaseClient,
     private val networkObserver: NetworkObserver,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val cryptoManager: CryptoManager,
+    private val keyVault: KeyVault,
+    private val keyManager: KeyManager
 ) {
-    private val scope = CoroutineScope(Dispatchers.IO)
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
+
     private val LAST_SYNC_KEY = "last_sync_timestamp"
-    private val json = Json { 
-        ignoreUnknownKeys = true
-        coerceInputValues = true 
-    }
+    private val PROJECT_SYNC_PREFIX = "project_sync_"
+
+    private val syncMutex = Mutex()
+    private val pushMutex = Mutex()
+
+    private val pushTrigger = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
 
     init {
-        logSync("SyncManager: Initializing...")
-        
-        // Следим за сетью
+        logSync("SyncManager: Initializing architecture fixes...")
+
+        pushTrigger
+            .debounce(500)
+            .onEach { doPush() }
+            .launchIn(scope)
+
         networkObserver.isOnline
-            .onEach { isOnline ->
-                if (isOnline && authRepository.getCurrentUserSync() != null) {
-                    logSync("SyncManager: Internet ONLINE & Auth OK. Triggering Sync.")
+            .drop(1)
+            .filter { it }
+            .onEach {
+                if (authRepository.getCurrentUserSync() != null) {
+                    logSync("SyncManager: Network restored. Syncing...")
                     pull()
                     push()
                 }
             }
             .launchIn(scope)
 
-        // КРИТИЧНО: Следим за авторизацией! 
-        // Как только пользователь вошел (даже в первый раз), сразу тянем данные.
         authRepository.currentUser
             .filterNotNull()
             .distinctUntilChangedBy { it.id }
             .onEach { user ->
-                logSync("SyncManager: User Authenticated (${user.email}). Starting initial sync.")
-                if (networkObserver.isOnline.value) {
-                    pull()
-                    push()
-                    setupRealtime() // Переподключаем Realtime с правами нового юзера
-                }
+                logSync("SyncManager: User authenticated. Starting sync.")
+                pull()
+                push()
+                setupRealtime()
             }
             .launchIn(scope)
     }
 
+    fun push() {
+        pushTrigger.tryEmit(Unit)
+    }
+
+    suspend fun pull() {
+        syncMutex.withLock {
+            if (!networkObserver.isOnline.value) return@withLock
+            if (authRepository.getCurrentUserSync() == null) return@withLock
+            doPull()
+        }
+    }
+
     private suspend fun setupRealtime() {
         try {
-            // Удаляем старый канал если был
             supabase.realtime.removeAllChannels()
-            
             val channel = supabase.realtime.channel("db-changes")
-            val tables = listOf("projects", "actors", "script_files", "scenes", "scene_versions", "props", "kpp_files", "shifts", "shift_scenes", "scene_actors", "project_members")
-            
+            val tables = listOf(
+                "projects", "project_members", "actors", "script_files",
+                "scenes", "scene_versions", "props", "kpp_files",
+                "shifts", "shift_scenes", "scene_actors"
+            )
+
             tables.forEach { tableName ->
                 channel.postgresChangeFlow<PostgresAction>(schema = "public") {
                     table = tableName
                 }.onEach { action ->
-                    logSync("SyncManager: Realtime Change on $tableName")
-                    withContext(Dispatchers.IO) { handleRealtimeAction(tableName, action) }
+                    handleRealtimeAction(tableName, action)
                 }.launchIn(scope)
             }
 
             channel.subscribe()
-            logSync("SyncManager: Realtime Channel Subscribed")
-            
-            supabase.realtime.status
-                .onEach { status ->
-                    logSync("SyncManager: Realtime Status: $status")
-                    if (status == Realtime.Status.CONNECTED) {
-                        pull()
-                    }
-                }
-                .launchIn(scope)
-
         } catch (e: Exception) {
             logSync("SyncManager: Realtime setup failed: ${e.message}")
         }
     }
 
     private suspend fun handleRealtimeAction(tableName: String, action: PostgresAction) {
+        syncMutex.withLock {
+            try {
+                when (action) {
+                    is PostgresAction.Insert -> processRealtimeRecord(tableName, action.record)
+                    is PostgresAction.Update -> processRealtimeRecord(tableName, action.record)
+                    is PostgresAction.Delete -> processRealtimeDelete(tableName, action.oldRecord)
+                    else -> Unit
+                }
+            } catch (e: Exception) {
+                logSync("SyncManager: Realtime error: ${e.message}")
+            }
+        }
+    }
+
+    private suspend fun processRealtimeRecord(tableName: String, record: JsonObject) {
+        when (tableName) {
+            "projects" -> {
+                val dto = json.decodeFromJsonElement<ProjectDto>(record)
+                queries.upsertProject(dto.id, dto.name, dto.director, dto.updatedAt.toEpochMillis(), 1L, dto.createdBy)
+            }
+            "project_members" -> {
+                val dto = json.decodeFromJsonElement<ProjectMemberDto>(record)
+                queries.upsertProjectMember(dto.id, dto.projectId, dto.userId, dto.email, dto.role, dto.updatedAt.toEpochMillis(), dto.wrappedMasterKey)
+                keyManager.unwrapAvailableKeys()
+            }
+            "actors" -> {
+                val dto = json.decodeFromJsonElement<ActorDto>(record)
+                queries.upsertActor(dto.id, dto.projectId, dto.name, dto.updatedAt.toEpochMillis())
+            }
+            "script_files" -> {
+                val dto = json.decodeFromJsonElement<ScriptFileDto>(record)
+                queries.upsertScriptFile(dto.id, dto.projectId, dto.seriesNumber.toLong(), dto.title, dto.filePath ?: "", dto.createdAt, null, "White", "User", dto.updatedAt.toEpochMillis())
+            }
+            "scenes" -> {
+                val dto = json.decodeFromJsonElement<SceneDto>(record)
+                val key = keyVault.loadMasterKey(dto.projectId)
+                val isDecrypted = key != null
+                val notes = if (isDecrypted && dto.notes != null) cryptoManager.decryptText(dto.notes, key!!) else dto.notes
+                queries.upsertSceneUserData(dto.id, dto.projectId, dto.seriesNumber.toLong(), dto.sceneNumber, dto.location, if (dto.isInterior) 1L else 0L, dto.timeOfDay, notes, (dto.needsReview ?: 0).toLong(), dto.updatedAt.toEpochMillis(), if (isDecrypted) 1L else 0L)
+            }
+            "scene_versions" -> {
+                val dto = json.decodeFromJsonElement<SceneVersionDto>(record)
+                val scene = queries.getSceneUserDataById(dto.sceneId).executeAsOneOrNull()
+                val key = scene?.let { keyVault.loadMasterKey(it.project_id) }
+                val isDecrypted = key != null
+                val content = if (isDecrypted) cryptoManager.decryptText(dto.content, key!!) else dto.content
+                queries.upsertSceneVersion(dto.id, dto.scriptFileId, dto.sceneId, content, dto.contentHash ?: "", dto.positionIndex.toLong(), dto.updatedAt.toEpochMillis(), if (isDecrypted) 1L else 0L)
+            }
+            "props" -> {
+                val dto = json.decodeFromJsonElement<PropDto>(record)
+                val scene = queries.getSceneUserDataById(dto.sceneId).executeAsOneOrNull()
+                val key = scene?.let { keyVault.loadMasterKey(it.project_id) }
+                val isDecrypted = key != null
+                val note = if (isDecrypted && dto.note != null) cryptoManager.decryptText(dto.note, key!!) else dto.note
+                queries.upsertProp(dto.id, dto.sceneId, dto.name, anchor = dto.anchor, status = dto.status, category = dto.category, propType = "Обстановочный", note = note, photoPath = null, isCrossCutting = if (dto.isCrossCutting == true) 1L else 0L, quantity = (dto.quantity ?: 1).toLong(), actorId = dto.actorId, startOffset = 0, endOffset = 0, orphaned = 0, groupId = dto.groupId, updatedAt = dto.updatedAt.toEpochMillis(), isDecrypted = if (isDecrypted) 1L else 0L)
+            }
+            "kpp_files" -> {
+                val dto = json.decodeFromJsonElement<KppFileDto>(record)
+                queries.upsertKppFile(dto.id, dto.projectId, dto.fileName, dto.filePath, dto.version.toLong(), dto.updatedAt.toEpochMillis())
+            }
+            "shifts" -> {
+                val dto = json.decodeFromJsonElement<ShiftDto>(record)
+                queries.upsertShift(dto.id, dto.projectId, dto.shiftNumber.toLong(), dto.date, dto.updatedAt.toEpochMillis())
+            }
+            "shift_scenes" -> {
+                val dto = json.decodeFromJsonElement<ShiftSceneDto>(record)
+                queries.upsertShiftScene(dto.shiftId, dto.sceneId, dto.position.toLong())
+            }
+            "scene_actors" -> {
+                val dto = json.decodeFromJsonElement<SceneActorDto>(record)
+                queries.upsertSceneActor(dto.sceneId, dto.actorId)
+            }
+        }
+    }
+
+    private fun processRealtimeDelete(tableName: String, oldRecord: JsonObject) {
+        val id = oldRecord["id"]?.jsonPrimitive?.content ?: return
+        when (tableName) {
+            "projects" -> queries.deleteProject(id)
+            "project_members" -> queries.deleteProjectMember(id)
+            "actors" -> queries.deleteActor(id)
+            "script_files" -> queries.deleteScriptFile(id)
+            "scenes" -> queries.deleteSceneUserData(id)
+            "scene_versions" -> queries.deleteSceneVersion(id)
+            "props" -> queries.deleteProp(id)
+            "kpp_files" -> queries.deleteKppFile(id)
+            "shifts" -> queries.deleteShift(id)
+            "shift_scenes" -> {
+                val sid = oldRecord["shift_id"]?.jsonPrimitive?.content ?: return
+                val scid = oldRecord["scene_id"]?.jsonPrimitive?.content ?: return
+                queries.deleteShiftScene(sid, scid)
+            }
+            "scene_actors" -> {
+                val scid = oldRecord["scene_id"]?.jsonPrimitive?.content ?: return
+                val aid = oldRecord["actor_id"]?.jsonPrimitive?.content ?: return
+                queries.deleteSceneActor(scid, aid)
+            }
+        }
+    }
+
+    private suspend fun doPush() {
+        if (!networkObserver.isOnline.value || authRepository.getCurrentUserSync() == null) return
+        if (!pushMutex.tryLock()) return
         try {
-            when (action) {
-                is PostgresAction.Insert -> {
-                    applyRealtimeData(tableName, action.record)
-                    if (tableName == "projects" || tableName == "project_members") {
-                        pull()
-                    }
-                }
-                is PostgresAction.Update -> applyRealtimeData(tableName, action.record)
-                is PostgresAction.Delete -> {
-                    withContext(Dispatchers.IO) {
-                        val id = action.oldRecord["id"]?.jsonPrimitive?.content
-                        if (id != null) {
-                            when (tableName) {
-                                "projects" -> queries.deleteProject(id)
-                                "actors" -> queries.deleteActor(id)
-                                "script_files" -> queries.deleteScriptFile(id)
-                                "scenes" -> queries.deleteSceneUserData(id)
-                                "scene_versions" -> queries.deleteSceneVersion(id)
-                                "props" -> queries.deleteProp(id)
-                                "project_members" -> queries.deleteProjectMember(id)
-                            }
-                        } else if (tableName == "shift_scenes") {
-                            val sId = action.oldRecord["shift_id"]?.jsonPrimitive?.content
-                            val scId = action.oldRecord["scene_id"]?.jsonPrimitive?.content
-                            if (sId != null && scId != null) { queries.deleteShiftScene(sId, scId) }
-                        }
-                    }
-                }
-                else -> {}
+            val pending = syncRepository.getPending().first()
+            if (pending.isEmpty()) return
+
+            logSync("SyncManager: Pushing ${pending.size} records...")
+            val grouped = pending.groupBy { it.tableName to it.operation }
+            
+            // ВАЖНО: Порядок строго определен родительскими связями
+            val tableOrder = listOf(
+                "Project", "Actor", "ScriptFile", "SceneUserData", 
+                "ProjectMember", "SceneVersion", "Prop", "KppFile", 
+                "Shift", "ShiftScene", "SceneActor"
+            )
+
+            for (tableName in tableOrder) {
+                // Сначала INSERT, потом UPDATE, затем DELETE для каждой таблицы
+                // Это гарантирует, что ScriptFile улетит раньше SceneVersion
+                grouped[tableName to "INSERT"]?.let { syncTable(tableName, it, isDelete = false) }
+                grouped[tableName to "UPDATE"]?.let { syncTable(tableName, it, isDelete = false) }
+                grouped[tableName to "DELETE"]?.let { syncTable(tableName, it, isDelete = true) }
             }
-        } catch (e: Exception) {
-            logSync("SyncManager: Realtime action error: ${e.message}")
-        }
-    }
-
-    private fun applyRealtimeData(tableName: String, record: JsonObject) {
-        queries.transaction {
-            try {
-                when (tableName) {
-                    "projects" -> {
-                        val dto = json.decodeFromJsonElement<ProjectDto>(record)
-                        queries.upsertProject(dto.id, dto.name, dto.director, dto.updatedAt.toEpochMillis(), 1L, dto.createdBy)
-                    }
-                    "actors" -> {
-                        val dto = json.decodeFromJsonElement<ActorDto>(record)
-                        queries.upsertActor(dto.id, dto.projectId, dto.name, dto.updatedAt.toEpochMillis())
-                    }
-                    "script_files" -> {
-                        val dto = json.decodeFromJsonElement<ScriptFileDto>(record)
-                        queries.upsertScriptFile(dto.id, dto.projectId, dto.seriesNumber.toLong(), dto.title, dto.filePath ?: "", dto.createdAt, null, "White", "Supabase", dto.updatedAt.toEpochMillis())
-                    }
-                    "scenes" -> {
-                        val dto = json.decodeFromJsonElement<SceneDto>(record)
-                        queries.upsertSceneUserData(dto.id, dto.projectId, dto.seriesNumber.toLong(), dto.sceneNumber, dto.location, if (dto.isInterior) 1L else 0L, dto.timeOfDay, dto.notes, (dto.needsReview ?: 0).toLong(), dto.updatedAt.toEpochMillis())
-                    }
-                    "scene_versions" -> {
-                        val dto = json.decodeFromJsonElement<SceneVersionDto>(record)
-                        queries.upsertSceneVersion(dto.id, dto.scriptFileId, dto.sceneId, dto.content, dto.contentHash ?: "", dto.positionIndex.toLong(), dto.updatedAt.toEpochMillis())
-                    }
-                    "props" -> {
-                        val dto = json.decodeFromJsonElement<PropDto>(record)
-                        queries.upsertProp(
-                            id = dto.id, sceneUserDataId = dto.sceneId, name = dto.name, anchor = dto.anchor, status = dto.status,
-                            category = dto.category, propType = "Обстановочный", note = dto.note, photoPath = null,
-                            isCrossCutting = if (dto.isCrossCutting == true) 1L else 0L, quantity = (dto.quantity ?: 1).toLong(), actorId = dto.actorId,
-                            startOffset = 0, endOffset = 0, orphaned = 0, groupId = dto.groupId, updatedAt = dto.updatedAt.toEpochMillis()
-                        )
-                    }
-                    "kpp_files" -> {
-                        val dto = json.decodeFromJsonElement<KppFileDto>(record)
-                        queries.upsertKppFile(dto.id, dto.projectId, dto.fileName, dto.filePath, dto.version.toLong(), dto.updatedAt.toEpochMillis())
-                    }
-                    "shifts" -> {
-                        val dto = json.decodeFromJsonElement<ShiftDto>(record)
-                        queries.upsertShift(dto.id, dto.projectId, dto.shiftNumber.toLong(), dto.date, dto.updatedAt.toEpochMillis())
-                    }
-                    "shift_scenes" -> {
-                        val dto = json.decodeFromJsonElement<ShiftSceneDto>(record)
-                        queries.linkShiftToScene(dto.shiftId, dto.sceneId, dto.position.toLong())
-                    }
-                    "scene_actors" -> {
-                        val dto = json.decodeFromJsonElement<SceneActorDto>(record)
-                        queries.linkActorToScene(dto.sceneId, dto.actorId)
-                    }
-                    "project_members" -> {
-                        val dto = json.decodeFromJsonElement<ProjectMemberDto>(record)
-                        queries.upsertProjectMember(dto.id, dto.projectId, dto.email, dto.role, dto.updatedAt.toEpochMillis())
-                    }
-                }
-            } catch (e: Exception) {
-                logSync("SyncManager: Apply Realtime Failed for $tableName: ${e.message}")
-            }
-        }
-    }
-
-    private fun String.toEpochMillis(): Long = try {
-        kotlinx.datetime.Instant.parse(this).toEpochMilliseconds()
-    } catch (e: Exception) {
-        0L
-    }
-
-    fun push() {
-        scope.launch {
-            if (!networkObserver.isOnline.value || authRepository.getCurrentUserSync() == null) return@launch
-            try {
-                delay(500)
-                val pending = syncRepository.getPending().first()
-                if (pending.isEmpty()) return@launch
-
-                logSync("SyncManager: Pushing ${pending.size} records...")
-                val grouped = pending.groupBy { it.tableName to it.operation }
-                val tableOrder = listOf("Project", "Actor", "ScriptFile", "SceneUserData", "SceneVersion", "Prop", "KppFile", "Shift", "ShiftScene", "SceneActor", "ProjectMember")
-
-                tableOrder.forEach { tableName ->
-                    grouped[tableName to "INSERT"]?.let { records -> syncTable(tableName, records, false) }
-                    grouped[tableName to "UPDATE"]?.let { records -> syncTable(tableName, records, false) }
-                    grouped[tableName to "DELETE"]?.let { records -> syncTable(tableName, records, true) }
-                }
-            } catch (e: Exception) {
-                logSync("SyncManager: Push critical error: ${e.message}")
-            }
-        }
-    }
-
-    suspend fun pull() {
-        withContext(Dispatchers.IO) {
-            if (!networkObserver.isOnline.value || authRepository.getCurrentUserSync() == null) return@withContext
-            try {
-                logSync("SyncManager: Starting Pull...")
-                val lastSyncStr = queries.getSetting(LAST_SYNC_KEY).executeAsOneOrNull() ?: "1970-01-01T00:00:00Z"
-                
-                val localProjectIds = queries.getAllProjects().executeAsList().map { it.id }.toSet()
-
-                val projects = supabase.postgrest["projects"].select().decodeList<ProjectDto>()
-                val members = supabase.postgrest["project_members"].select().decodeList<ProjectMemberDto>()
-                
-                val newProjectIds = projects.map { it.id }.filter { it !in localProjectIds }
-
-                // Для таблиц с project_id: тянем то, что изменилось ИЛИ всё для новых проектов
-                val actors = supabase.postgrest["actors"].select {
-                    filter {
-                        or {
-                            gt("updated_at", lastSyncStr)
-                            if (newProjectIds.isNotEmpty()) {
-                                filter("project_id", FilterOperator.IN, newProjectIds)
-                            }
-                        }
-                    }
-                }.decodeList<ActorDto>()
-                
-                val scripts = supabase.postgrest["script_files"].select {
-                    filter {
-                        or {
-                            gt("updated_at", lastSyncStr)
-                            if (newProjectIds.isNotEmpty()) {
-                                filter("project_id", FilterOperator.IN, newProjectIds)
-                            }
-                        }
-                    }
-                }.decodeList<ScriptFileDto>()
-                
-                val scenes = supabase.postgrest["scenes"].select {
-                    filter {
-                        or {
-                            gt("updated_at", lastSyncStr)
-                            if (newProjectIds.isNotEmpty()) {
-                                filter("project_id", FilterOperator.IN, newProjectIds)
-                            }
-                        }
-                    }
-                }.decodeList<SceneDto>()
-                
-                val versions = supabase.postgrest["scene_versions"].select {
-                    filter { gt("updated_at", lastSyncStr) }
-                }.decodeList<SceneVersionDto>()
-                
-                val props = supabase.postgrest["props"].select {
-                    filter { gt("updated_at", lastSyncStr) }
-                }.decodeList<PropDto>()
-                
-                val kppFiles = supabase.postgrest["kpp_files"].select {
-                    filter {
-                        or {
-                            gt("updated_at", lastSyncStr)
-                            if (newProjectIds.isNotEmpty()) {
-                                filter("project_id", FilterOperator.IN, newProjectIds)
-                            }
-                        }
-                    }
-                }.decodeList<KppFileDto>()
-                
-                val shifts = supabase.postgrest["shifts"].select {
-                    filter {
-                        or {
-                            gt("updated_at", lastSyncStr)
-                            if (newProjectIds.isNotEmpty()) {
-                                filter("project_id", FilterOperator.IN, newProjectIds)
-                            }
-                        }
-                    }
-                }.decodeList<ShiftDto>()
-                
-                val shiftScenes = supabase.postgrest["shift_scenes"].select().decodeList<ShiftSceneDto>()
-                val sceneActors = supabase.postgrest["scene_actors"].select().decodeList<SceneActorDto>()
-
-                logSync("SyncManager: Pulled ${projects.size} projects. New: ${newProjectIds.size}")
-
-                queries.transaction {
-                    projects.forEach { queries.upsertProject(it.id, it.name, it.director, it.updatedAt.toEpochMillis(), 1L, it.createdBy) }
-                    actors.forEach { queries.upsertActor(it.id, it.projectId, it.name, it.updatedAt.toEpochMillis()) }
-                    scripts.forEach { queries.upsertScriptFile(it.id, it.projectId, it.seriesNumber.toLong(), it.title, it.filePath ?: "", it.createdAt, null, "White", "Supabase", it.updatedAt.toEpochMillis()) }
-                    scenes.forEach { queries.upsertSceneUserData(it.id, it.projectId, it.seriesNumber.toLong(), it.sceneNumber, it.location, if (it.isInterior) 1L else 0L, it.timeOfDay, it.notes, (it.needsReview ?: 0).toLong(), it.updatedAt.toEpochMillis()) }
-                    versions.forEach { queries.upsertSceneVersion(it.id, it.scriptFileId, it.sceneId, it.content, it.contentHash ?: "", it.positionIndex.toLong(), it.updatedAt.toEpochMillis()) }
-                    props.forEach { dto ->
-                        queries.upsertProp(
-                            id = dto.id, sceneUserDataId = dto.sceneId, name = dto.name, anchor = dto.anchor, status = dto.status,
-                            category = dto.category, propType = "Обстановочный", note = dto.note, photoPath = null,
-                            isCrossCutting = if (dto.isCrossCutting == true) 1L else 0L, quantity = (dto.quantity ?: 1).toLong(), actorId = dto.actorId,
-                            startOffset = 0, endOffset = 0, orphaned = 0, groupId = dto.groupId, updatedAt = dto.updatedAt.toEpochMillis()
-                        )
-                    }
-                    kppFiles.forEach { queries.upsertKppFile(it.id, it.projectId, it.fileName, it.filePath, it.version.toLong(), it.updatedAt.toEpochMillis()) }
-                    shifts.forEach { queries.upsertShift(it.id, it.projectId, it.shiftNumber.toLong(), it.date, it.updatedAt.toEpochMillis()) }
-                    shiftScenes.forEach { queries.linkShiftToScene(it.shiftId, it.sceneId, it.position.toLong()) }
-                    sceneActors.forEach { queries.linkActorToScene(it.sceneId, it.actorId) }
-                    members.forEach { queries.upsertProjectMember(it.id, it.projectId, it.email, it.role, it.updatedAt.toEpochMillis()) }
-                    
-                    val nowStr = kotlinx.datetime.Instant.fromEpochMilliseconds(currentTimestamp()).toString()
-                    queries.upsertSetting(LAST_SYNC_KEY, nowStr)
-                }
-                logSync("SyncManager: Pull Complete")
-            } catch (e: Exception) {
-                logSync("SyncManager: Pull Error: ${e.message}")
-                e.printStackTrace()
-            }
+        } finally {
+            pushMutex.unlock()
         }
     }
 
     private suspend fun syncTable(tableName: String, records: List<org.mosyagin.project.SyncQueue>, isDelete: Boolean) {
-        val recordIds = records.map { it.recordId }
-        val queueIds = records.map { it.id }
-        val supabaseTable = when (tableName) {
-            "Project" -> "projects"; "Actor" -> "actors"; "ScriptFile" -> "script_files"
-            "SceneUserData" -> "scenes"; "SceneVersion" -> "scene_versions"; "Prop" -> "props"
-            "KppFile" -> "kpp_files"; "Shift" -> "shifts"; "ShiftScene" -> "shift_scenes"; "SceneActor" -> "scene_actors"
-            "ProjectMember" -> "project_members"
-            else -> return
-        }
-
-        withContext(Dispatchers.IO) {
-            try {
-                if (isDelete) {
-                    recordIds.forEach { compositeId ->
-                        if (compositeId.contains("|")) {
-                            val parts = compositeId.split("|")
-                            val (col1, col2) = when (tableName) {
-                                "ShiftScene" -> "shift_id" to "scene_id"
-                                "SceneActor" -> "scene_id" to "actor_id"
-                                else -> "id" to "id"
-                            }
-                            supabase.postgrest[supabaseTable].delete { filter { eq(col1, parts[0]); eq(col2, parts[1]) } }
-                        } else {
-                            supabase.postgrest[supabaseTable].delete { filter { eq("id", compositeId) } }
-                        }
-                    }
-                } else {
-                    when (tableName) {
-                        "Project" -> {
-                            val data = queries.getProjectsByIds(recordIds).executeAsList().map { ProjectDto(it.id, it.name, it.director, kotlinx.datetime.Instant.fromEpochMilliseconds(it.updatedAt).toString(), it.created_by) }
-                            if (data.isNotEmpty()) supabase.postgrest["projects"].upsert(data)
-                        }
-                        "Actor" -> {
-                            val data = queries.getActorsByIds(recordIds).executeAsList().map { ActorDto(it.id, it.project_id, it.name, kotlinx.datetime.Instant.fromEpochMilliseconds(it.updatedAt).toString()) }
-                            if (data.isNotEmpty()) supabase.postgrest["actors"].upsert(data)
-                        }
-                        "ScriptFile" -> {
-                            val data = queries.getScriptFilesByIds(recordIds).executeAsList().map { ScriptFileDto(it.id, it.project_id, it.seriesNumber.toInt(), it.title, it.filePath, it.createdAt, kotlinx.datetime.Instant.fromEpochMilliseconds(it.updatedAt).toString()) }
-                            if (data.isNotEmpty()) supabase.postgrest["script_files"].upsert(data)
-                        }
-                        "SceneUserData" -> {
-                            val data = queries.getSceneUserDataByIds(recordIds).executeAsList().map { SceneDto(it.id, it.project_id, it.seriesNumber.toInt(), it.sceneNumber, it.location, it.isInterior == 1L, it.timeOfDay, it.notes, it.needsReview?.toInt(), kotlinx.datetime.Instant.fromEpochMilliseconds(it.updatedAt).toString()) }
-                            if (data.isNotEmpty()) supabase.postgrest["scenes"].upsert(data)
-                        }
-                        "SceneVersion" -> {
-                            val data = queries.getSceneVersionsByIds(recordIds).executeAsList().map { SceneVersionDto(it.id, it.scriptFileId, it.sceneUserDataId, it.content, it.contentHash, it.positionIndex.toInt(), kotlinx.datetime.Instant.fromEpochMilliseconds(it.updatedAt).toString()) }
-                            if (data.isNotEmpty()) supabase.postgrest["scene_versions"].upsert(data)
-                        }
-                        "Prop" -> {
-                            val data = queries.getPropsByIds(recordIds).executeAsList().map { PropDto(it.id, it.sceneUserDataId, it.name, it.anchor, it.status, it.category, it.quantity?.toInt(), it.actorId, it.isCrossCutting == 1L, it.groupId, it.note, kotlinx.datetime.Instant.fromEpochMilliseconds(it.updatedAt).toString()) }
-                            if (data.isNotEmpty()) supabase.postgrest["props"].upsert(data)
-                        }
-                        "KppFile" -> {
-                            val data = recordIds.mapNotNull { queries.getKppFileById(it).executeAsOneOrNull() }.map { KppFileDto(it.id, it.project_id, it.fileName, it.filePath, it.version.toInt(), kotlinx.datetime.Instant.fromEpochMilliseconds(it.updatedAt).toString()) }
-                            if (data.isNotEmpty()) supabase.postgrest["kpp_files"].upsert(data)
-                        }
-                        "Shift" -> {
-                            val data = recordIds.mapNotNull { queries.getShiftById(it).executeAsOneOrNull() }.map { ShiftDto(it.id, it.project_id, it.shiftNumber.toInt(), it.date, kotlinx.datetime.Instant.fromEpochMilliseconds(it.updatedAt).toString()) }
-                            if (data.isNotEmpty()) supabase.postgrest["shifts"].upsert(data)
-                        }
-                        "ShiftScene" -> {
-                            recordIds.forEach { compositeId ->
-                                val parts = compositeId.split("|")
-                                if (parts.size == 2) supabase.postgrest["shift_scenes"].upsert(ShiftSceneDto(parts[0], parts[1], 0))
-                            }
-                        }
-                        "SceneActor" -> {
-                            recordIds.forEach { compositeId ->
-                                val parts = compositeId.split("|")
-                                if (parts.size == 2) {
-                                    supabase.postgrest["scene_actors"].upsert(SceneActorDto(parts[0], parts[1]))
-                                }
-                            }
-                        }
-                        "ProjectMember" -> {
-                            val data = queries.getProjectMembersByIds(recordIds).executeAsList().map { ProjectMemberDto(it.id, it.project_id, it.email, it.role, kotlinx.datetime.Instant.fromEpochMilliseconds(it.updatedAt).toString()) }
-                            if (data.isNotEmpty()) supabase.postgrest["project_members"].upsert(data)
-                        }
-                    }
+        val recordIds = records.map { it.recordId }; val queueIds = records.map { it.id }
+        try {
+            if (isDelete) { syncRepository.markSynced(queueIds); return }
+            when (tableName) {
+                "Project" -> {
+                    val dtos = queries.getProjectsByIds(recordIds).executeAsList().map { ProjectDto(it.id, it.name, it.director, it.updatedAt.toIso(), it.created_by) }
+                    if (dtos.isNotEmpty()) supabase.postgrest["projects"].upsert(dtos)
                 }
-                syncRepository.markSynced(queueIds)
-            } catch (e: Exception) {
-                logSync("SyncManager: FAILED table '$tableName'. Reason: ${e.message}")
+                "ProjectMember" -> {
+                    val dtos = queries.getProjectMembersByIds(recordIds).executeAsList().map { ProjectMemberDto(it.id, it.project_id, it.user_id, it.email, it.role, it.updatedAt.toIso(), it.wrapped_master_key) }
+                    if (dtos.isNotEmpty()) supabase.postgrest["project_members"].upsert(dtos) { onConflict = "project_id,email" }
+                }
+                "Actor" -> {
+                    val dtos = queries.getActorsByIds(recordIds).executeAsList().map { ActorDto(it.id, it.project_id, it.name, it.updatedAt.toIso()) }
+                    if (dtos.isNotEmpty()) supabase.postgrest["actors"].upsert(dtos)
+                }
+                "ScriptFile" -> {
+                    val dtos = queries.getScriptFilesByIds(recordIds).executeAsList().map { ScriptFileDto(it.id, it.project_id, it.seriesNumber.toInt(), it.title, it.filePath, it.createdAt, it.updatedAt.toIso()) }
+                    if (dtos.isNotEmpty()) supabase.postgrest["script_files"].upsert(dtos)
+                }
+                "SceneUserData" -> {
+                    val dtos = mutableListOf<SceneDto>()
+                    for (ud in queries.getSceneUserDataByIds(recordIds).executeAsList()) {
+                        val key = keyVault.loadMasterKey(ud.project_id)
+                        val enc = if (key != null && ud.notes != null) cryptoManager.encryptText(ud.notes, key) else ud.notes
+                        dtos.add(SceneDto(ud.id, ud.project_id, ud.seriesNumber.toInt(), ud.sceneNumber, ud.location, ud.isInterior == 1L, ud.timeOfDay, enc, ud.needsReview.toInt(), ud.updatedAt.toIso()))
+                    }
+                    if (dtos.isNotEmpty()) supabase.postgrest["scenes"].upsert(dtos)
+                }
+                "SceneVersion" -> {
+                    val dtos = mutableListOf<SceneVersionDto>()
+                    for (v in queries.getSceneVersionsByIds(recordIds).executeAsList()) {
+                        val scene = queries.getSceneUserDataById(v.sceneUserDataId).executeAsOneOrNull()
+                        val key = scene?.let { keyVault.loadMasterKey(it.project_id) }
+                        val enc = if (key != null) cryptoManager.encryptText(v.content, key) else v.content
+                        dtos.add(SceneVersionDto(v.id, v.scriptFileId, v.sceneUserDataId, enc, v.contentHash, v.positionIndex.toInt(), v.updatedAt.toIso()))
+                    }
+                    if (dtos.isNotEmpty()) supabase.postgrest["scene_versions"].upsert(dtos)
+                }
+                "Prop" -> {
+                    val dtos = mutableListOf<PropDto>()
+                    for (p in queries.getPropsByIds(recordIds).executeAsList()) {
+                        val scene = queries.getSceneUserDataById(p.sceneUserDataId).executeAsOneOrNull()
+                        val key = scene?.let { keyVault.loadMasterKey(it.project_id) }
+                        val enc = if (key != null && p.note != null) cryptoManager.encryptText(p.note, key) else p.note
+                        dtos.add(PropDto(p.id, p.sceneUserDataId, p.name, p.anchor, p.status, p.category, p.quantity.toInt(), p.actorId, p.isCrossCutting == 1L, p.groupId, enc, p.updatedAt.toIso()))
+                    }
+                    if (dtos.isNotEmpty()) supabase.postgrest["props"].upsert(dtos)
+                }
+                "KppFile" -> {
+                    val dtos = recordIds.mapNotNull { queries.getKppFileById(it).executeAsOneOrNull() }.map { KppFileDto(it.id, it.project_id, it.fileName, it.filePath, it.version.toInt(), it.updatedAt.toIso()) }
+                    if (dtos.isNotEmpty()) supabase.postgrest["kpp_files"].upsert(dtos)
+                }
+                "Shift" -> {
+                    val dtos = recordIds.mapNotNull { queries.getShiftById(it).executeAsOneOrNull() }.map { ShiftDto(it.id, it.project_id, it.shiftNumber.toInt(), it.date, it.updatedAt.toIso()) }
+                    if (dtos.isNotEmpty()) supabase.postgrest["shifts"].upsert(dtos)
+                }
+                "ShiftScene" -> {
+                    val dtos = recordIds.mapNotNull { id -> val parts = id.split("|"); if (parts.size == 2) ShiftSceneDto(parts[0], parts[1], 0) else null }
+                    if (dtos.isNotEmpty()) supabase.postgrest["shift_scenes"].upsert(dtos)
+                }
+                "SceneActor" -> {
+                    val dtos = recordIds.mapNotNull { id -> val parts = id.split("|"); if (parts.size == 2) SceneActorDto(parts[0], parts[1]) else null }
+                    if (dtos.isNotEmpty()) supabase.postgrest["scene_actors"].upsert(dtos)
+                }
             }
+            syncRepository.markSynced(queueIds)
+        } catch (e: Exception) { 
+            logSync("SyncLog: Push failed for $tableName: ${e.message}")
+            // БРОСАЕМ исключение дальше, чтобы остановить doPush и не пытаться вставить дочерние записи
+            throw e 
         }
     }
+
+    private suspend fun doPull() {
+        try {
+            val projects = supabase.postgrest["projects"].select().decodeList<ProjectDto>()
+            val members = supabase.postgrest["project_members"].select().decodeList<ProjectMemberDto>()
+            projects.forEach { queries.upsertProject(it.id, it.name, it.director, it.updatedAt.toEpochMillis(), 1L, it.createdBy) }
+            members.forEach { m -> queries.upsertProjectMember(m.id, m.projectId, m.userId, m.email, m.role, m.updatedAt.toEpochMillis(), m.wrappedMasterKey) }
+            keyManager.unwrapAvailableKeys()
+            for (p in projects) syncProjectData(p.id)
+            queries.upsertSetting(LAST_SYNC_KEY, currentIso())
+        } catch (e: Exception) { logSync("Pull failed: ${e.message}") }
+    }
+
+    private suspend fun syncProjectData(projectId: String, forceFull: Boolean = false) {
+        val lastSync = if (forceFull) "1970-01-01T00:00:00Z" else getProjectSyncTimestamp(projectId)
+        val key = keyVault.loadMasterKey(projectId)
+        try {
+            val actors = supabase.postgrest["actors"].select { filter { eq("project_id", projectId); gt("updated_at", lastSync) } }.decodeList<ActorDto>()
+            val scripts = supabase.postgrest["script_files"].select { filter { eq("project_id", projectId); gt("updated_at", lastSync) } }.decodeList<ScriptFileDto>()
+            val scenes = supabase.postgrest["scenes"].select { filter { eq("project_id", projectId); gt("updated_at", lastSync) } }.decodeList<SceneDto>()
+            val scids = scenes.map { it.id }
+            val versions = if (scids.isNotEmpty()) supabase.postgrest["scene_versions"].select { filter { isIn("scene_id", scids) } }.decodeList<SceneVersionDto>() else emptyList()
+            val props = if (scids.isNotEmpty()) supabase.postgrest["props"].select { filter { isIn("scene_id", scids) } }.decodeList<PropDto>() else emptyList()
+            val isDecrypted = key != null
+            val decScenes = scenes.map { s -> s.copy(notes = if (isDecrypted && s.notes != null) cryptoManager.decryptText(s.notes, key!!) else s.notes) }
+            val decVersions = versions.map { v -> v.copy(content = if (isDecrypted) cryptoManager.decryptText(v.content, key!!) else v.content) }
+            val decProps = props.map { p -> p.copy(note = if (isDecrypted && p.note != null) cryptoManager.decryptText(p.note, key!!) else p.note) }
+            queries.transaction {
+                actors.forEach { queries.upsertActor(it.id, it.projectId, it.name, it.updatedAt.toEpochMillis()) }
+                scripts.forEach { queries.upsertScriptFile(it.id, it.projectId, it.seriesNumber.toLong(), it.title, it.filePath ?: "", it.createdAt, null, "White", "User", it.updatedAt.toEpochMillis()) }
+                decScenes.forEach { s -> queries.upsertSceneUserData(s.id, s.projectId, s.seriesNumber.toLong(), s.sceneNumber, s.location, if (s.isInterior) 1L else 0L, s.timeOfDay, s.notes, (s.needsReview ?: 0).toLong(), s.updatedAt.toEpochMillis(), if (isDecrypted) 1L else 0L) }
+                decVersions.forEach { v -> queries.upsertSceneVersion(v.id, v.scriptFileId, v.sceneId, v.content, v.contentHash ?: "", v.positionIndex.toLong(), v.updatedAt.toEpochMillis(), if (isDecrypted) 1L else 0L) }
+                decProps.forEach { p -> queries.upsertProp(p.id, p.sceneId, p.name, p.anchor, p.status, p.category, "Обстановочный", p.note, null, if (p.isCrossCutting == true) 1L else 0L, (p.quantity ?: 1).toLong(), p.actorId, 0, 0, 0, p.groupId, p.updatedAt.toEpochMillis(), if (isDecrypted) 1L else 0L) }
+            }
+            updateProjectSyncTimestamp(projectId)
+        } catch (e: Exception) { logSync("Project sync failed: ${e.message}") }
+    }
+
+    private fun getProjectSyncTimestamp(id: String): String = queries.getSetting("$PROJECT_SYNC_PREFIX$id").executeAsOneOrNull() ?: "1970-01-01T00:00:00Z"
+    private fun updateProjectSyncTimestamp(id: String) = queries.upsertSetting("$PROJECT_SYNC_PREFIX$id", currentIso())
+    private fun Long.toIso(): String = kotlinx.datetime.Instant.fromEpochMilliseconds(this).toString()
+    private fun String.toEpochMillis(): Long = try { kotlinx.datetime.Instant.parse(this).toEpochMilliseconds() } catch (e: Exception) { 0L }
+    private fun currentIso(): String = kotlinx.datetime.Instant.fromEpochMilliseconds(currentTimestamp()).toString()
 }

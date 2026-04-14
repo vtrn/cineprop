@@ -89,7 +89,8 @@ class ScriptRepositoryImpl(
                         timeOfDay = scene.time,
                         notes = null,
                         needsReview = 0L,
-                        updatedAt = now
+                        updatedAt = now,
+                        isDecrypted = 1L
                     )
 
                     syncRepository.enqueueSync("INSERT", "SceneUserData", sceneUserDataId, projectId, null)
@@ -103,7 +104,8 @@ class ScriptRepositoryImpl(
                         content = encryptedContent,
                         contentHash = "",
                         positionIndex = index.toLong(),
-                        updatedAt = now
+                        updatedAt = now,
+                        isDecrypted = 1L
                     )
                     
                     syncRepository.enqueueSync("INSERT", "SceneVersion", sceneVersionId, projectId, null)
