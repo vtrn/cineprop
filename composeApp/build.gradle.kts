@@ -95,12 +95,16 @@ kotlin {
             implementation(libs.ktor.client.core)
             
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+
+            // Cryptography Core
+            implementation(libs.cryptography.core)
         }
 
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.koin.test)
+            implementation("io.ktor:ktor-client-mock:${libs.versions.ktor.get()}")
         }
         
         androidMain.dependencies {
@@ -111,19 +115,28 @@ kotlin {
             implementation(libs.koin.android)
             
             implementation(libs.poi.ooxml)
-            // ИСПОЛЬЗУЕМ OKHTTP ДЛЯ ПОДДЕРЖКИ WEBSOCKETS НА ANDROID
             implementation("io.ktor:ktor-client-okhttp:${libs.versions.ktor.get()}")
+
+            // Cryptography JDK Provider
+            implementation(libs.cryptography.provider.jdk)
+            
+            // SECURITY CRYPTO ДЛЯ ANDROID
+            implementation(libs.androidx.security.crypto)
         }
 
         androidUnitTest.dependencies {
             implementation(libs.robolectric)
             implementation(libs.core.ktx)
+            // ДОБАВЛЕНО ДЛЯ ТЕСТОВОГО КОНТЕКСТА
+            implementation("androidx.test:core:1.6.1")
         }
         
         iosMain.dependencies {
             implementation("app.cash.sqldelight:native-driver:${libs.versions.sqldelight.get()}")
-            // iOS движок Darwin поддерживает WebSockets из коробки
             implementation("io.ktor:ktor-client-darwin:${libs.versions.ktor.get()}")
+
+            // Cryptography Apple Provider
+            implementation(libs.cryptography.provider.apple)
         }
 
         jvmMain.dependencies {
@@ -134,6 +147,9 @@ kotlin {
             
             implementation(libs.poi.ooxml)
             implementation(libs.ktor.client.cio)
+
+            // Cryptography JDK Provider
+            implementation(libs.cryptography.provider.jdk)
         }
     }
 }
@@ -177,13 +193,11 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Exe)
             packageName = "CineApp"
             
-            // Добавляем модуль java.sql для работы JDBC драйверов (SQLite)
             modules("java.sql")
 
             macOS { 
                 bundleID = "org.mosyagin.cineapp"
                 infoPlist {
-                    // ИСПРАВЛЕНО: extraKeysRawXml вместо extraKeys
                     extraKeysRawXml = """
                         <key>CFBundleURLTypes</key>
                         <array>

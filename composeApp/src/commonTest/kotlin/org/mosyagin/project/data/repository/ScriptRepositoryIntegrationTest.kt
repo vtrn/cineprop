@@ -1,6 +1,8 @@
 package org.mosyagin.project.data.repository
 
 import app.cash.sqldelight.db.SqlDriver
+import io.github.jan.supabase.createSupabaseClient
+import io.ktor.client.engine.mock.*
 import kotlinx.coroutines.test.runTest
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
@@ -16,7 +18,10 @@ import org.mosyagin.project.repository.FakeSyncRepository
 import org.mosyagin.project.repository.ScriptRepository
 import org.mosyagin.project.repository.ScriptRepositoryImpl
 import org.mosyagin.project.repository.SyncRepository
-import org.mosyagin.project.crypto.PlainDataEncrypter
+import org.mosyagin.project.crypto.CryptoManager
+import org.mosyagin.project.crypto.KeyVault
+import org.mosyagin.project.crypto.DataEncrypter
+import org.mosyagin.project.crypto.AesEncrypter
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -37,7 +42,7 @@ class ScriptRepositoryIntegrationTest : KoinTest {
         try {
             CinePropDatabase.Schema.create(driver)
         } catch (e: Exception) {
-            // Схема уже может быть создана внутри createTestDriver() на некоторых платформах
+            // Схема уже может быть создана
         }
 
         val database = CinePropDatabase(driver)
@@ -48,8 +53,19 @@ class ScriptRepositoryIntegrationTest : KoinTest {
                 single { dbQueries }
                 single { ScriptParser() }
                 single<SyncRepository> { FakeSyncRepository() }
-                single { PlainDataEncrypter() }
-                // Передаем по 4 параметра get(), так как конструкторы обновились
+                single { CryptoManager() }
+                // Используем фабрику для тестов
+                single { createTestKeyVault() }
+                single<DataEncrypter> { AesEncrypter(get(), get()) }
+                
+                // Создаем мок SupabaseClient
+                single {
+                    createSupabaseClient("https://mock.supabase.co", "key") {
+                        httpEngine = MockEngine { respond("{}") }
+                    }
+                }
+
+                // Теперь конструкторы принимают верное кол-во параметров
                 single { ScriptUpdateManager(get(), get(), get(), get()) }
                 single<ScriptRepository> { ScriptRepositoryImpl(get(), get(), get(), get()) }
             })
@@ -67,8 +83,7 @@ class ScriptRepositoryIntegrationTest : KoinTest {
     @Test
     fun testParseAndSaveIntegration() = runTest {
         val projectId = "test-project-id"
-        // Добавлен created_by
-        queries.insertProject(projectId, "Интеграционный тест", "Режиссер", 0L, 0L, "test@example.com")
+        queries.insertProject(projectId, "Интеграционный тест", "Режиссер", 0L, isRemote = 0L, created_by = "test@example.com")
 
         val scriptText = """
             1. ИНТ. ОФИС - ДЕНЬ
@@ -102,8 +117,7 @@ class ScriptRepositoryIntegrationTest : KoinTest {
     @Test
     fun testActorsAreLinkedDuringParsing() = runTest {
         val projectId = "actors-test-id"
-        // Добавлен created_by
-        queries.insertProject(projectId, "Актеры", "Режиссер", 0L, 0L, "test@example.com")
+        queries.insertProject(projectId, "Актеры", "Режиссер", 0L, isRemote = 0L, created_by = "test@example.com")
 
         val scriptText = """
             1. ИНТ. КУХНЯ - ДЕНЬ

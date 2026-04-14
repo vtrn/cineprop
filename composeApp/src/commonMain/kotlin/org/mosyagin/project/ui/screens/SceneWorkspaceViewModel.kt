@@ -163,7 +163,7 @@ class SceneWorkspaceViewModel(
     fun addProp(name: String, anchor: String) {
         val sceneId = _selectedSceneId.value ?: return
         screenModelScope.launch {
-            sceneRepository.addProp(sceneId, name, anchor)
+            sceneRepository.addProp(sceneId, name, anchor, "Найти", 0, 0)
         }
     }
 

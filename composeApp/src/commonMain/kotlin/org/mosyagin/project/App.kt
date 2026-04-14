@@ -26,6 +26,7 @@ fun App() {
         
         val themeMode by settingsRepository.getThemeMode().collectAsState("system")
         val currentUser by authRepository.currentUser.collectAsState(null)
+        val isEncryptionReady by authRepository.isEncryptionReady.collectAsState()
         
         var skipAuth by remember { mutableStateOf(false) }
         
@@ -50,7 +51,13 @@ fun App() {
                     Navigator(AuthScreen(onSkipAuth = { skipAuth = true })) { navigator ->
                         SlideTransition(navigator)
                     }
+                } else if (!isEncryptionReady && !skipAuth) {
+                    // ЕСЛИ АВТОРИЗОВАН, НО КЛЮЧИ НЕ ГОТОВЫ -> НАСТРОЙКА ЗАЩИТЫ
+                    Navigator(CryptoSetupScreen()) { navigator ->
+                        SlideTransition(navigator)
+                    }
                 } else {
+                    // ОСНОВНОЕ ПРИЛОЖЕНИЕ
                     var isInProject by remember { mutableStateOf(false) }
                     var currentSection by remember { mutableStateOf("projects") }
                     var activeProjectId by remember { mutableStateOf<String?>(null) }

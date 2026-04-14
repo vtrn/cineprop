@@ -20,6 +20,9 @@ actual val platformModule: Module = module {
     // Провайдер ключей для Android (использует KeyStore)
     single<KeyProvider> { AndroidKeyProvider(get()) }
 
+    // Безопасное хранилище для Android
+    single { KeyVault(get()) }
+
     // Наблюдатель за сетью для Android
     single<NetworkObserver> { AndroidNetworkObserver(get()) }
 

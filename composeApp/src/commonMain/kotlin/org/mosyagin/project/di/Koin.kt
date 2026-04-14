@@ -45,6 +45,7 @@ val databaseModule = module {
 val screenModelModule = module {
     factory { ProjectListScreenModel(get(), get(), get(), get(), get(), get()) }
     factory { AuthScreenModel(get()) }
+    factory { CryptoSetupViewModel(get()) }
     
     factory { (sceneUserDataId: String, scriptFileId: String) -> 
         SceneDetailScreenModel(get(), sceneUserDataId, scriptFileId)
@@ -93,7 +94,6 @@ val screenModelModule = module {
         CharacterWorkspaceViewModel(projectId, get())
     }
     
-    // НОВАЯ VIEWMODEL: Команда
     factory { (projectId: String) -> 
         TeamViewModel(projectId, get())
     }
@@ -111,9 +111,14 @@ val appModule = module {
     single { ScriptUpdateManager(get(), get(), get(), get()) }
     
     single<SyncRepository> { SyncRepositoryImpl(get()) }
+
+    // KeyManager зарегистрирован как синглтон и стартует сразу
+    single(createdAtStart = true) { KeyManager(get(), get(), get(), get()) }
     
-    // Обновлено: теперь SyncManager принимает 5 параметров, включая AuthRepository
-    single { SyncManager(get(), get(), get(), get(), get()) }
+    // Передаем KeyManager в SyncManager
+    single { SyncManager(get(), get(), get(), get(), get(), get(), get(), get()) }
+    
+    single { CryptoManager() }
     
     single<DataEncrypter> {
         AesEncrypter(get(), get())
@@ -126,7 +131,7 @@ val appModule = module {
         "SyncLinkInitialized"
     }
     
-    single<ProjectRepository> { ProjectRepositoryImpl(get(), get(), get()) }
+    single<ProjectRepository> { ProjectRepositoryImpl(get(), get(), get(), get(), get(), get()) }
     
     single<SceneRepository> { SceneRepositoryImpl(get(), get(), get()) }
 
@@ -137,7 +142,7 @@ val appModule = module {
     
     single<SettingsRepository> { SettingsRepositoryImpl(get()) }
     
-    single<AuthRepository>(createdAtStart = true) { AuthRepositoryImpl(get()) }
+    single<AuthRepository>(createdAtStart = true) { AuthRepositoryImpl(get(), get(), get()) }
 
-    single<MemberRepository> { MemberRepositoryImpl(get(), get()) }
+    single<MemberRepository> { MemberRepositoryImpl(get(), get(), get(), get(), get(), get()) }
 }

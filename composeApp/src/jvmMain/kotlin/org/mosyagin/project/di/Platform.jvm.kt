@@ -18,6 +18,9 @@ actual val platformModule: Module = module {
     // Провайдер ключей для Desktop (JVM)
     single<KeyProvider> { JvmKeyProvider() }
 
+    // Безопасное хранилище для Desktop
+    single { KeyVault() }
+
     // Наблюдатель за сетью для Desktop
     single<NetworkObserver> { JvmNetworkObserver() }
 

@@ -15,6 +15,12 @@ interface SettingsRepository {
     
     fun isEncryptionEnabled(): Flow<Boolean>
     suspend fun setEncryptionEnabled(enabled: Boolean)
+
+    fun isCloudKeySyncEnabled(): Flow<Boolean>
+    suspend fun setCloudKeySyncEnabled(enabled: Boolean)
+
+    fun isRecoveryPinEnabled(): Flow<Boolean>
+    suspend fun setRecoveryPinEnabled(enabled: Boolean)
 }
 
 class SettingsRepositoryImpl(private val queries: DatabaseQueries) : SettingsRepository {
@@ -38,5 +44,27 @@ class SettingsRepositoryImpl(private val queries: DatabaseQueries) : SettingsRep
 
     override suspend fun setEncryptionEnabled(enabled: Boolean) {
         queries.upsertSetting("encryption_enabled", enabled.toString())
+    }
+
+    override fun isCloudKeySyncEnabled(): Flow<Boolean> {
+        return queries.getSetting("cloud_key_sync_enabled")
+            .asFlow()
+            .mapToOneOrNull<String>(Dispatchers.IO)
+            .map { it == "true" }
+    }
+
+    override suspend fun setCloudKeySyncEnabled(enabled: Boolean) {
+        queries.upsertSetting("cloud_key_sync_enabled", enabled.toString())
+    }
+
+    override fun isRecoveryPinEnabled(): Flow<Boolean> {
+        return queries.getSetting("recovery_pin_enabled")
+            .asFlow()
+            .mapToOneOrNull<String>(Dispatchers.IO)
+            .map { it == "true" }
+    }
+
+    override suspend fun setRecoveryPinEnabled(enabled: Boolean) {
+        queries.upsertSetting("recovery_pin_enabled", enabled.toString())
     }
 }
