@@ -36,7 +36,8 @@ class ScriptRepositoryImpl(
     private val queries: DatabaseQueries,
     private val parser: ScriptParser,
     private val syncRepository: SyncRepository,
-    private val encrypter: DataEncrypter
+    private val encrypter: DataEncrypter,
+    private val activityRepository: ActivityRepository
 ) : ScriptRepository {
 
     override fun getScriptsForProject(projectId: String): Flow<List<ScriptFile>> =
@@ -129,6 +130,16 @@ class ScriptRepositoryImpl(
                     }
                 }
             }
+            
+            activityRepository.logActivity(
+                projectId = projectId,
+                type = "SCENARIO",
+                action = "UPLOADED",
+                entityId = null,
+                entityName = "Сценарий (Серия $seriesNumber)",
+                description = "загрузил новый сценарий (${parsedScenes.size} сцен)"
+            )
+
             syncRepository.triggerPush()
         }
     }

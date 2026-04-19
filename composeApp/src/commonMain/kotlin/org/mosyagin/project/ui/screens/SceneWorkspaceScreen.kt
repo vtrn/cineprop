@@ -2,6 +2,7 @@
 
 package org.mosyagin.project.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -11,6 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -34,6 +36,9 @@ import org.mosyagin.project.models.versioning.Prop
 import org.mosyagin.project.models.versioning.PropStatus
 import org.mosyagin.project.repository.PropWithScene
 import org.mosyagin.project.ui.components.ThreePaneLayout
+import org.mosyagin.project.ui.components.SceneMobileLayout
+import org.mosyagin.project.ui.components.AppLayoutType
+import org.mosyagin.project.ui.components.LocalAppLayoutType
 import org.mosyagin.project.ui.components.CineCard
 import org.mosyagin.project.ui.components.CineTag
 import org.mosyagin.project.parser.ScriptParser
@@ -44,6 +49,7 @@ data class SceneWorkspaceScreen(val projectId: String) : Screen {
     override fun Content() {
         val screenModel = koinScreenModel<SceneWorkspaceViewModel> { parametersOf(projectId) }
         val navigator = LocalNavigator.currentOrThrow
+        val layoutType = LocalAppLayoutType.current
         val scope = rememberCoroutineScope()
         val listState = rememberLazyListState()
         
@@ -58,53 +64,89 @@ data class SceneWorkspaceScreen(val projectId: String) : Screen {
         var showAddPropDialog by remember { mutableStateOf(false) }
         var showSelectionPopup by remember { mutableStateOf(false) }
         var selectedAnchor by remember { mutableStateOf("") }
+        
+        // Мобильные состояния
+        var isLeftExpanded by remember { mutableStateOf(false) }
+        var isInspectorVisible by remember { mutableStateOf(false) }
 
-        Box(modifier = Modifier.fillMaxSize()) {
-            ThreePaneLayout(
-                masterPane = {
-                    MasterPane(
-                        scenes = scenes,
-                        selectedId = selectedId,
-                        searchQuery = searchQuery,
-                        selectedFilter = selectedFilter,
-                        onSceneClick = { screenModel.onSceneSelected(it) },
-                        onSearchChange = { screenModel.onSearchQueryChange(it) },
-                        onFilterClick = { screenModel.onFilterSelected(it) }
-                    )
+        // Левая панель (Список сцен)
+        val masterPane: @Composable (Boolean) -> Unit = { _ ->
+            MasterPane(
+                scenes = scenes,
+                selectedId = selectedId,
+                searchQuery = searchQuery,
+                selectedFilter = selectedFilter,
+                onSceneClick = { id -> 
+                    screenModel.onSceneSelected(id)
+                    if (layoutType == AppLayoutType.MOBILE) isLeftExpanded = false
                 },
-                detailPane = {
-                    DetailPane(
-                        content = sceneDetails?.content,
-                        props = inspectorData?.props ?: emptyList(),
-                        selectedPropId = null,
-                        onPropClick = { /* Логика выделения */ },
-                        onTextSelected = { text ->
-                            if (text.isNotBlank()) {
-                                selectedAnchor = text.trim()
-                                showSelectionPopup = true
-                            }
-                        },
-                        listState = listState
-                    )
-                },
-                inspectorPane = {
-                    InspectorPane(
-                        data = inspectorData,
-                        onDeleteProp = { screenModel.deleteProp(it) },
-                        onPropSelected = { prop ->
-                            val content = sceneDetails?.content
-                            if (content != null) {
-                                val blocks = ScriptParser().parseBlocks(content)
-                                val index = blocks.indexOfFirst { it.text.lowercase().contains(prop.anchor.lowercase()) }
-                                if (index != -1) {
-                                    scope.launch { listState.animateScrollToItem(index) }
-                                }
-                            }
-                        },
-                        onShowDiff = { id -> navigator.push(SceneDiffScreen(id)) }
-                    )
-                }
+                onSearchChange = { screenModel.onSearchQueryChange(it) },
+                onFilterClick = { screenModel.onFilterSelected(it) }
             )
+        }
+
+        // Центральная панель (Текст)
+        val detailPane = @Composable {
+            DetailPane(
+                content = sceneDetails?.content,
+                props = inspectorData?.props ?: emptyList(),
+                selectedPropId = null,
+                onPropClick = { /* Логика выделения */ },
+                onTextSelected = { text ->
+                    if (text.isNotBlank()) {
+                        selectedAnchor = text.trim()
+                        showSelectionPopup = true
+                    }
+                },
+                listState = listState,
+                onOpenInspector = { isInspectorVisible = true },
+                onOpenMaster = { isLeftExpanded = true },
+                layoutType = layoutType
+            )
+        }
+
+        // Правая панель (Инспектор)
+        val inspectorPane = @Composable {
+            InspectorPane(
+                data = inspectorData,
+                onDeleteProp = { screenModel.deleteProp(it) },
+                onPropSelected = { prop ->
+                    val content = sceneDetails?.content
+                    if (content != null) {
+                        val blocks = ScriptParser().parseBlocks(content)
+                        val index = blocks.indexOfFirst { it.text.lowercase().contains(prop.anchor.lowercase()) }
+                        if (index != -1) {
+                            scope.launch { 
+                                listState.animateScrollToItem(index)
+                                if (layoutType == AppLayoutType.MOBILE) isInspectorVisible = false
+                            }
+                        }
+                    }
+                },
+                onShowDiff = { id -> navigator.push(SceneDiffScreen(id)) },
+                onAcceptChanges = { screenModel.updateSceneReviewStatus(false) },
+                onClose = if (layoutType == AppLayoutType.MOBILE) { { isInspectorVisible = false } } else null
+            )
+        }
+
+        Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+            if (layoutType == AppLayoutType.DESKTOP) {
+                ThreePaneLayout(
+                    masterPane = { masterPane(false) },
+                    detailPane = { detailPane() },
+                    inspectorPane = { inspectorPane() }
+                )
+            } else {
+                SceneMobileLayout(
+                    masterPane = masterPane,
+                    detailPane = detailPane,
+                    inspectorPane = inspectorPane,
+                    isLeftExpanded = isLeftExpanded,
+                    onToggleLeft = { isLeftExpanded = it },
+                    isInspectorVisible = isInspectorVisible,
+                    onCloseInspector = { isInspectorVisible = false }
+                )
+            }
 
             if (showSelectionPopup) {
                 Popup(alignment = Alignment.Center, onDismissRequest = { showSelectionPopup = false }) {
@@ -182,7 +224,7 @@ data class SceneWorkspaceScreen(val projectId: String) : Screen {
                 }
             },
             text = {
-                Column(modifier = Modifier.width(450.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(modifier = Modifier.widthIn(max = 450.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
@@ -389,7 +431,7 @@ data class SceneWorkspaceScreen(val projectId: String) : Screen {
                 value = searchQuery,
                 onValueChange = onSearchChange,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                placeholder = { Text("Поиск сцены или локации...") },
+                placeholder = { Text("Поиск...") },
                 leadingIcon = { Icon(Icons.Default.Search, null) },
                 shape = CircleShape,
                 singleLine = true
@@ -437,32 +479,110 @@ data class SceneWorkspaceScreen(val projectId: String) : Screen {
     }
 
     @Composable
-    private fun DetailPane(content: String?, props: List<Prop>, selectedPropId: String?, onPropClick: (String) -> Unit, onTextSelected: (String) -> Unit, listState: androidx.compose.foundation.lazy.LazyListState) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            if (content != null) {
-                InteractiveScriptViewer(blocks = ScriptParser().parseBlocks(content), props = props, selectedPropId = selectedPropId, onPropClick = onPropClick, onTextSelected = onTextSelected, modifier = Modifier.fillMaxSize(), listState = listState)
-            } else {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Выберите сцену в левой панели", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) }
+    private fun DetailPane(
+        content: String?, 
+        props: List<Prop>, 
+        selectedPropId: String?, 
+        onPropClick: (String) -> Unit, 
+        onTextSelected: (String) -> Unit, 
+        listState: androidx.compose.foundation.lazy.LazyListState,
+        onOpenInspector: () -> Unit,
+        onOpenMaster: () -> Unit,
+        layoutType: AppLayoutType
+    ) {
+        val isMobile = layoutType == AppLayoutType.MOBILE
+        Column(modifier = Modifier.fillMaxSize()) {
+            if (isMobile && content != null) {
+                TopAppBar(
+                    title = { Text("Текст сценария", style = MaterialTheme.typography.titleMedium) },
+                    navigationIcon = {
+                        IconButton(onClick = onOpenMaster) {
+                            Icon(Icons.Default.Menu, contentDescription = "Список сцен")
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = onOpenInspector) {
+                            Icon(Icons.Default.Info, contentDescription = "Инфо")
+                        }
+                    }
+                )
+            }
+            
+            Box(modifier = Modifier.fillMaxSize()) {
+                if (content != null) {
+                    InteractiveScriptViewer(
+                        blocks = ScriptParser().parseBlocks(content), 
+                        props = props, 
+                        selectedPropId = selectedPropId, 
+                        onPropClick = onPropClick, 
+                        onTextSelected = onTextSelected, 
+                        modifier = Modifier.fillMaxSize(), 
+                        listState = listState,
+                        layoutType = layoutType
+                    )
+                } else {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { 
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Выберите сцену", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                            if (isMobile) {
+                                Spacer(Modifier.height(16.dp))
+                                Button(onClick = onOpenMaster) {
+                                    Icon(Icons.AutoMirrored.Filled.List, null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Открыть список сцен")
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 
     @Composable
-    private fun InspectorPane(data: SceneInspectorData?, onDeleteProp: (String) -> Unit, onPropSelected: (Prop) -> Unit, onShowDiff: (String) -> Unit) {
-        Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
-            Text("Инспектор", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(bottom = 24.dp))
+    private fun InspectorPane(
+        data: SceneInspectorData?, 
+        onDeleteProp: (String) -> Unit, 
+        onPropSelected: (Prop) -> Unit, 
+        onShowDiff: (String) -> Unit,
+        onAcceptChanges: () -> Unit,
+        onClose: (() -> Unit)? = null
+    ) {
+        Column(modifier = Modifier.fillMaxSize().padding(if (onClose != null) 16.dp else 24.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("Инспектор", style = MaterialTheme.typography.titleLarge)
+                if (onClose != null) {
+                    IconButton(onClick = onClose) { Icon(Icons.Default.Close, null) }
+                }
+            }
+            
+            Spacer(Modifier.height(24.dp))
             
             if (data != null) {
                 if (data.needsReview) {
-                    Button(
-                        onClick = { onShowDiff(data.sceneId) },
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9800)),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(Icons.Default.Difference, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Показать изменения", fontWeight = FontWeight.Bold)
+                    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+                        Button(
+                            onClick = { onShowDiff(data.sceneId) },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9800)),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.Difference, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Показать изменения", fontWeight = FontWeight.Bold)
+                        }
+                        
+                        Spacer(Modifier.height(8.dp))
+                        
+                        OutlinedButton(
+                            onClick = onAcceptChanges,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.Check, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Принять все правки")
+                        }
                     }
                 }
 

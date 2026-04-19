@@ -46,8 +46,8 @@ fun InteractiveScriptViewer(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(
-            vertical = if (layoutType == AppLayoutType.MOBILE) 20.dp else 60.dp,
-            horizontal = if (layoutType == AppLayoutType.MOBILE) 16.dp else 40.dp
+            vertical = if (layoutType == AppLayoutType.MOBILE) 16.dp else 60.dp,
+            horizontal = if (layoutType == AppLayoutType.MOBILE) 12.dp else 40.dp
         )
     ) {
         itemsIndexed(blocks) { _, block ->
@@ -81,47 +81,48 @@ fun ScriptBlockItem(
         BlockType.SLUGLINE -> MaterialTheme.typography.bodyLarge.copy(
             fontWeight = FontWeight.Bold, 
             fontFamily = FontFamily.Monospace, 
-            fontSize = if (isMobile) 15.sp else 17.sp, 
+            fontSize = if (isMobile) 14.sp else 17.sp, 
             color = textColor
         )
         BlockType.CHARACTER -> MaterialTheme.typography.bodyMedium.copy(
             fontFamily = FontFamily.Monospace, 
-            fontSize = if (isMobile) 14.sp else 16.sp, 
+            fontSize = if (isMobile) 13.sp else 16.sp, 
             textAlign = TextAlign.Center, 
             fontWeight = FontWeight.Bold,
             color = textColor
         )
         BlockType.DIALOGUE -> MaterialTheme.typography.bodyMedium.copy(
             fontFamily = FontFamily.Monospace, 
-            fontSize = if (isMobile) 14.sp else 16.sp, 
+            fontSize = if (isMobile) 13.sp else 16.sp, 
             textAlign = TextAlign.Start,
             lineHeight = if (isMobile) 18.sp else 22.sp,
             color = textColor.copy(alpha = 0.9f)
         )
         BlockType.PARENTHETICAL -> MaterialTheme.typography.bodySmall.copy(
             fontFamily = FontFamily.Monospace, 
-            fontSize = if (isMobile) 12.sp else 14.sp, 
+            fontSize = if (isMobile) 11.sp else 14.sp, 
             textAlign = TextAlign.Start,
             color = textColor.copy(alpha = 0.7f)
         )
         else -> MaterialTheme.typography.bodyMedium.copy(
             fontFamily = FontFamily.Monospace, 
-            fontSize = if (isMobile) 14.sp else 16.sp, 
+            fontSize = if (isMobile) 13.sp else 16.sp, 
             lineHeight = if (isMobile) 18.sp else 22.sp,
             color = textColor.copy(alpha = 0.85f)
         )
     }
 
     val padding = when (block.type) {
-        BlockType.CHARACTER -> Modifier.padding(top = if (isMobile) 12.dp else 24.dp, bottom = 2.dp).fillMaxWidth()
+        BlockType.CHARACTER -> Modifier.padding(top = if (isMobile) 8.dp else 24.dp, bottom = 1.dp).fillMaxWidth()
         BlockType.DIALOGUE -> {
-            Modifier.padding(start = if (isMobile) 40.dp else 180.dp, end = if (isMobile) 20.dp else 150.dp, bottom = if (isMobile) 8.dp else 12.dp)
+            // Существенно уменьшаем отступы для мобилок, чтобы текст не шел лесенкой
+            Modifier.padding(start = if (isMobile) 24.dp else 180.dp, end = if (isMobile) 16.dp else 150.dp, bottom = if (isMobile) 4.dp else 12.dp)
         }
         BlockType.PARENTHETICAL -> {
-            Modifier.padding(start = if (isMobile) 55.dp else 220.dp, end = if (isMobile) 30.dp else 180.dp, bottom = 4.dp)
+            Modifier.padding(start = if (isMobile) 32.dp else 220.dp, end = if (isMobile) 24.dp else 180.dp, bottom = 2.dp)
         }
-        BlockType.SLUGLINE -> Modifier.padding(top = if (isMobile) 16.dp else 32.dp, bottom = if (isMobile) 8.dp else 16.dp)
-        else -> Modifier.padding(vertical = if (isMobile) 4.dp else 8.dp)
+        BlockType.SLUGLINE -> Modifier.padding(top = if (isMobile) 12.dp else 32.dp, bottom = if (isMobile) 6.dp else 16.dp)
+        else -> Modifier.padding(vertical = if (isMobile) 3.dp else 8.dp)
     }
 
     var selectionRange by remember { mutableStateOf<IntRange?>(null) }
@@ -180,7 +181,6 @@ fun ScriptBlockItem(
                     layoutResult?.let { layout ->
                         val currentOffset = layout.getOffsetForPosition(change.position)
                         initialOffset?.let { start ->
-                            // Вычисляем новый диапазон от начальной точки до текущей
                             val wordAtStart = layout.getWordBoundary(start)
                             val wordAtCurrent = layout.getWordBoundary(currentOffset)
                             

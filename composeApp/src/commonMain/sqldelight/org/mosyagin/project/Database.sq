@@ -525,3 +525,37 @@ UPDATE SyncQueue SET synced = 1 WHERE id IN ?;
 
 lastInsertRowId:
 SELECT last_insert_rowid();
+
+-- ЖУРНАЛ АКТИВНОСТИ
+CREATE TABLE ActivityLog (
+    id TEXT PRIMARY KEY,
+    projectId TEXT NOT NULL,
+    userId TEXT NOT NULL,
+    userName TEXT NOT NULL,
+    type TEXT NOT NULL,
+    action TEXT NOT NULL,
+    entityId TEXT,
+    encryptedEntityName TEXT,
+    encryptedDescription TEXT,
+    encryptedMetadata TEXT,
+    createdAt INTEGER NOT NULL,
+    isDecrypted INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE
+);
+
+insertActivity:
+INSERT OR IGNORE INTO ActivityLog(id, projectId, userId, userName, type, action, entityId, encryptedEntityName, encryptedDescription, encryptedMetadata, createdAt, isDecrypted)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+getActivitiesByProject:
+SELECT * FROM ActivityLog WHERE projectId = ? ORDER BY createdAt DESC;
+
+getActivitiesByIds:
+SELECT * FROM ActivityLog WHERE id IN ?;
+
+updateActivityDecrypted:
+UPDATE ActivityLog SET
+    encryptedEntityName = ?,
+    encryptedDescription = ?,
+    isDecrypted = 1
+WHERE id = ?;

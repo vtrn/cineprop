@@ -97,6 +97,10 @@ val screenModelModule = module {
     factory { (projectId: String) -> 
         TeamViewModel(projectId, get())
     }
+
+    factory { (projectId: String) ->
+        ActivityViewModel(projectId, get())
+    }
     
     factory { SettingsViewModel(get()) }
 }
@@ -115,8 +119,8 @@ val appModule = module {
     // KeyManager зарегистрирован как синглтон и стартует сразу
     single(createdAtStart = true) { KeyManager(get(), get(), get(), get()) }
     
-    // Передаем KeyManager в SyncManager
-    single { SyncManager(get(), get(), get(), get(), get(), get(), get(), get()) }
+    // Передаем KeyManager и ActivityRepository в SyncManager
+    single { SyncManager(get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     
     single { CryptoManager() }
     
@@ -130,14 +134,15 @@ val appModule = module {
         repo.setSyncManager(manager)
         "SyncLinkInitialized"
     }
-    
+
+    single<ActivityRepository> { ActivityRepositoryImpl(get(), get(), get(), get(), get(), get()) }
     single<ProjectRepository> { ProjectRepositoryImpl(get(), get(), get(), get(), get(), get()) }
     
-    single<SceneRepository> { SceneRepositoryImpl(get(), get(), get()) }
+    single<SceneRepository> { SceneRepositoryImpl(get(), get(), get(), get()) }
 
-    single<ScriptRepository> { ScriptRepositoryImpl(get(), get(), get(), get()) }
+    single<ScriptRepository> { ScriptRepositoryImpl(get(), get(), get(), get(), get()) }
 
-    single<KppRepository> { KppRepositoryImpl(get(), get()) }
+    single<KppRepository> { KppRepositoryImpl(get(), get(), get()) }
     single<ShiftRepository> { ShiftRepositoryImpl(get(), get()) }
     
     single<SettingsRepository> { SettingsRepositoryImpl(get()) }

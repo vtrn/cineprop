@@ -52,16 +52,13 @@ fun App() {
                         SlideTransition(navigator)
                     }
                 } else if (!isEncryptionReady && !skipAuth) {
-                    // ЕСЛИ АВТОРИЗОВАН, НО КЛЮЧИ НЕ ГОТОВЫ -> НАСТРОЙКА ЗАЩИТЫ
                     Navigator(CryptoSetupScreen()) { navigator ->
                         SlideTransition(navigator)
                     }
                 } else {
-                    // ОСНОВНОЕ ПРИЛОЖЕНИЕ
                     var isInProject by remember { mutableStateOf(false) }
                     var currentSection by remember { mutableStateOf("projects") }
                     var activeProjectId by remember { mutableStateOf<String?>(null) }
-                    var lastLayoutType by remember { mutableStateOf(AppLayoutType.MOBILE) }
 
                     Navigator(ProjectListScreen()) { navigator ->
                         LaunchedEffect(navigator.lastItem) {
@@ -109,6 +106,11 @@ fun App() {
                                     activeProjectId = item.projectId
                                     currentSection = "team"
                                 }
+                                is ActivityScreen -> {
+                                    isInProject = true
+                                    activeProjectId = item.projectId
+                                    currentSection = "activity"
+                                }
                                 is ProjectListScreen -> {
                                     isInProject = false
                                     activeProjectId = null
@@ -138,10 +140,10 @@ fun App() {
                                     "inventory" -> activeProjectId?.let { navigator.replace(PropWorkspaceScreen(it)) }
                                     "bible" -> activeProjectId?.let { navigator.replace(CharacterWorkspaceScreen(it)) }
                                     "team" -> activeProjectId?.let { navigator.replace(TeamScreen(it)) }
+                                    "activity" -> activeProjectId?.let { navigator.replace(ActivityScreen(it)) }
                                 }
                             }
-                        ) { layoutType ->
-                            lastLayoutType = layoutType
+                        ) { _ ->
                             SlideTransition(navigator)
                         }
                     }
