@@ -145,6 +145,21 @@ data class SceneActorDto(
     @SerialName("actor_id") val actorId: String
 )
 
+@Serializable
+data class ActivityLogDto(
+    @SerialName("id") val id: String,
+    @SerialName("project_id") val projectId: String,
+    @SerialName("user_id") val userId: String,
+    @SerialName("user_name") val userName: String,
+    @SerialName("type") val type: String,
+    @SerialName("action") val action: String,
+    @SerialName("entity_id") val entityId: String?,
+    @SerialName("encrypted_entity_name") val encryptedEntityName: String?,
+    @SerialName("encrypted_description") val encryptedDescription: String?,
+    @SerialName("encrypted_metadata") val encryptedMetadata: String?,
+    @SerialName("created_at") val createdAt: String
+)
+
 // ─────────────────────────────────────────────
 // SyncManager
 // ─────────────────────────────────────────────
@@ -157,7 +172,8 @@ class SyncManager(
     private val authRepository: AuthRepository,
     private val cryptoManager: CryptoManager,
     private val keyVault: KeyVault,
-    private val keyManager: KeyManager
+    private val keyManager: KeyManager,
+    private val activityRepository: ActivityRepository
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
@@ -224,7 +240,7 @@ class SyncManager(
             val tables = listOf(
                 "projects", "project_members", "actors", "script_files",
                 "scenes", "scene_versions", "props", "kpp_files",
-                "shifts", "shift_scenes", "scene_actors"
+                "shifts", "shift_scenes", "scene_actors", "activity_logs"
             )
 
             tables.forEach { tableName ->
@@ -314,6 +330,24 @@ class SyncManager(
                 val dto = json.decodeFromJsonElement<SceneActorDto>(record)
                 queries.upsertSceneActor(dto.sceneId, dto.actorId)
             }
+            "activity_logs" -> {
+                val dto = json.decodeFromJsonElement<ActivityLogDto>(record)
+                queries.insertActivity(
+                    id = dto.id,
+                    projectId = dto.projectId,
+                    userId = dto.userId,
+                    userName = dto.userName,
+                    type = dto.type,
+                    action = dto.action,
+                    entityId = dto.entityId,
+                    encryptedEntityName = dto.encryptedEntityName,
+                    encryptedDescription = dto.encryptedDescription,
+                    encryptedMetadata = dto.encryptedMetadata,
+                    createdAt = dto.createdAt.toEpochMillis(),
+                    isDecrypted = 0L
+                )
+                activityRepository.decryptActivities(dto.projectId)
+            }
         }
     }
 
@@ -353,15 +387,15 @@ class SyncManager(
             val grouped = pending.groupBy { it.tableName to it.operation }
             
             // ВАЖНО: Порядок строго определен родительскими связями
+            // ProjectMember теперь идет ВТОРЫМ, чтобы сервер знал о правах доступа перед вставкой контента
             val tableOrder = listOf(
-                "Project", "Actor", "ScriptFile", "SceneUserData", 
-                "ProjectMember", "SceneVersion", "Prop", "KppFile", 
-                "Shift", "ShiftScene", "SceneActor"
+                "Project", "ProjectMember", "Actor", "ScriptFile", "SceneUserData", 
+                "SceneVersion", "Prop", "KppFile", 
+                "Shift", "ShiftScene", "SceneActor", "ActivityLog"
             )
 
             for (tableName in tableOrder) {
                 // Сначала INSERT, потом UPDATE, затем DELETE для каждой таблицы
-                // Это гарантирует, что ScriptFile улетит раньше SceneVersion
                 grouped[tableName to "INSERT"]?.let { syncTable(tableName, it, isDelete = false) }
                 grouped[tableName to "UPDATE"]?.let { syncTable(tableName, it, isDelete = false) }
                 grouped[tableName to "DELETE"]?.let { syncTable(tableName, it, isDelete = true) }
@@ -437,6 +471,30 @@ class SyncManager(
                     val dtos = recordIds.mapNotNull { id -> val parts = id.split("|"); if (parts.size == 2) SceneActorDto(parts[0], parts[1]) else null }
                     if (dtos.isNotEmpty()) supabase.postgrest["scene_actors"].upsert(dtos)
                 }
+                "ActivityLog" -> {
+                    val dtos = mutableListOf<ActivityLogDto>()
+                    for (it in queries.getActivitiesByIds(recordIds).executeAsList()) {
+                        val key = keyVault.loadMasterKey(it.projectId)
+                        val encName = if (key != null && it.encryptedEntityName != null) cryptoManager.encryptText(it.encryptedEntityName!!, key) else it.encryptedEntityName
+                        val encDesc = if (key != null && it.encryptedDescription != null) cryptoManager.encryptText(it.encryptedDescription!!, key) else it.encryptedDescription
+                        val encMeta = if (key != null && it.encryptedMetadata != null) cryptoManager.encryptText(it.encryptedMetadata!!, key) else it.encryptedMetadata
+                        
+                        dtos.add(ActivityLogDto(
+                            id = it.id,
+                            projectId = it.projectId,
+                            userId = it.userId,
+                            userName = it.userName,
+                            type = it.type,
+                            action = it.action,
+                            entityId = it.entityId,
+                            encryptedEntityName = encName,
+                            encryptedDescription = encDesc,
+                            encryptedMetadata = encMeta,
+                            createdAt = it.createdAt.toIso()
+                        ))
+                    }
+                    if (dtos.isNotEmpty()) supabase.postgrest["activity_logs"].upsert(dtos)
+                }
             }
             syncRepository.markSynced(queueIds)
         } catch (e: Exception) { 
@@ -465,6 +523,8 @@ class SyncManager(
             val actors = supabase.postgrest["actors"].select { filter { eq("project_id", projectId); gt("updated_at", lastSync) } }.decodeList<ActorDto>()
             val scripts = supabase.postgrest["script_files"].select { filter { eq("project_id", projectId); gt("updated_at", lastSync) } }.decodeList<ScriptFileDto>()
             val scenes = supabase.postgrest["scenes"].select { filter { eq("project_id", projectId); gt("updated_at", lastSync) } }.decodeList<SceneDto>()
+            val activity = supabase.postgrest["activity_logs"].select { filter { eq("project_id", projectId); gt("created_at", lastSync) } }.decodeList<ActivityLogDto>()
+            
             val scids = scenes.map { it.id }
             val versions = if (scids.isNotEmpty()) supabase.postgrest["scene_versions"].select { filter { isIn("scene_id", scids) } }.decodeList<SceneVersionDto>() else emptyList()
             val props = if (scids.isNotEmpty()) supabase.postgrest["props"].select { filter { isIn("scene_id", scids) } }.decodeList<PropDto>() else emptyList()
@@ -472,13 +532,21 @@ class SyncManager(
             val decScenes = scenes.map { s -> s.copy(notes = if (isDecrypted && s.notes != null) cryptoManager.decryptText(s.notes, key!!) else s.notes) }
             val decVersions = versions.map { v -> v.copy(content = if (isDecrypted) cryptoManager.decryptText(v.content, key!!) else v.content) }
             val decProps = props.map { p -> p.copy(note = if (isDecrypted && p.note != null) cryptoManager.decryptText(p.note, key!!) else p.note) }
+            
             queries.transaction {
                 actors.forEach { queries.upsertActor(it.id, it.projectId, it.name, it.updatedAt.toEpochMillis()) }
                 scripts.forEach { queries.upsertScriptFile(it.id, it.projectId, it.seriesNumber.toLong(), it.title, it.filePath ?: "", it.createdAt, null, "White", "User", it.updatedAt.toEpochMillis()) }
                 decScenes.forEach { s -> queries.upsertSceneUserData(s.id, s.projectId, s.seriesNumber.toLong(), s.sceneNumber, s.location, if (s.isInterior) 1L else 0L, s.timeOfDay, s.notes, (s.needsReview ?: 0).toLong(), s.updatedAt.toEpochMillis(), if (isDecrypted) 1L else 0L) }
                 decVersions.forEach { v -> queries.upsertSceneVersion(v.id, v.scriptFileId, v.sceneId, v.content, v.contentHash ?: "", v.positionIndex.toLong(), v.updatedAt.toEpochMillis(), if (isDecrypted) 1L else 0L) }
                 decProps.forEach { p -> queries.upsertProp(p.id, p.sceneId, p.name, p.anchor, p.status, p.category, "Обстановочный", p.note, null, if (p.isCrossCutting == true) 1L else 0L, (p.quantity ?: 1).toLong(), p.actorId, 0, 0, 0, p.groupId, p.updatedAt.toEpochMillis(), if (isDecrypted) 1L else 0L) }
+                activity.forEach { a -> 
+                    queries.insertActivity(
+                        a.id, a.projectId, a.userId, a.userName, a.type, a.action, a.entityId, 
+                        a.encryptedEntityName, a.encryptedDescription, a.encryptedMetadata, a.createdAt.toEpochMillis(), 0L
+                    ) 
+                }
             }
+            activityRepository.decryptActivities(projectId)
             updateProjectSyncTimestamp(projectId)
         } catch (e: Exception) { logSync("Project sync failed: ${e.message}") }
     }

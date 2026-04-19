@@ -47,6 +47,7 @@ private fun NavIcon(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+        val iconModifier = Modifier.size(24.dp)
         Box(
             modifier = Modifier.size(28.dp),
             contentAlignment = Alignment.Center
@@ -55,7 +56,7 @@ private fun NavIcon(
                 imageVector = imageVector,
                 contentDescription = label,
                 tint = if (isSelected) activeColor else inactiveColor,
-                modifier = Modifier.size(24.dp)
+                modifier = iconModifier
             )
 
             if (isSelected) {
@@ -189,6 +190,13 @@ fun AdaptiveScaffold(
                                     label = "Команда",
                                     isSelected = isTeamPanelOpen,
                                     onClick = { isTeamPanelOpen = !isTeamPanelOpen }
+                                )
+
+                                NavIcon(
+                                    imageVector = Icons.Default.History,
+                                    label = "Журнал",
+                                    isSelected = currentSection == "activity",
+                                    onClick = { onSectionSelect("activity") }
                                 )
 
                                 Spacer(modifier = Modifier.weight(1f))
