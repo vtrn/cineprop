@@ -16,12 +16,12 @@ class KeyManager(
     private val queries: DatabaseQueries,
     private val cryptoManager: CryptoManager,
     private val keyVault: KeyVault,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val activityRepository: ActivityRepository
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     init {
-        // 1. Следим за готовностью приватного ключа пользователя
         authRepository.isEncryptionReady
             .filter { it }
             .onEach {
@@ -30,8 +30,6 @@ class KeyManager(
             }
             .launchIn(scope)
 
-        // 2. Реактивно следим за таблицей ProjectMember. 
-        // Если прилетел новый wrapped_master_key по Realtime — пытаемся его развернуть.
         queries.getWrappedKeys()
             .asFlow()
             .mapToList(Dispatchers.IO)
@@ -49,18 +47,13 @@ class KeyManager(
                             keyVault.saveMasterKey(member.project_id, unwrapped)
                             logSync("KeyManager: Reactive unwrap for project ${member.project_id}")
                             decryptProjectData(member.project_id)
-                        } catch (e: Exception) {
-                            // Игнорируем ошибки (возможно ключ не для нас)
-                        }
+                        } catch (e: Exception) { }
                     }
                 }
             }
             .launchIn(scope)
     }
 
-    /**
-     * Пытается расшифровать все завернутые мастер-ключи проектов
-     */
     suspend fun unwrapAvailableKeys() {
         val user = authRepository.getCurrentUserSync() ?: return
         val privateKey = keyVault.loadPrivateKey(user.id) ?: return
@@ -74,21 +67,14 @@ class KeyManager(
                         privateKey
                     )
                     keyVault.saveMasterKey(member.project_id, unwrapped)
-                    logSync("KeyManager: Unwrapped key for ${member.project_id}")
                     decryptProjectData(member.project_id)
-                } catch (e: Exception) {
-                    logSync("KeyManager: Unwrapping failed for ${member.project_id}")
-                }
+                } catch (e: Exception) { }
             } else if (keyVault.loadMasterKey(member.project_id) != null) {
-                // Если ключ уже есть, проверяем нерасшифрованные данные
                 decryptProjectData(member.project_id)
             }
         }
     }
 
-    /**
-     * Фоновая расшифровка данных проекта
-     */
     suspend fun decryptProjectData(projectId: String) {
         val key = keyVault.loadMasterKey(projectId) ?: return
         
@@ -128,6 +114,9 @@ class KeyManager(
                         }
                     }
                 }
+
+            // 4. ЖУРНАЛ АКТИВНОСТИ (Новое)
+            activityRepository.decryptActivities(projectId)
         }
     }
 }

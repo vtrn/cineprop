@@ -29,7 +29,8 @@ class MemberRepositoryImpl(
     private val cryptoManager: CryptoManager,
     private val keyVault: KeyVault,
     private val supabase: SupabaseClient,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val activityRepository: ActivityRepository
 ) : MemberRepository {
 
     override fun getMembersByProject(projectId: String): Flow<List<ProjectMember>> =
@@ -69,6 +70,15 @@ class MemberRepositoryImpl(
             )
             
             syncRepository.enqueue("INSERT", "ProjectMember", id, projectId, null)
+
+            activityRepository.logActivity(
+                projectId = projectId,
+                type = "TEAM",
+                action = "ADDED",
+                entityId = id,
+                entityName = email,
+                description = "добавил участника команды"
+            )
             
         } catch (e: Exception) {
             println("MemberRepository: Error adding member: ${e.message}")
@@ -92,7 +102,19 @@ class MemberRepositoryImpl(
 
     override suspend fun removeMember(memberId: String) {
         val member = queries.getProjectMemberById(memberId).executeAsOneOrNull() ?: return
+        val projectId = member.project_id
+        val email = member.email
+        
         queries.deleteProjectMember(memberId)
-        syncRepository.enqueue("DELETE", "ProjectMember", memberId, member.project_id, null)
+        syncRepository.enqueue("DELETE", "ProjectMember", memberId, projectId, null)
+
+        activityRepository.logActivity(
+            projectId = projectId,
+            type = "TEAM",
+            action = "DELETED",
+            entityId = memberId,
+            entityName = email,
+            description = "удалил участника из команды"
+        )
     }
 }

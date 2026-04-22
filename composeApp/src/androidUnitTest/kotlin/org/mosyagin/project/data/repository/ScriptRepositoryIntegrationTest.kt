@@ -8,6 +8,7 @@ import org.mosyagin.project.parser.ScriptParser
 import org.mosyagin.project.repository.FakeSyncRepository
 import org.mosyagin.project.repository.ScriptRepository
 import org.mosyagin.project.repository.ScriptRepositoryImpl
+import org.mosyagin.project.repository.FakeActivityRepository
 import org.mosyagin.project.crypto.PlainDataEncrypter
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -27,7 +28,7 @@ class ScriptRepositoryAndroidIntegrationTest {
         val driver = createTestDriver()
         val database = CinePropDatabase(driver)
         queries = database.databaseQueries
-        repository = ScriptRepositoryImpl(queries, parser, FakeSyncRepository(), PlainDataEncrypter())
+        repository = ScriptRepositoryImpl(queries, parser, FakeSyncRepository(), PlainDataEncrypter(), FakeActivityRepository())
     }
 
     @Test
