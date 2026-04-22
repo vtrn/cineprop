@@ -43,7 +43,7 @@ val databaseModule = module {
  * Модуль для ScreenModels (ViewModels).
  */
 val screenModelModule = module {
-    factory { ProjectListScreenModel(get(), get(), get(), get(), get(), get()) }
+    factory { ProjectListScreenModel(get(), get(), get(), get(), get(), get(), get(), get()) }
     factory { AuthScreenModel(get()) }
     factory { CryptoSetupViewModel(get()) }
     
@@ -117,7 +117,7 @@ val appModule = module {
     single<SyncRepository> { SyncRepositoryImpl(get()) }
 
     // KeyManager зарегистрирован как синглтон и стартует сразу
-    single(createdAtStart = true) { KeyManager(get(), get(), get(), get()) }
+    single(createdAtStart = true) { KeyManager(get(), get(), get(), get(), get()) }
     
     // Передаем KeyManager и ActivityRepository в SyncManager
     single { SyncManager(get(), get(), get(), get(), get(), get(), get(), get(), get()) }
@@ -149,5 +149,5 @@ val appModule = module {
     
     single<AuthRepository>(createdAtStart = true) { AuthRepositoryImpl(get(), get(), get()) }
 
-    single<MemberRepository> { MemberRepositoryImpl(get(), get(), get(), get(), get(), get()) }
+    single<MemberRepository> { MemberRepositoryImpl(get(), get(), get(), get(), get(), get(), get()) }
 }

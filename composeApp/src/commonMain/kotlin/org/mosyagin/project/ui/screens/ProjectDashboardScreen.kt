@@ -1,9 +1,13 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package org.mosyagin.project.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -19,9 +23,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cafe.adriel.voyager.core.screen.Screen
+import cafe.adriel.voyager.koin.koinScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import org.koin.compose.koinInject
+import org.koin.core.parameter.parametersOf
+import org.mosyagin.project.ActivityLog
 import org.mosyagin.project.repository.ProjectRepository
 import org.mosyagin.project.ui.components.AppLayoutType
 import org.mosyagin.project.ui.components.CineCard
@@ -35,9 +42,25 @@ data class ProjectDashboardScreen(val projectId: String) : Screen {
         val repository = koinInject<ProjectRepository>()
         val project by repository.getProjectById(projectId).collectAsState(initial = null)
         val layoutType = LocalAppLayoutType.current
+        
+        // Получаем активность через ViewModel для мини-ленты
+        val activityViewModel = koinScreenModel<ActivityViewModel> { parametersOf(projectId) }
+        val recentActivities by activityViewModel.activities.collectAsState()
 
         Scaffold(
-            containerColor = MaterialTheme.colorScheme.background
+            containerColor = MaterialTheme.colorScheme.background,
+            topBar = {
+                if (layoutType == AppLayoutType.MOBILE) {
+                    TopAppBar(
+                        title = { Text(project?.name ?: "Проект", style = MaterialTheme.typography.titleMedium) },
+                        navigationIcon = {
+                            IconButton(onClick = { navigator.pop() }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
+                            }
+                        }
+                    )
+                }
+            }
         ) { paddingValues ->
             project?.let { currentProject ->
                 LazyVerticalGrid(
@@ -45,34 +68,27 @@ data class ProjectDashboardScreen(val projectId: String) : Screen {
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(paddingValues)
-                        .padding(horizontal = 20.dp),
+                        .padding(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Header
-                    item(span = { GridItemSpan(2) }) {
-                        Column(modifier = Modifier.padding(top = 24.dp, bottom = 12.dp)) {
-                            if (layoutType == AppLayoutType.MOBILE) {
-                                IconButton(
-                                    onClick = { navigator.pop() },
-                                    modifier = Modifier.offset(x = (-12).dp)
-                                ) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
-                                }
-                            }
-                            
-                            Text(
-                                text = currentProject.name,
-                                style = MaterialTheme.typography.headlineMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = (-0.5).sp
+                    // Header (только для Desktop, на Mobile он в TopAppBar)
+                    if (layoutType == AppLayoutType.DESKTOP) {
+                        item(span = { GridItemSpan(2) }) {
+                            Column(modifier = Modifier.padding(top = 24.dp, bottom = 12.dp)) {
+                                Text(
+                                    text = currentProject.name,
+                                    style = MaterialTheme.typography.headlineMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = (-0.5).sp
+                                    )
                                 )
-                            )
-                            Text(
-                                text = "Панель управления проектом",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                                Text(
+                                    text = "Панель управления проектом",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
 
@@ -83,106 +99,108 @@ data class ProjectDashboardScreen(val projectId: String) : Screen {
                             containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
                         ) {
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier.fillMaxWidth().padding(4.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Surface(
-                                        modifier = Modifier.size(52.dp),
-                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.size(48.dp),
+                                        shape = RoundedCornerShape(14.dp),
                                         color = Color(0xFFB4E6B2).copy(alpha = 0.2f)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.CalendarMonth,
                                             contentDescription = null,
                                             modifier = Modifier.padding(12.dp),
-                                            tint = Color(0xFFB4E6B2)
+                                            tint = Color(0xFF2E7D32)
                                         )
                                     }
                                     Spacer(Modifier.width(16.dp))
                                     Column {
                                         Text(
                                             text = "Календарь смен",
-                                            style = MaterialTheme.typography.titleLarge,
+                                            style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.Bold
                                         )
                                         Text(
-                                            text = "Нажмите, чтобы увидеть расписание КПП",
+                                            text = "Расписание КПП",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 }
-                                Icon(
-                                    imageVector = Icons.Default.ChevronRight,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
 
                     item(span = { GridItemSpan(2) }) {
-                        Text(
-                            "Разделы",
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
-                        )
+                        Text("РАЗДЕЛЫ", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline)
                     }
 
                     // Плитки разделов
-                    item {
-                        DashboardActionTile(
-                            "Сценарий", 
-                            Icons.Default.Description,
-                            onClick = { navigator.push(ScriptWorkspaceScreen(projectId)) }
-                        )
+                    item { DashboardActionTile("Сценарий", Icons.Default.Description) { navigator.push(ScriptWorkspaceScreen(projectId)) } }
+                    item { DashboardActionTile("Сцены", Icons.AutoMirrored.Filled.List) { navigator.push(SceneWorkspaceScreen(projectId)) } }
+                    item { DashboardActionTile("КПП", Icons.Default.Event) { navigator.push(KppListScreen(projectId)) } }
+                    item { DashboardActionTile("Трекер", Icons.Default.AddAPhoto) { navigator.push(TrackerScreen(projectId)) } }
+                    item { DashboardActionTile("Реквизит", Icons.Default.Inventory2) { navigator.push(PropWorkspaceScreen(projectId)) } }
+                    item { DashboardActionTile("Библия", Icons.Default.AutoStories) { navigator.push(CharacterWorkspaceScreen(projectId)) } }
+                    item { DashboardActionTile("Команда", Icons.Default.Group) { navigator.push(TeamScreen(projectId)) } }
+                    item { DashboardActionTile("Журнал", Icons.Default.History) { navigator.push(ActivityScreen(projectId)) } }
+
+                    // МИНИ-ЛЕНТА ЖУРНАЛА
+                    item(span = { GridItemSpan(2) }) {
+                        Column(modifier = Modifier.padding(top = 16.dp, bottom = 32.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("ПОСЛЕДНИЕ ИЗМЕНЕНИЯ", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline)
+                                TextButton(onClick = { navigator.push(ActivityScreen(projectId)) }) {
+                                    Text("Все", style = MaterialTheme.typography.labelLarge)
+                                }
+                            }
+                            
+                            Spacer(Modifier.height(8.dp))
+                            
+                            CineCard(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    if (recentActivities.isEmpty()) {
+                                        Text("Действий пока нет", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                                    } else {
+                                        recentActivities.take(3).forEach { log ->
+                                            MiniLogItem(log)
+                                            if (log != recentActivities.take(3).last()) {
+                                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
-                    item {
-                        DashboardActionTile(
-                            "Сцены",
-                            Icons.AutoMirrored.Filled.List,
-                            onClick = { navigator.push(SceneWorkspaceScreen(projectId)) }
-                        )
-                    }
-                    item {
-                        DashboardActionTile(
-                            "КПП", 
-                            Icons.Default.UploadFile,
-                            onClick = { navigator.push(KppListScreen(projectId = currentProject.id)) }
-                        )
-                    }
-                    item {
-                        DashboardActionTile(
-                            "Трекер", 
-                            Icons.Default.AddAPhoto,
-                            onClick = { navigator.push(TrackerScreen(projectId = currentProject.id)) }
-                        )
-                    }
-                    item {
-                        DashboardActionTile(
-                            "Реквизит", 
-                            Icons.Default.Inventory,
-                            onClick = { navigator.push(PropWorkspaceScreen(projectId)) }
-                        )
-                    }
-                    item {
-                        DashboardActionTile(
-                            "Библия", 
-                            Icons.Default.AutoStories,
-                            onClick = { navigator.push(CharacterBibleScreen(projectId)) }
-                        )
-                    }
-                    
-                    // НОВАЯ ПЛИТКА: Команда
-                    item {
-                        DashboardActionTile(
-                            "Команда", 
-                            Icons.Default.Group,
-                            onClick = { navigator.push(TeamScreen(projectId)) }
-                        )
-                    }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun MiniLogItem(log: ActivityLog) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(6.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
+            Spacer(Modifier.width(10.dp))
+            Column {
+                Text(
+                    text = "${log.userName} ${log.encryptedDescription ?: ""}",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                if (!log.encryptedEntityName.isNullOrBlank()) {
+                    Text(log.encryptedEntityName!!, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                 }
             }
         }
@@ -195,22 +213,13 @@ data class ProjectDashboardScreen(val projectId: String) : Screen {
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
         ) {
             Column(
-                modifier = Modifier.fillMaxWidth().height(80.dp),
+                modifier = Modifier.fillMaxWidth().height(70.dp),
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(28.dp)
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Medium
-                )
+                Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(24.dp))
+                Spacer(Modifier.height(4.dp))
+                Text(text = title, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
             }
         }
     }

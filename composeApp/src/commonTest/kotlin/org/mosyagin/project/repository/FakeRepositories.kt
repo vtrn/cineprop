@@ -19,6 +19,7 @@ import org.mosyagin.project.SceneUserData
 import org.mosyagin.project.SceneVersion
 import org.mosyagin.project.SyncQueue
 import org.mosyagin.project.ProjectMember
+import org.mosyagin.project.ActivityLog
 import org.mosyagin.project.generateUUID
 import io.github.jan.supabase.auth.user.UserInfo
 import kotlinx.coroutines.flow.StateFlow
@@ -168,4 +169,11 @@ class FakeShiftRepository : ShiftRepository {
         return shifts.find { it.project_id == projectId && it.shiftNumber == shiftNumber }
     }
     fun getLinksCount(): Int = links.size
+}
+
+
+class FakeActivityRepository : ActivityRepository {
+    override fun getActivities(projectId: String): Flow<List<ActivityLog>> = flowOf(emptyList())
+    override suspend fun logActivity(projectId: String, type: String, action: String, entityId: String?, entityName: String?, description: String?, metadata: String?) {}
+    override suspend fun decryptActivities(projectId: String) {}
 }

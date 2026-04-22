@@ -14,10 +14,7 @@ import org.mosyagin.project.db.CinePropDatabase
 import org.mosyagin.project.db.createTestDriver
 import org.mosyagin.project.parser.ScriptParser
 import org.mosyagin.project.parser.update.ScriptUpdateManager
-import org.mosyagin.project.repository.FakeSyncRepository
-import org.mosyagin.project.repository.ScriptRepository
-import org.mosyagin.project.repository.ScriptRepositoryImpl
-import org.mosyagin.project.repository.SyncRepository
+import org.mosyagin.project.repository.*
 import org.mosyagin.project.crypto.CryptoManager
 import org.mosyagin.project.crypto.KeyVault
 import org.mosyagin.project.crypto.DataEncrypter
@@ -53,6 +50,7 @@ class ScriptRepositoryIntegrationTest : KoinTest {
                 single { dbQueries }
                 single { ScriptParser() }
                 single<SyncRepository> { FakeSyncRepository() }
+                single<ActivityRepository> { FakeActivityRepository() }
                 single { CryptoManager() }
                 // Используем фабрику для тестов
                 single { createTestKeyVault() }
@@ -67,7 +65,7 @@ class ScriptRepositoryIntegrationTest : KoinTest {
 
                 // Теперь конструкторы принимают верное кол-во параметров
                 single { ScriptUpdateManager(get(), get(), get(), get()) }
-                single<ScriptRepository> { ScriptRepositoryImpl(get(), get(), get(), get()) }
+                single<ScriptRepository> { ScriptRepositoryImpl(get(), get(), get(), get(), get()) }
             })
         }
     }

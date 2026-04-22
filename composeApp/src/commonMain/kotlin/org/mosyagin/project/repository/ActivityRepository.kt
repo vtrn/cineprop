@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
 import org.mosyagin.project.ActivityLog
 import org.mosyagin.project.DatabaseQueries
+import org.mosyagin.project.GetAllActivities
 import org.mosyagin.project.crypto.CryptoManager
 import org.mosyagin.project.crypto.KeyVault
 import org.mosyagin.project.generateUUID
@@ -35,6 +36,7 @@ data class ActivityDto(
 
 interface ActivityRepository {
     fun getActivities(projectId: String): Flow<List<ActivityLog>>
+    fun getAllRecentActivities(): Flow<List<GetAllActivities>>
     suspend fun logActivity(
         projectId: String,
         type: String,
@@ -59,6 +61,9 @@ class ActivityRepositoryImpl(
 
     override fun getActivities(projectId: String): Flow<List<ActivityLog>> =
         queries.getActivitiesByProject(projectId).asFlow().mapToList(Dispatchers.IO)
+
+    override fun getAllRecentActivities(): Flow<List<GetAllActivities>> =
+        queries.getAllActivities().asFlow().mapToList(Dispatchers.IO)
 
     override suspend fun logActivity(
         projectId: String,

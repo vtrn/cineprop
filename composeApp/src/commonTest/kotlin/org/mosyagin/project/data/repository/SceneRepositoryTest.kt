@@ -10,6 +10,7 @@ import org.mosyagin.project.DatabaseQueries
 import org.mosyagin.project.db.CinePropDatabase
 import org.mosyagin.project.db.createTestDriver
 import org.mosyagin.project.repository.FakeSyncRepository
+import org.mosyagin.project.repository.FakeActivityRepository
 import org.mosyagin.project.crypto.PlainDataEncrypter
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -38,7 +39,7 @@ class SceneRepositoryTest {
 
         val database = CinePropDatabase(driver)
         queries = database.databaseQueries
-        repository = SceneRepositoryImpl(queries, FakeSyncRepository(), PlainDataEncrypter())
+        repository = SceneRepositoryImpl(queries, FakeSyncRepository(), PlainDataEncrypter(), FakeActivityRepository())
 
         // Создаем базовую структуру для тестов
         val projectId = "test-project-id"

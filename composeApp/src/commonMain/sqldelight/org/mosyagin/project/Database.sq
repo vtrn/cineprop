@@ -550,6 +550,12 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 getActivitiesByProject:
 SELECT * FROM ActivityLog WHERE projectId = ? ORDER BY createdAt DESC;
 
+getAllActivities:
+SELECT al.*, p.name AS projectName
+FROM ActivityLog al
+LEFT JOIN Project p ON al.projectId = p.id
+ORDER BY al.createdAt DESC;
+
 getActivitiesByIds:
 SELECT * FROM ActivityLog WHERE id IN ?;
 
