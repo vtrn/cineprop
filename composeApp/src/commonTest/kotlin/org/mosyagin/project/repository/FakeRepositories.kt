@@ -20,6 +20,7 @@ import org.mosyagin.project.SceneVersion
 import org.mosyagin.project.SyncQueue
 import org.mosyagin.project.ProjectMember
 import org.mosyagin.project.ActivityLog
+import org.mosyagin.project.GetAllActivities
 import org.mosyagin.project.generateUUID
 import io.github.jan.supabase.auth.user.UserInfo
 import kotlinx.coroutines.flow.StateFlow
@@ -174,6 +175,7 @@ class FakeShiftRepository : ShiftRepository {
 
 class FakeActivityRepository : ActivityRepository {
     override fun getActivities(projectId: String): Flow<List<ActivityLog>> = flowOf(emptyList())
+    override fun getAllRecentActivities(): Flow<List<GetAllActivities>> = flowOf(emptyList())
     override suspend fun logActivity(projectId: String, type: String, action: String, entityId: String?, entityName: String?, description: String?, metadata: String?) {}
     override suspend fun decryptActivities(projectId: String) {}
 }
